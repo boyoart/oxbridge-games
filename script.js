@@ -254,6 +254,7 @@ function render() {
     });
   });
 
+  // Dice UI values update here after each roll state transition.
   dice1El.textContent = appState.dice.die1 ?? "-";
   dice2El.textContent = appState.dice.die2 ?? "-";
   diceSummaryEl.textContent = `Die 1: ${appState.dice.die1 ?? "-"} | Die 2: ${appState.dice.die2 ?? "-"} | Total: ${appState.dice.total ?? "-"}`;
@@ -385,6 +386,18 @@ function resetDiceDisplay() {
   appState.dice = { die1: null, die2: null, total: null, rolledSix: false };
 }
 
+function startDiceAnimation() {
+  appState.isRolling = true;
+  dice1El.classList.add("rolling");
+  dice2El.classList.add("rolling");
+}
+
+function stopDiceAnimation() {
+  dice1El.classList.remove("rolling");
+  dice2El.classList.remove("rolling");
+  appState.isRolling = false;
+}
+
 function rollDice(emit = false) {
   // Dice roll state is handled here: permission checks, animation start, and final result commit.
   if (!canCurrentPlayerRoll()) return;
@@ -393,20 +406,17 @@ function rollDice(emit = false) {
   if (!p) return;
   if (appState.mode !== "online" && p.type !== "human" && p.type !== "ai") return;
 
-  appState.isRolling = true;
+  // Dice roll logic starts here so button/AI/turn flows all use one shared path.
+  startDiceAnimation();
   render();
-  dice1El.classList.add("rolling");
-  dice2El.classList.add("rolling");
   // Play dice-roll sound each time the dice roll starts.
   sfx("dice");
 
   setTimeout(() => {
-    dice1El.classList.remove("rolling");
-    dice2El.classList.remove("rolling");
+    stopDiceAnimation();
 
     const roll = rollTwoDice();
     appState.dice = roll;
-    appState.isRolling = false;
     const moves = validMovesFor(appState.currentTurn, roll.total, roll.rolledSix);
     if (!moves.length) {
       updateStatus(`${p.name} rolled ${roll.die1} + ${roll.die2} = ${roll.total}. No valid moves.`);
@@ -561,19 +571,21 @@ function hydrateOnlineState(state) {
 function updateBoardScale() {
   if (!board3dEl || !boardScalerEl) return;
 
+  // Board scaling is driven by viewport width/height so the full square stays visible on mobile/fullscreen.
   const styles = window.getComputedStyle(board3dEl);
   const horizontalPadding = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+  const verticalPadding = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
   const availableWidth = Math.max(220, board3dEl.clientWidth - horizontalPadding);
 
   const viewportHeight = window.innerHeight;
   const boardTop = board3dEl.getBoundingClientRect().top;
-  const availableHeight = Math.max(220, viewportHeight - boardTop - 10);
+  const viewportGap = window.innerWidth <= 640 ? 6 : 14;
+  const availableHeight = Math.max(220, viewportHeight - boardTop - viewportGap - verticalPadding);
 
   const maxSquare = Math.min(availableWidth, availableHeight);
-  const scale = Math.min(1, maxSquare / BOARD_BASE_SIZE);
-  board3dEl.style.setProperty("--board-size", `${BOARD_BASE_SIZE}px`);
-  board3dEl.style.setProperty("--board-scale", scale.toFixed(3));
-  board3dEl.style.minHeight = `${Math.max(230, BOARD_BASE_SIZE * scale + 18)}px`;
+  const boardSize = Math.min(BOARD_BASE_SIZE, maxSquare);
+  board3dEl.style.setProperty("--board-size", `${Math.round(boardSize)}px`);
+  board3dEl.style.minHeight = `${Math.max(230, Math.round(boardSize + verticalPadding + 10))}px`;
 }
 
 function bindUI() {
