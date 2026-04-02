@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flags of the World Quiz</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="top-bar">
+      <a class="ghost-btn" href="/games" aria-label="Return to games list">← Return to Games</a>
+      <button id="fullscreenBtn" class="ghost-btn" type="button">⛶ Fullscreen</button>
+    </header>
+
+    <section id="startScreen" class="card active" aria-labelledby="startTitle">
+      <h1 id="startTitle">Flags of the World Quiz</h1>
+      <p class="subtitle">Can you identify the country from its flag?</p>
+
+      <div class="how-to-play">
+        <h2>How to Play</h2>
+        <ul>
+          <li>You start with <strong>3 lives</strong>.</li>
+          <li>Each question has a <strong>15-second timer</strong>.</li>
+          <li>Choose the correct country name from 4 choices.</li>
+          <li>Wrong answers and timeouts cost 1 life.</li>
+          <li>Game ends when lives reach 0 or all questions are finished.</li>
+        </ul>
+      </div>
+
+      <button id="startGameBtn" class="primary-btn" type="button">Start Game</button>
+    </section>
+
+    <section id="gameScreen" class="card" aria-live="polite">
+      <div class="status-row">
+        <p id="questionCount">Question 1 / 16</p>
+        <p id="scoreDisplay">Score: 0</p>
+        <p id="livesDisplay" aria-label="Lives remaining">Lives: ❤❤❤</p>
+        <p id="timerDisplay" class="timer">Time: 15s</p>
+      </div>
+
+      <div class="flag-frame">
+        <img id="flagImage" src="" alt="Flag question" />
+      </div>
+
+      <h2 id="prompt">Which country's flag is this?</h2>
+
+      <div id="answers" class="answers-grid"></div>
+      <p id="feedback" class="feedback" role="status"></p>
+    </section>
+
+    <section id="endScreen" class="card" aria-labelledby="endTitle">
+      <h2 id="endTitle">Game Over</h2>
+      <p id="finalMessage"></p>
+      <p id="finalScore"></p>
+      <div class="end-actions">
+        <button id="playAgainBtn" class="primary-btn" type="button">Play Again</button>
+        <a class="ghost-btn" href="/games">Return to Games</a>
+      </div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
