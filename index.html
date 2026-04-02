@@ -3,72 +3,62 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Flags of the World Quiz</title>
+  <title>Memory Match | Oxbridge Tutorial College</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="app">
-    <header class="brand-header" aria-label="Oxbridge Tutorial College game header">
-      <div class="brand-mark-wrap">
-        <img class="brand-logo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
+  <div class="bg-shape bg-shape-a" aria-hidden="true"></div>
+  <div class="bg-shape bg-shape-b" aria-hidden="true"></div>
+
+  <main id="gameApp" class="app" aria-label="Memory Match game application">
+    <header class="brand-header">
+      <div id="logoWrap" class="logo-wrap" aria-label="School branding">
+        <img id="schoolLogo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
+        <span id="logoFallback" class="logo-fallback" hidden>Oxbridge Tutorial College</span>
       </div>
-      <div class="brand-title-wrap">
-        <p class="brand-kicker">Oxbridge Interactive Learning</p>
-        <h1 class="brand-title">Flags of the World Quiz</h1>
+
+      <div class="heading-wrap">
+        <p class="kicker">Oxbridge Interactive Learning</p>
+        <h1>Memory Match</h1>
       </div>
-      <div class="top-actions">
-        <a class="ghost-btn" href="/games" aria-label="Return to games list">← Return to Games</a>
-        <button id="fullscreenBtn" class="ghost-btn" type="button">⛶ Fullscreen</button>
+
+      <div class="header-actions">
+        <a class="btn btn-secondary" href="/games">Return to Games</a>
+        <button id="fullscreenBtn" class="btn btn-secondary" type="button">Fullscreen</button>
       </div>
     </header>
 
-    <section id="startScreen" class="card active" aria-labelledby="startTitle">
-      <h2 id="startTitle">Welcome to the Oxbridge Flag Challenge</h2>
-      <p class="subtitle">Can you identify the country from its flag before time runs out?</p>
+    <section class="panel">
+      <div class="controls">
+        <div class="control-group">
+          <label for="difficultySelect">Difficulty</label>
+          <select id="difficultySelect" aria-label="Select difficulty">
+            <option value="easy">Easy (4x4)</option>
+            <option value="medium">Medium (4x5)</option>
+            <option value="hard">Hard (4x6)</option>
+          </select>
+        </div>
 
-      <div class="how-to-play">
-        <h3>How to Play</h3>
-        <ul>
-          <li>You start with <strong>3 lives</strong>.</li>
-          <li>Each question has a <strong>15-second timer</strong>.</li>
-          <li>Choose the correct country name from 4 choices.</li>
-          <li>Wrong answers and timeouts cost 1 life.</li>
-          <li>Game ends when lives reach 0 or all questions are finished.</li>
-        </ul>
+        <div class="control-buttons">
+          <button id="startBtn" class="btn btn-primary" type="button">Start Game</button>
+          <button id="restartBtn" class="btn btn-primary" type="button">Restart Game</button>
+          <button id="soundBtn" class="btn btn-secondary" type="button" aria-pressed="true">Sound: On</button>
+        </div>
       </div>
 
-      <button id="startGameBtn" class="primary-btn" type="button">Start Game</button>
-    </section>
-
-    <section id="gameScreen" class="card" aria-live="polite">
-      <div class="status-row">
-        <p id="questionCount">Question 1 / 16</p>
-        <p id="scoreDisplay">Score: 0</p>
-        <p id="livesDisplay" aria-label="Lives remaining">Lives: ❤❤❤</p>
-        <p id="timerDisplay" class="timer">Time: 15s</p>
+      <div class="stats" aria-live="polite">
+        <p><strong>Moves:</strong> <span id="movesCount">0</span></p>
+        <p><strong>Matched Pairs:</strong> <span id="matchedCount">0</span>/<span id="totalPairsCount">8</span></p>
+        <p><strong>Time:</strong> <span id="timeCount">00:00</span></p>
       </div>
 
-      <div class="flag-frame">
-        <img id="flagImage" src="" alt="Flag question" />
-      </div>
+      <div id="board" class="board" role="grid" aria-label="Memory cards board"></div>
 
-      <h2 id="prompt">Which country's flag is this?</h2>
-
-      <div id="answers" class="answers-grid"></div>
-      <p id="feedback" class="feedback" role="status"></p>
-    </section>
-
-    <section id="endScreen" class="card" aria-labelledby="endTitle">
-      <div class="end-brand-wrap">
-        <img class="brand-logo end-logo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
-      </div>
-      <h2 id="endTitle">Game Over</h2>
-      <p id="finalMessage"></p>
-      <p id="finalScore"></p>
-      <div class="end-actions">
-        <button id="playAgainBtn" class="primary-btn" type="button">Play Again</button>
-        <a class="ghost-btn" href="/games">Return to Games</a>
-      </div>
+      <section id="endScreen" class="end-screen" hidden aria-live="polite">
+        <h2>Excellent work!</h2>
+        <p id="endSummary">You matched all cards.</p>
+        <button id="playAgainBtn" class="btn btn-primary" type="button">Play Again</button>
+      </section>
     </section>
   </main>
 

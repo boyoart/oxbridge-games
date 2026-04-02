@@ -1,66 +1,98 @@
-# Flags of the World Quiz
+# Memory Match (Oxbridge Tutorial College)
 
-A self-hosted HTML5 quiz game designed for school websites.
+A complete self-hosted HTML5 memory game designed for Oxbridge Tutorial College.
 
-## Upload location
-Upload this folder to:
-
-```text
-public_html/games/flags-world/
-```
-
-All files use **relative paths only**, so it works directly from that directory.
-
-## File structure
+## Project structure
 
 ```text
-flags-world/
+memory-match/
 ├─ index.html
 ├─ style.css
 ├─ script.js
-├─ assets/
-│  ├─ flags/
-│  │  ├─ argentina.svg
-│  │  ├─ australia.svg
-│  │  ├─ brazil.svg
-│  │  ├─ canada.svg
-│  │  ├─ france.svg
-│  │  ├─ germany.svg
-│  │  ├─ india.svg
-│  │  ├─ italy.svg
-│  │  ├─ japan.svg
-│  │  ├─ mexico.svg
-│  │  ├─ nigeria.svg
-│  │  ├─ south-korea.svg
-│  │  ├─ spain.svg
-│  │  ├─ sweden.svg
-│  │  ├─ turkey.svg
-│  │  └─ usa.svg
-│  └─ sounds/
-└─ README.md
+├─ README.md
+├─ embed-code.txt
+└─ assets/
+   ├─ cards/
+   ├─ logo/
+   │  └─ logo.png   (upload this file manually)
+   └─ sounds/
 ```
 
-## Features
-- Start screen + How to Play
-- Start Game button
-- Fullscreen button
-- Return to Games button (`/games`)
-- One flag per question
-- 4 randomized answers
-- Randomized question order
-- Score tracking
-- 3 lives system
-- 15-second countdown per question
-- End screen with replay
-- Responsive layout for phones and laptops
-- No external libraries/frameworks
+> Note: The game uses original emoji-based educational card symbols (no copyrighted images required).
 
-## Embedding on a page
+## cPanel upload steps
+
+1. In cPanel File Manager, open `public_html/games/`.
+2. Create folder: `memory-match`.
+3. Upload all files/folders from this project into:
+   - `public_html/games/memory-match/`
+4. Ensure permissions are standard web-readable (usually 644 files, 755 folders).
+5. Visit:
+   - `https://YOURDOMAIN.com/games/memory-match/`
+
+## School logo placement
+
+Upload the school logo to:
+
+```text
+assets/logo/logo.png
+```
+
+The game already uses:
 
 ```html
-<iframe src="/games/flags-world/" style="width:100%;height:85vh;border:0;" allowfullscreen></iframe>
+<img src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo">
 ```
 
-## Notes
-- Works offline once uploaded.
-- You can add more flags by placing more `.svg` files in `assets/flags/` and extending the `flags` array in `script.js`.
+If `logo.png` is missing, the game automatically shows fallback text:
+
+- `Oxbridge Tutorial College`
+
+## WordPress embed
+
+Use this iframe in a Custom HTML block:
+
+```html
+<iframe src="/games/memory-match/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>
+```
+
+## Change card icons/content
+
+Edit `script.js` and update the `symbols` array.
+
+Example:
+
+```js
+{ icon: '📚', label: 'Books' }
+```
+
+- `icon`: displayed on card back.
+- `label`: used to identify matching pairs and accessibility text.
+
+## Change board size and difficulty
+
+Edit `script.js` in the `difficulties` object:
+
+```js
+const difficulties = {
+  easy: { cols: 4, pairs: 8 },
+  medium: { cols: 5, pairs: 10 },
+  hard: { cols: 6, pairs: 12 }
+};
+```
+
+- `cols` controls how many columns are shown.
+- `pairs` controls total pairs (total cards = pairs × 2).
+
+## Disable sounds
+
+You can disable sounds in two ways:
+
+1. In-game: click **Sound: On/Off**.
+2. Permanently: in `script.js`, set:
+
+```js
+let soundEnabled = false;
+```
+
+This game uses generated tone effects in JavaScript (no external audio or CDN).
