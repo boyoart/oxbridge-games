@@ -35,51 +35,39 @@
   let gameActive = false;
   let soundOn = true;
 
-  // Explicit self-hosted sound files. If any file is missing or fails to load,
-  // the game keeps working and silently skips that sound.
-  const soundFiles = {
-    // Used when any control button is clicked.
-    click: "assets/sounds/click.mp3",
-    // Used when a card is flipped.
-    flip: "assets/sounds/flip.mp3",
-    // Used when two cards match.
-    match: "assets/sounds/match.mp3",
-    // Used when two cards do not match.
-    wrong: "assets/sounds/wrong.mp3",
-    // Used when the player wins the game.
-    win: "assets/sounds/win.mp3",
-    // Used for optional button hover feedback.
-    hover: "assets/sounds/hover.mp3"
-  };
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-  const createSound = (src) => {
-    const audio = new Audio(src);
-    audio.preload = "auto";
+  const playTone = (type, duration = 0.08, frequency = 440, volume = 0.03) => {
+    if (!soundOn) return;
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume().catch(() => {});
+    }
 
-    let available = true;
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    oscillator.type = type;
+    oscillator.frequency.value = frequency;
+    gainNode.gain.value = volume;
 
-    audio.addEventListener("error", () => {
-      available = false;
-    });
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscillator.start();
 
-    return {
-      play() {
-        if (!soundOn || !available) return;
-        audio.currentTime = 0;
-        audio.play().catch(() => {
-          // Autoplay restrictions or missing files should not break gameplay.
-        });
-      }
-    };
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+    oscillator.stop(audioCtx.currentTime + duration);
   };
 
   const sounds = {
-    click: createSound(soundFiles.click),
-    flip: createSound(soundFiles.flip),
-    match: createSound(soundFiles.match),
-    wrong: createSound(soundFiles.wrong),
-    win: createSound(soundFiles.win),
-    hover: createSound(soundFiles.hover)
+    button: () => playTone("square", 0.06, 300),
+    flip: () => playTone("triangle", 0.05, 540),
+    match: () => {
+      playTone("sine", 0.09, 640);
+      setTimeout(() => playTone("sine", 0.11, 850), 55);
+    },
+    mismatch: () => playTone("sawtooth", 0.1, 180, 0.025),
+    win: () => {
+      [660, 880, 1100].forEach((freq, i) => setTimeout(() => playTone("triangle", 0.12, freq, 0.035), i * 120));
+    }
   };
 
   schoolLogo.addEventListener("error", () => {
@@ -178,16 +166,14 @@
   const endGame = () => {
     stopTimer();
     gameActive = false;
-    // Play win sound when all pairs are matched.
-    sounds.win.play();
+    sounds.win();
     endMessage.textContent = `Completed in ${moves} moves and ${formatTime(seconds)}.`;
     endScreen.classList.remove("hidden");
   };
 
   const unflipOpenCards = () => {
     lockBoard = true;
-    // Play wrong sound when selected cards do not match.
-    sounds.wrong.play();
+    sounds.mismatch();
     setTimeout(() => {
       openCards.forEach((card) => card.classList.remove("flipped"));
       openCards = [];
@@ -204,8 +190,7 @@
     openCards = [];
     matches += 1;
     updateStats();
-    // Play match sound when a pair is found.
-    sounds.match.play();
+    sounds.match();
 
     if (allMatched()) {
       endGame();
@@ -223,8 +208,7 @@
 
     card.classList.add("flipped");
     openCards.push(card);
-    // Play flip sound each time a card opens.
-    sounds.flip.play();
+    sounds.flip();
 
     if (openCards.length < 2) return;
 
@@ -247,8 +231,7 @@
   };
 
   const toggleFullscreen = async () => {
-    // Play click sound for fullscreen button.
-    sounds.click.play();
+    sounds.button();
 
     if (!document.fullscreenElement) {
       try {
@@ -261,51 +244,36 @@
     }
   };
 
-  const actionControls = [startBtn, restartBtn, fullscreenBtn, returnBtn, playAgainBtn, soundToggle, difficultySelect];
-
-  actionControls.forEach((el) => {
-    el.addEventListener("mouseenter", () => {
-      // Optional hover sound.
-      sounds.hover.play();
-    });
-  });
-
   startBtn.addEventListener("click", () => {
-    // Play click sound on Start Game.
-    sounds.click.play();
+    sounds.button();
     newGame();
   });
 
   restartBtn.addEventListener("click", () => {
-    // Play click sound on Restart Game.
-    sounds.click.play();
+    sounds.button();
     newGame();
   });
 
   playAgainBtn.addEventListener("click", () => {
-    // Play click sound on end screen Play Again.
-    sounds.click.play();
+    sounds.button();
     newGame();
   });
 
   difficultySelect.addEventListener("change", () => {
-    // Play click sound when changing difficulty.
-    sounds.click.play();
+    sounds.button();
     newGame();
   });
 
   fullscreenBtn.addEventListener("click", toggleFullscreen);
 
   returnBtn.addEventListener("click", () => {
-    // Play click sound on Return to Games.
-    sounds.click.play();
+    sounds.button();
   });
 
   soundToggle.addEventListener("click", () => {
     soundOn = !soundOn;
     soundToggle.textContent = soundOn ? "On" : "Off";
-    // Click feedback when toggling sound state.
-    sounds.click.play();
+    sounds.button();
   });
 
   document.addEventListener("visibilitychange", () => {

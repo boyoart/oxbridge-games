@@ -16,12 +16,6 @@ memory-match/
     ├── logo/
     │   └── logo.png   (upload this manually)
     └── sounds/
-        ├── click.mp3
-        ├── flip.mp3
-        ├── match.mp3
-        ├── wrong.mp3
-        ├── win.mp3
-        └── hover.mp3 (optional)
 ```
 
 ## Upload to cPanel
@@ -44,7 +38,7 @@ The game will then be available at:
 
 Place the school logo image at:
 
-`public_html/games/memory-match/assets/logo/logo.png`
+`assets/logo/logo.png`
 
 The game already uses:
 
@@ -55,26 +49,6 @@ The game already uses:
 If the file is missing, the UI automatically shows fallback text:
 
 **Oxbridge Tutorial College**
-
-## Required Sound Files
-
-Upload these sound files to exactly this folder in cPanel:
-
-`public_html/games/memory-match/assets/sounds/`
-
-Required file names used by the code:
-
-- `assets/sounds/flip.mp3` (card flip)
-- `assets/sounds/match.mp3` (successful pair)
-- `assets/sounds/wrong.mp3` (mismatch)
-- `assets/sounds/win.mp3` (game complete)
-- `assets/sounds/click.mp3` (button clicks)
-
-Optional file name used by the code:
-
-- `assets/sounds/hover.mp3` (button hover)
-
-If any sound file is missing, blocked, or fails to load, the game continues normally with no crash.
 
 ## WordPress Embed
 
@@ -122,8 +96,8 @@ In `script.js`, set:
 let soundOn = false;
 ```
 
-### Option 3 (Disable Hover Sound Only)
-Delete/comment `assets/sounds/hover.mp3` or remove `sounds.hover.play()` usage in `script.js`.
+### Option 3 (Fully Remove Sound)
+Delete or comment out the `playTone`/`sounds` logic and related click handlers.
 
 ---
 
