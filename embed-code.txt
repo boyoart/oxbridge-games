@@ -7,5 +7,5 @@ Flip the cards and match pairs while improving memory, focus, and concentration.
 Description:
 Memory Match is a fun educational card game that challenges students to remember card positions and find matching pairs. It helps develop concentration, observation, and short-term memory skills.
 
-WordPress iframe embed code:
+WordPress Embed Code:
 <iframe src="/games/memory-match/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>

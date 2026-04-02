@@ -3,61 +3,76 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Oxbridge Tutorial College Memory Match game" />
   <title>Memory Match | Oxbridge Tutorial College</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="bg-shape bg-shape-a" aria-hidden="true"></div>
-  <div class="bg-shape bg-shape-b" aria-hidden="true"></div>
+  <main class="page" id="gameApp">
+    <section class="game-shell" aria-label="Memory Match Game">
+      <header class="game-header">
+        <div class="brand-wrap">
+          <img
+            src="assets/logo/logo.png"
+            alt="Oxbridge Tutorial College Logo"
+            class="school-logo"
+            id="schoolLogo"
+          />
+          <span class="logo-fallback" id="logoFallback">Oxbridge Tutorial College</span>
+        </div>
+        <div class="title-wrap">
+          <h1>Memory Match</h1>
+          <p>Flip, remember, and match every pair.</p>
+        </div>
+      </header>
 
-  <main id="gameApp" class="app" aria-label="Memory Match game application">
-    <header class="brand-header">
-      <div id="logoWrap" class="logo-wrap" aria-label="School branding">
-        <img id="schoolLogo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
-        <span id="logoFallback" class="logo-fallback" hidden>Oxbridge Tutorial College</span>
-      </div>
-
-      <div class="heading-wrap">
-        <p class="kicker">Oxbridge Interactive Learning</p>
-        <h1>Memory Match</h1>
-      </div>
-
-      <div class="header-actions">
-        <a class="btn btn-secondary" href="/games">Return to Games</a>
-        <button id="fullscreenBtn" class="btn btn-secondary" type="button">Fullscreen</button>
-      </div>
-    </header>
-
-    <section class="panel">
-      <div class="controls">
-        <div class="control-group">
-          <label for="difficultySelect">Difficulty</label>
-          <select id="difficultySelect" aria-label="Select difficulty">
+      <section class="controls" aria-label="Game Controls">
+        <div class="difficulty-wrap">
+          <label for="difficulty">Difficulty</label>
+          <select id="difficulty" aria-label="Select difficulty level">
             <option value="easy">Easy (4x4)</option>
             <option value="medium">Medium (4x5)</option>
             <option value="hard">Hard (4x6)</option>
           </select>
         </div>
 
-        <div class="control-buttons">
-          <button id="startBtn" class="btn btn-primary" type="button">Start Game</button>
-          <button id="restartBtn" class="btn btn-primary" type="button">Restart Game</button>
-          <button id="soundBtn" class="btn btn-secondary" type="button" aria-pressed="true">Sound: On</button>
+        <div class="button-row">
+          <button id="startBtn" class="btn">Start Game</button>
+          <button id="restartBtn" class="btn">Restart Game</button>
+          <button id="fullscreenBtn" class="btn">Fullscreen</button>
+          <a href="/games" class="btn btn-link" id="returnBtn">Return to Games</a>
         </div>
-      </div>
+      </section>
 
-      <div class="stats" aria-live="polite">
-        <p><strong>Moves:</strong> <span id="movesCount">0</span></p>
-        <p><strong>Matched Pairs:</strong> <span id="matchedCount">0</span>/<span id="totalPairsCount">8</span></p>
-        <p><strong>Time:</strong> <span id="timeCount">00:00</span></p>
-      </div>
+      <section class="stats" aria-label="Game Stats">
+        <article class="stat-card">
+          <h2>Moves</h2>
+          <p id="movesCount">0</p>
+        </article>
+        <article class="stat-card">
+          <h2>Matched</h2>
+          <p><span id="matchedCount">0</span>/<span id="totalPairs">8</span></p>
+        </article>
+        <article class="stat-card">
+          <h2>Time</h2>
+          <p id="timeCount">00:00</p>
+        </article>
+        <article class="stat-card sound-toggle-card">
+          <h2>Sound</h2>
+          <button id="soundToggle" class="btn small">On</button>
+        </article>
+      </section>
 
-      <div id="board" class="board" role="grid" aria-label="Memory cards board"></div>
+      <section class="board-wrap">
+        <div id="gameBoard" class="game-board" aria-live="polite"></div>
+      </section>
 
-      <section id="endScreen" class="end-screen" hidden aria-live="polite">
-        <h2>Excellent work!</h2>
-        <p id="endSummary">You matched all cards.</p>
-        <button id="playAgainBtn" class="btn btn-primary" type="button">Play Again</button>
+      <section id="endScreen" class="end-screen hidden" role="dialog" aria-modal="true" aria-labelledby="endTitle">
+        <div class="end-content">
+          <h2 id="endTitle">Well done!</h2>
+          <p id="endMessage">You completed the challenge.</p>
+          <button id="playAgainBtn" class="btn">Play Again</button>
+        </div>
       </section>
     </section>
   </main>

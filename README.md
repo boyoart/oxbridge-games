@@ -1,42 +1,50 @@
 # Memory Match (Oxbridge Tutorial College)
 
-A complete self-hosted HTML5 memory game designed for Oxbridge Tutorial College.
+A complete self-hosted HTML5 memory card game built with plain HTML, CSS, and JavaScript.
 
-## Project structure
+## Project Structure
 
 ```text
 memory-match/
-├─ index.html
-├─ style.css
-├─ script.js
-├─ README.md
-├─ embed-code.txt
-└─ assets/
-   ├─ cards/
-   ├─ logo/
-   │  └─ logo.png   (upload this file manually)
-   └─ sounds/
+├── index.html
+├── style.css
+├── script.js
+├── README.md
+├── embed-code.txt
+└── assets/
+    ├── cards/
+    ├── logo/
+    │   └── logo.png   (upload this manually)
+    └── sounds/
+        ├── click.mp3
+        ├── flip.mp3
+        ├── match.mp3
+        ├── wrong.mp3
+        ├── win.mp3
+        └── hover.mp3 (optional)
 ```
 
-> Note: The game uses original emoji-based educational card symbols (no copyrighted images required).
+## Upload to cPanel
 
-## cPanel upload steps
+1. Open **cPanel → File Manager**.
+2. Navigate to: `public_html/games/`
+3. Create folder: `memory-match`
+4. Upload all files and folders from this project into:
+   `public_html/games/memory-match/`
+5. Ensure these files are directly inside that folder:
+   - `index.html`
+   - `style.css`
+   - `script.js`
 
-1. In cPanel File Manager, open `public_html/games/`.
-2. Create folder: `memory-match`.
-3. Upload all files/folders from this project into:
-   - `public_html/games/memory-match/`
-4. Ensure permissions are standard web-readable (usually 644 files, 755 folders).
-5. Visit:
-   - `https://YOURDOMAIN.com/games/memory-match/`
+The game will then be available at:
 
-## School logo placement
+`https://YOURDOMAIN.com/games/memory-match/`
 
-Upload the school logo to:
+## School Logo Placement
 
-```text
-assets/logo/logo.png
-```
+Place the school logo image at:
+
+`public_html/games/memory-match/assets/logo/logo.png`
 
 The game already uses:
 
@@ -44,55 +52,79 @@ The game already uses:
 <img src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo">
 ```
 
-If `logo.png` is missing, the game automatically shows fallback text:
+If the file is missing, the UI automatically shows fallback text:
 
-- `Oxbridge Tutorial College`
+**Oxbridge Tutorial College**
 
-## WordPress embed
+## Required Sound Files
 
-Use this iframe in a Custom HTML block:
+Upload these sound files to exactly this folder in cPanel:
+
+`public_html/games/memory-match/assets/sounds/`
+
+Required file names used by the code:
+
+- `assets/sounds/flip.mp3` (card flip)
+- `assets/sounds/match.mp3` (successful pair)
+- `assets/sounds/wrong.mp3` (mismatch)
+- `assets/sounds/win.mp3` (game complete)
+- `assets/sounds/click.mp3` (button clicks)
+
+Optional file name used by the code:
+
+- `assets/sounds/hover.mp3` (button hover)
+
+If any sound file is missing, blocked, or fails to load, the game continues normally with no crash.
+
+## WordPress Embed
+
+Use this iframe code in a Custom HTML block:
 
 ```html
 <iframe src="/games/memory-match/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>
 ```
 
-## Change card icons/content
+## Change Card Icons/Content
 
-Edit `script.js` and update the `symbols` array.
+Open `script.js` and edit the `symbols` array near the top.
 
 Example:
 
 ```js
-{ icon: '📚', label: 'Books' }
+const symbols = ["📚", "🔬", "🌍", "✏️", "🏆", "🎵", "🧮", "🚩", "🧠", "📝", "🧪", "📐"];
 ```
 
-- `icon`: displayed on card back.
-- `label`: used to identify matching pairs and accessibility text.
+Use emojis, letters, or short symbols.
 
-## Change board size and difficulty
+## Change Board Size and Difficulty
 
-Edit `script.js` in the `difficulties` object:
+In `script.js`, update the `difficulties` object:
 
 ```js
 const difficulties = {
-  easy: { cols: 4, pairs: 8 },
-  medium: { cols: 5, pairs: 10 },
-  hard: { cols: 6, pairs: 12 }
+  easy: { rows: 4, cols: 4 },
+  medium: { rows: 4, cols: 5 },
+  hard: { rows: 4, cols: 6 }
 };
 ```
 
-- `cols` controls how many columns are shown.
-- `pairs` controls total pairs (total cards = pairs × 2).
+You can also change labels in `index.html` inside the `<select id="difficulty">` options.
 
-## Disable sounds
+## Disable Sounds
 
-You can disable sounds in two ways:
+### Option 1 (UI)
+Use the **Sound** toggle button in-game.
 
-1. In-game: click **Sound: On/Off**.
-2. Permanently: in `script.js`, set:
+### Option 2 (Default Off)
+In `script.js`, set:
 
 ```js
-let soundEnabled = false;
+let soundOn = false;
 ```
 
-This game uses generated tone effects in JavaScript (no external audio or CDN).
+### Option 3 (Disable Hover Sound Only)
+Delete/comment `assets/sounds/hover.mp3` or remove `sounds.hover.play()` usage in `script.js`.
+
+---
+
+Built as a self-hosted, school-friendly educational web game for Oxbridge Tutorial College.

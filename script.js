@@ -1,293 +1,320 @@
-const difficulties = {
-  easy: { cols: 4, pairs: 8 },
-  medium: { cols: 5, pairs: 10 },
-  hard: { cols: 6, pairs: 12 }
-};
-
-const symbols = [
-  { icon: '📚', label: 'Books' },
-  { icon: '🔬', label: 'Science' },
-  { icon: '🌍', label: 'Globe' },
-  { icon: '✏️', label: 'Pencil' },
-  { icon: '🏆', label: 'Trophy' },
-  { icon: '🎵', label: 'Music note' },
-  { icon: '🧮', label: 'Calculator' },
-  { icon: '⚗️', label: 'Lab flask' },
-  { icon: '📐', label: 'Geometry set' },
-  { icon: '📝', label: 'Notebook' },
-  { icon: '🌟', label: 'Achievement star' },
-  { icon: '🧠', label: 'Brain' }
-];
-
-const board = document.getElementById('board');
-const startBtn = document.getElementById('startBtn');
-const restartBtn = document.getElementById('restartBtn');
-const playAgainBtn = document.getElementById('playAgainBtn');
-const fullscreenBtn = document.getElementById('fullscreenBtn');
-const soundBtn = document.getElementById('soundBtn');
-const difficultySelect = document.getElementById('difficultySelect');
-const movesCount = document.getElementById('movesCount');
-const matchedCount = document.getElementById('matchedCount');
-const totalPairsCount = document.getElementById('totalPairsCount');
-const timeCount = document.getElementById('timeCount');
-const endScreen = document.getElementById('endScreen');
-const endSummary = document.getElementById('endSummary');
-const gameApp = document.getElementById('gameApp');
-const schoolLogo = document.getElementById('schoolLogo');
-const logoFallback = document.getElementById('logoFallback');
-
-let gameStarted = false;
-let canFlip = true;
-let firstCard = null;
-let secondCard = null;
-let moves = 0;
-let matchedPairs = 0;
-let totalPairs = difficulties.easy.pairs;
-let timerId = null;
-let startTime = null;
-let soundEnabled = true;
-
-function showLogoFallback() {
-  schoolLogo.hidden = true;
-  logoFallback.hidden = false;
-}
-
-schoolLogo.addEventListener('error', showLogoFallback, { once: true });
-if (schoolLogo.complete && schoolLogo.naturalWidth === 0) {
-  showLogoFallback();
-}
-
-function shuffle(array) {
-  const copy = [...array];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-function createDeck(pairCount) {
-  const selected = shuffle(symbols).slice(0, pairCount);
-  return shuffle([...selected, ...selected]).map((item, index) => ({
-    ...item,
-    uid: `${item.label}-${index}`
-  }));
-}
-
-function formatTime(seconds) {
-  const mins = String(Math.floor(seconds / 60)).padStart(2, '0');
-  const secs = String(seconds % 60).padStart(2, '0');
-  return `${mins}:${secs}`;
-}
-
-function updateStats() {
-  movesCount.textContent = String(moves);
-  matchedCount.textContent = String(matchedPairs);
-  totalPairsCount.textContent = String(totalPairs);
-}
-
-function startTimer() {
-  clearInterval(timerId);
-  startTime = Date.now();
-  timeCount.textContent = '00:00';
-
-  timerId = setInterval(() => {
-    const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    timeCount.textContent = formatTime(elapsed);
-  }, 1000);
-}
-
-function stopTimer() {
-  clearInterval(timerId);
-}
-
-function playTone(type) {
-  if (!soundEnabled) return;
-
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const oscillator = audioCtx.createOscillator();
-  const gainNode = audioCtx.createGain();
-
-  oscillator.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
-
-  const now = audioCtx.currentTime;
-  const tones = {
-    click: [540, 0.06],
-    flip: [420, 0.08],
-    match: [760, 0.15],
-    mismatch: [210, 0.2],
-    success: [960, 0.35]
+(() => {
+  const symbols = ["📚", "🔬", "🌍", "✏️", "🏆", "🎵", "🧮", "🚩", "🧠", "📝", "🧪", "📐"];
+  const difficulties = {
+    easy: { rows: 4, cols: 4 },
+    medium: { rows: 4, cols: 5 },
+    hard: { rows: 4, cols: 6 }
   };
 
-  const [freq, duration] = tones[type] || tones.click;
-  oscillator.frequency.setValueAtTime(freq, now);
-  gainNode.gain.setValueAtTime(0.001, now);
-  gainNode.gain.exponentialRampToValueAtTime(0.17, now + 0.01);
-  gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
-  oscillator.start(now);
-  oscillator.stop(now + duration + 0.01);
+  const app = document.getElementById("gameApp");
+  const board = document.getElementById("gameBoard");
+  const startBtn = document.getElementById("startBtn");
+  const restartBtn = document.getElementById("restartBtn");
+  const fullscreenBtn = document.getElementById("fullscreenBtn");
+  const returnBtn = document.getElementById("returnBtn");
+  const playAgainBtn = document.getElementById("playAgainBtn");
+  const soundToggle = document.getElementById("soundToggle");
+  const difficultySelect = document.getElementById("difficulty");
+  const movesCount = document.getElementById("movesCount");
+  const matchedCount = document.getElementById("matchedCount");
+  const totalPairs = document.getElementById("totalPairs");
+  const timeCount = document.getElementById("timeCount");
+  const endScreen = document.getElementById("endScreen");
+  const endMessage = document.getElementById("endMessage");
+  const schoolLogo = document.getElementById("schoolLogo");
+  const logoFallback = document.getElementById("logoFallback");
 
-  oscillator.onended = () => {
-    audioCtx.close();
+  let cards = [];
+  let openCards = [];
+  let moves = 0;
+  let matches = 0;
+  let total = 0;
+  let timer = null;
+  let seconds = 0;
+  let lockBoard = false;
+  let gameActive = false;
+  let soundOn = true;
+
+  // Explicit self-hosted sound files. If any file is missing or fails to load,
+  // the game keeps working and silently skips that sound.
+  const soundFiles = {
+    // Used when any control button is clicked.
+    click: "assets/sounds/click.mp3",
+    // Used when a card is flipped.
+    flip: "assets/sounds/flip.mp3",
+    // Used when two cards match.
+    match: "assets/sounds/match.mp3",
+    // Used when two cards do not match.
+    wrong: "assets/sounds/wrong.mp3",
+    // Used when the player wins the game.
+    win: "assets/sounds/win.mp3",
+    // Used for optional button hover feedback.
+    hover: "assets/sounds/hover.mp3"
   };
-}
 
-function lockBoardTemporarily(delay = 750) {
-  canFlip = false;
-  setTimeout(() => {
-    canFlip = true;
-  }, delay);
-}
+  const createSound = (src) => {
+    const audio = new Audio(src);
+    audio.preload = "auto";
 
-function resetTurn() {
-  firstCard = null;
-  secondCard = null;
-}
+    let available = true;
 
-function finishGame() {
-  gameStarted = false;
-  canFlip = false;
-  stopTimer();
-  playTone('success');
-  endSummary.textContent = `Completed in ${moves} moves and ${timeCount.textContent}.`;
-  endScreen.hidden = false;
-}
+    audio.addEventListener("error", () => {
+      available = false;
+    });
 
-function checkPair() {
-  if (!firstCard || !secondCard) return;
+    return {
+      play() {
+        if (!soundOn || !available) return;
+        audio.currentTime = 0;
+        audio.play().catch(() => {
+          // Autoplay restrictions or missing files should not break gameplay.
+        });
+      }
+    };
+  };
 
-  const matched = firstCard.dataset.symbol === secondCard.dataset.symbol;
+  const sounds = {
+    click: createSound(soundFiles.click),
+    flip: createSound(soundFiles.flip),
+    match: createSound(soundFiles.match),
+    wrong: createSound(soundFiles.wrong),
+    win: createSound(soundFiles.win),
+    hover: createSound(soundFiles.hover)
+  };
 
-  if (matched) {
-    firstCard.classList.add('is-matched');
-    secondCard.classList.add('is-matched');
-    firstCard.setAttribute('aria-disabled', 'true');
-    secondCard.setAttribute('aria-disabled', 'true');
-    matchedPairs += 1;
-    updateStats();
-    playTone('match');
-    resetTurn();
-
-    if (matchedPairs === totalPairs) {
-      finishGame();
-    }
-    return;
-  }
-
-  playTone('mismatch');
-  lockBoardTemporarily();
-  setTimeout(() => {
-    firstCard.classList.remove('is-open');
-    secondCard.classList.remove('is-open');
-    resetTurn();
-  }, 720);
-}
-
-function flipCard(button) {
-  if (!gameStarted || !canFlip) return;
-  if (button.classList.contains('is-open') || button.classList.contains('is-matched')) return;
-
-  playTone('flip');
-  button.classList.add('is-open');
-
-  if (!firstCard) {
-    firstCard = button;
-    return;
-  }
-
-  secondCard = button;
-  moves += 1;
-  updateStats();
-  checkPair();
-}
-
-function createCard(item) {
-  const card = document.createElement('button');
-  card.type = 'button';
-  card.className = 'card';
-  card.dataset.symbol = item.label;
-  card.setAttribute('role', 'gridcell');
-  card.setAttribute('aria-label', `Memory card: ${item.label}`);
-
-  const front = document.createElement('span');
-  front.className = 'card-face card-front';
-  front.textContent = 'OTC';
-
-  const back = document.createElement('span');
-  back.className = 'card-face card-back';
-  back.textContent = item.icon;
-  back.title = item.label;
-
-  card.append(front, back);
-  card.addEventListener('click', () => flipCard(card));
-
-  return card;
-}
-
-function buildBoard() {
-  const level = difficulties[difficultySelect.value] || difficulties.easy;
-  totalPairs = level.pairs;
-
-  const deck = createDeck(totalPairs);
-  board.innerHTML = '';
-  board.style.gridTemplateColumns = `repeat(${level.cols}, minmax(0, 1fr))`;
-
-  deck.forEach((item) => {
-    board.appendChild(createCard(item));
+  schoolLogo.addEventListener("error", () => {
+    schoolLogo.style.display = "none";
+    logoFallback.style.display = "block";
   });
-}
 
-function startGame() {
-  gameStarted = true;
-  canFlip = true;
-  moves = 0;
-  matchedPairs = 0;
-  endScreen.hidden = true;
-  resetTurn();
-  buildBoard();
-  updateStats();
-  startTimer();
-}
+  const shuffle = (array) => {
+    for (let i = array.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  };
 
-function restartGame() {
-  playTone('click');
-  startGame();
-}
+  const formatTime = (s) => {
+    const mins = Math.floor(s / 60).toString().padStart(2, "0");
+    const secs = (s % 60).toString().padStart(2, "0");
+    return `${mins}:${secs}`;
+  };
 
-async function toggleFullscreen() {
-  playTone('click');
-  try {
+  const updateStats = () => {
+    movesCount.textContent = moves;
+    matchedCount.textContent = matches;
+    totalPairs.textContent = total;
+    timeCount.textContent = formatTime(seconds);
+  };
+
+  const stopTimer = () => {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  };
+
+  const startTimer = () => {
+    stopTimer();
+    timer = setInterval(() => {
+      seconds += 1;
+      timeCount.textContent = formatTime(seconds);
+    }, 1000);
+  };
+
+  const makeCard = (symbol, index) => {
+    const cardBtn = document.createElement("button");
+    cardBtn.className = "card";
+    cardBtn.type = "button";
+    cardBtn.dataset.value = symbol;
+    cardBtn.dataset.index = String(index);
+    cardBtn.setAttribute("aria-label", "Memory card");
+
+    cardBtn.innerHTML = `
+      <span class="card-inner">
+        <span class="card-face card-front" aria-hidden="true"></span>
+        <span class="card-face card-back" aria-hidden="true">${symbol}</span>
+      </span>
+    `;
+
+    cardBtn.addEventListener("click", () => flipCard(cardBtn));
+    return cardBtn;
+  };
+
+  const applyGrid = ({ rows, cols }) => {
+    board.style.gridTemplateColumns = `repeat(${cols}, minmax(58px, 1fr))`;
+    board.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+  };
+
+  const resetState = () => {
+    cards = [];
+    openCards = [];
+    moves = 0;
+    matches = 0;
+    seconds = 0;
+    lockBoard = false;
+    gameActive = true;
+    updateStats();
+    endScreen.classList.add("hidden");
+  };
+
+  const buildDeck = () => {
+    const difficulty = difficulties[difficultySelect.value] || difficulties.easy;
+    const pairCount = (difficulty.rows * difficulty.cols) / 2;
+    const selected = symbols.slice(0, pairCount);
+    const deck = shuffle([...selected, ...selected]);
+
+    total = pairCount;
+    applyGrid(difficulty);
+
+    board.innerHTML = "";
+    cards = deck.map((symbol, idx) => makeCard(symbol, idx));
+    cards.forEach((card) => board.appendChild(card));
+  };
+
+  const allMatched = () => matches === total;
+
+  const endGame = () => {
+    stopTimer();
+    gameActive = false;
+    // Play win sound when all pairs are matched.
+    sounds.win.play();
+    endMessage.textContent = `Completed in ${moves} moves and ${formatTime(seconds)}.`;
+    endScreen.classList.remove("hidden");
+  };
+
+  const unflipOpenCards = () => {
+    lockBoard = true;
+    // Play wrong sound when selected cards do not match.
+    sounds.wrong.play();
+    setTimeout(() => {
+      openCards.forEach((card) => card.classList.remove("flipped"));
+      openCards = [];
+      lockBoard = false;
+    }, 700);
+  };
+
+  const markMatched = () => {
+    openCards.forEach((card) => {
+      card.classList.add("matched");
+      card.disabled = true;
+    });
+
+    openCards = [];
+    matches += 1;
+    updateStats();
+    // Play match sound when a pair is found.
+    sounds.match.play();
+
+    if (allMatched()) {
+      endGame();
+    }
+  };
+
+  const flipCard = (card) => {
+    if (!gameActive || lockBoard || card.disabled || card.classList.contains("flipped")) {
+      return;
+    }
+
+    if (moves === 0 && openCards.length === 0) {
+      startTimer();
+    }
+
+    card.classList.add("flipped");
+    openCards.push(card);
+    // Play flip sound each time a card opens.
+    sounds.flip.play();
+
+    if (openCards.length < 2) return;
+
+    moves += 1;
+    updateStats();
+
+    const [first, second] = openCards;
+    if (first.dataset.value === second.dataset.value) {
+      markMatched();
+    } else {
+      unflipOpenCards();
+    }
+  };
+
+  const newGame = () => {
+    resetState();
+    stopTimer();
+    buildDeck();
+    updateStats();
+  };
+
+  const toggleFullscreen = async () => {
+    // Play click sound for fullscreen button.
+    sounds.click.play();
+
     if (!document.fullscreenElement) {
-      await gameApp.requestFullscreen();
+      try {
+        await app.requestFullscreen();
+      } catch (_) {
+        // No-op for browsers that block fullscreen without user permissions.
+      }
     } else {
       await document.exitFullscreen();
     }
-  } catch (_error) {
-    // Browser may block fullscreen in iframes without interaction/permission.
-  }
-}
+  };
 
-function toggleSound() {
-  soundEnabled = !soundEnabled;
-  soundBtn.textContent = `Sound: ${soundEnabled ? 'On' : 'Off'}`;
-  soundBtn.setAttribute('aria-pressed', String(soundEnabled));
-  if (soundEnabled) playTone('click');
-}
+  const actionControls = [startBtn, restartBtn, fullscreenBtn, returnBtn, playAgainBtn, soundToggle, difficultySelect];
 
-startBtn.addEventListener('click', () => {
-  playTone('click');
-  startGame();
-});
-restartBtn.addEventListener('click', restartGame);
-playAgainBtn.addEventListener('click', restartGame);
-fullscreenBtn.addEventListener('click', toggleFullscreen);
-soundBtn.addEventListener('click', toggleSound);
-difficultySelect.addEventListener('change', () => {
-  if (gameStarted) {
-    restartGame();
-  }
-});
+  actionControls.forEach((el) => {
+    el.addEventListener("mouseenter", () => {
+      // Optional hover sound.
+      sounds.hover.play();
+    });
+  });
 
-updateStats();
-buildBoard();
+  startBtn.addEventListener("click", () => {
+    // Play click sound on Start Game.
+    sounds.click.play();
+    newGame();
+  });
+
+  restartBtn.addEventListener("click", () => {
+    // Play click sound on Restart Game.
+    sounds.click.play();
+    newGame();
+  });
+
+  playAgainBtn.addEventListener("click", () => {
+    // Play click sound on end screen Play Again.
+    sounds.click.play();
+    newGame();
+  });
+
+  difficultySelect.addEventListener("change", () => {
+    // Play click sound when changing difficulty.
+    sounds.click.play();
+    newGame();
+  });
+
+  fullscreenBtn.addEventListener("click", toggleFullscreen);
+
+  returnBtn.addEventListener("click", () => {
+    // Play click sound on Return to Games.
+    sounds.click.play();
+  });
+
+  soundToggle.addEventListener("click", () => {
+    soundOn = !soundOn;
+    soundToggle.textContent = soundOn ? "On" : "Off";
+    // Click feedback when toggling sound state.
+    sounds.click.play();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && gameActive) {
+      stopTimer();
+    } else if (!document.hidden && gameActive && !allMatched() && moves > 0) {
+      startTimer();
+    }
+  });
+
+  newGame();
+})();
