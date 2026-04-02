@@ -4,6 +4,9 @@ const gameStatusEl = document.getElementById('gameStatus');
 const restartBtn = document.getElementById('restartBtn');
 const undoBtn = document.getElementById('undoBtn');
 const fullscreenBtn = document.getElementById('fullscreenBtn');
+const headerTurnIndicatorEl = document.getElementById('headerTurnIndicator');
+const whitePanelEl = document.getElementById('whitePanel');
+const redPanelEl = document.getElementById('redPanel');
 const difficultyEl = document.getElementById('difficulty');
 const logo = document.getElementById('schoolLogo');
 const logoWrap = document.getElementById('logoWrap');
@@ -12,10 +15,10 @@ const container = document.getElementById('gameContainer');
 
 function pieceSvg(color, type) {
   const ivory = color === 'w';
-  const main = ivory ? '#f7efe3' : '#9f1228';
-  const mid = ivory ? '#d9c8b2' : '#650216';
-  const edge = ivory ? '#7f6b55' : '#2b0009';
-  const shine = ivory ? 'rgba(255,255,255,0.62)' : 'rgba(255,226,232,0.2)';
+  const main = ivory ? '#f9f1e5' : '#9f1328';
+  const mid = ivory ? '#dcc7a9' : '#6a0318';
+  const edge = ivory ? '#755f49' : '#2d000a';
+  const shine = ivory ? 'rgba(255,255,255,0.72)' : 'rgba(255,225,230,0.25)';
   const piecePaths = {
     p: `<ellipse cx="50" cy="38" rx="10" ry="10"/><path d="M37 72 C40 54, 44 48, 50 46 C56 48, 60 54, 63 72 Z"/>`,
     n: `<path d="M34 74 C35 58, 39 42, 48 30 C56 24, 66 27, 67 37 C62 37, 57 40, 56 45 C58 47, 62 50, 63 56 C61 63, 55 68, 49 70 C44 71, 40 73, 34 74 Z"/><circle cx="58" cy="35" r="2.2"/>`,
@@ -42,12 +45,13 @@ function pieceSvg(color, type) {
       <stop offset="100%" stop-color="transparent"/>
     </linearGradient>
   </defs>
-  <ellipse cx="50" cy="82" rx="28" ry="9" fill="${edge}" opacity="0.25"/>
-  <ellipse cx="50" cy="76" rx="25" ry="8" fill="url(#base)" stroke="${edge}" stroke-width="2"/>
-  <ellipse cx="50" cy="72" rx="16" ry="5" fill="url(#ring)" opacity="0.42"/>
+  <ellipse cx="50" cy="84" rx="29" ry="9" fill="${edge}" opacity="0.24"/>
+  <ellipse cx="50" cy="77" rx="26" ry="9" fill="url(#base)" stroke="${edge}" stroke-width="2.1"/>
+  <ellipse cx="50" cy="72" rx="16" ry="5" fill="url(#ring)" opacity="0.5"/>
   <g fill="url(#g1)" stroke="${edge}" stroke-width="2.2" stroke-linejoin="round">
     ${piecePaths[type]}
   </g>
+  <path d="M38 66 C44 62, 56 62, 62 66" fill="none" stroke="${shine}" stroke-width="2" opacity="0.4"/>
 </svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
@@ -414,8 +418,18 @@ function render() {
   }
 
   turnStatusEl.textContent = state.turn === 'w' ? 'Your turn (Ivory)' : 'Computer turn (Oxbridge Red)';
+  if (headerTurnIndicatorEl) {
+    headerTurnIndicatorEl.textContent = state.turn === 'w' ? 'White to move' : 'Red to move';
+  }
+  if (whitePanelEl && redPanelEl) {
+    whitePanelEl.classList.toggle('active', state.turn === 'w' && !state.over);
+    redPanelEl.classList.toggle('active', state.turn === 'b' && !state.over);
+  }
   if (state.over) {
     turnStatusEl.textContent = state.status;
+    if (headerTurnIndicatorEl) {
+      headerTurnIndicatorEl.textContent = state.status;
+    }
   }
 
   if (state.over && state.status === 'Draw') {
