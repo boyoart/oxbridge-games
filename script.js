@@ -41,6 +41,7 @@ const appState = {
   currentTurn: 0,
   dice: { value: null, rolledSix: false },
   mustMove: false,
+  turn: { hasRolled: false, movePending: false, selectedToken: null, diceLocked: false, canRoll: true },
   isRolling: false,
   winner: null,
   soundEnabled: true,
@@ -238,6 +239,7 @@ function configureGame(mode, localCount = 4) {
   appState.currentTurn = 0;
   appState.dice = { value: null, rolledSix: false };
   appState.mustMove = false;
+  appState.turn = { hasRolled: false, movePending: false, selectedToken: null, diceLocked: false, canRoll: true };
   appState.isRolling = false;
   appState.winner = null;
 
@@ -260,6 +262,17 @@ function configureGame(mode, localCount = 4) {
   updateStatus();
   maybeAITurn();
   requestAnimationFrame(updateBoardScale);
+}
+
+function resetTurnStateForActivePlayer() {
+  // DEBUG: dice/turn state reset point for every new active turn.
+  resetDiceDisplay();
+  appState.mustMove = false;
+  appState.turn.hasRolled = false;
+  appState.turn.movePending = false;
+  appState.turn.selectedToken = null;
+  appState.turn.diceLocked = false;
+  appState.turn.canRoll = true;
 }
 
 function setSelectedMode(mode) {
@@ -384,7 +397,7 @@ function getValidMoves(playerIdx, rollValue) {
 }
 
 function isTokenClickable(playerIdx, tokenId) {
-  if (!appState.mustMove || appState.winner) return false;
+  if (!appState.turn.movePending || !appState.mustMove || appState.winner) return false;
   const current = appState.players[appState.currentTurn];
   if (!current || current.type !== "human") return false;
   if (appState.mode === "online" && appState.myPlayerIndex !== appState.currentTurn) return false;
@@ -394,6 +407,7 @@ function isTokenClickable(playerIdx, tokenId) {
 
 function chooseTokenMove(playerIdx, tokenId) {
   if (!isTokenClickable(playerIdx, tokenId)) return;
+  appState.turn.selectedToken = tokenId;
   applyMove(playerIdx, tokenId, appState.dice.value, true);
 }
 
@@ -434,7 +448,7 @@ function hasWon(playerIdx) {
 }
 
 function advanceTurn(extraTurn) {
-  // turn switching happens here and respects extra-turn rule.
+  // DEBUG: turn switching happens here and respects extra-turn rule.
   if (!extraTurn) appState.currentTurn = (appState.currentTurn + 1) % appState.players.length;
 }
 
@@ -469,26 +483,32 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false) {
   // DEBUG: order step 4 - recompute valid moves from true state (prevents stuck-turn desyncs).
   getValidMoves(playerIdx, rollValue);
   sfx("move");
-  // DEBUG: order step 5 - rerender board from authoritative state only.
-  render();
-
-  // DEBUG: order step 6 - continue extra-turn/switch-turn logic only after state+render are complete.
+  // DEBUG: order step 5 - extra-turn rule check happens immediately after counters/state updates.
+  const extraTurn = shouldGrantExtraTurn(rollValue);
+  // DEBUG: order step 6 - either keep turn or switch turn.
   if (hasWon(playerIdx)) {
     appState.winner = playerIdx;
     statusText.textContent = `Winner: ${player.name} (${COLOR_LABEL[player.color]})!`;
     sfx("win");
     appState.mustMove = false;
+    appState.turn.movePending = false;
+    appState.turn.diceLocked = true;
+    appState.turn.canRoll = false;
   } else {
-    const extraTurn = shouldGrantExtraTurn(rollValue);
     appState.mustMove = false;
-    resetDiceDisplay();
+    appState.turn.movePending = false;
+    appState.turn.selectedToken = null;
+    appState.turn.diceLocked = false;
     advanceTurn(extraTurn);
+    // DEBUG: order step 7 - reset turn flags for the active player and re-enable roll access.
+    resetTurnStateForActivePlayer();
 
     if (captured) updateStatus(`${player.name} captured a token!`);
     else if (extraTurn) updateStatus("Extra turn!");
     else updateStatus("Turn changed.");
   }
 
+  render();
   maybeAITurn();
 
   if (allowNetworkEmit && appState.mode === "online") {
@@ -516,11 +536,15 @@ function stopDiceAnimation() {
 }
 
 function handleNoValidMove(player, rollValue) {
-  // valid moves are calculated and consumed here for no-move auto-turn behavior.
+  // DEBUG: no-valid-move turns are resolved here.
   updateStatus(`${player.name} rolled ${rollValue}. No valid move.`);
   appState.mustMove = false;
-  resetDiceDisplay();
+  appState.turn.movePending = false;
+  appState.turn.selectedToken = null;
+  // DEBUG: extra-turn logic for no-valid-move still uses the rolled value.
   advanceTurn(shouldGrantExtraTurn(rollValue));
+  // DEBUG: reset flags for whichever player is now active (same player on 6, next otherwise).
+  resetTurnStateForActivePlayer();
   // DEBUG: active/home counters are recalculated here for no-move turns.
   syncAllTokenStates();
   // DEBUG: board rerender happens here after the no-move recalculation flow.
@@ -536,6 +560,9 @@ function rollDice() {
   if (appState.mode !== "online" && p.type !== "human" && p.type !== "ai") return;
 
   startDiceAnimation();
+  // DEBUG: Roll Dice button is effectively disabled while rolling/awaiting move.
+  appState.turn.canRoll = false;
+  appState.turn.diceLocked = true;
   render();
   sfx("dice");
 
@@ -545,6 +572,7 @@ function rollDice() {
     const roll = rollDie();
     // final rolled value is assigned here and is the exact value used by game logic.
     appState.dice = roll;
+    appState.turn.hasRolled = true;
     syncDieFace(roll.value);
     const moves = getValidMoves(appState.currentTurn, roll.value);
 
@@ -555,6 +583,7 @@ function rollDice() {
     }
 
     appState.mustMove = true;
+    appState.turn.movePending = true;
     updateStatus(`${p.name} rolled ${roll.value}. Move a piece.`);
     render();
 
@@ -592,6 +621,7 @@ function pickAIMove(playerIndex, moves, rollValue) {
 function canCurrentPlayerRoll() {
   const p = appState.players[appState.currentTurn];
   if (!p || appState.winner || appState.mustMove || appState.isRolling) return false;
+  if (!appState.turn.canRoll || appState.turn.diceLocked || appState.turn.movePending || appState.turn.hasRolled) return false;
   if (appState.mode === "online") return appState.myPlayerIndex === appState.currentTurn;
   return p.type === "human" || p.type === "ai";
 }
@@ -679,6 +709,13 @@ function hydrateOnlineState(state) {
     : { value: null, rolledSix: false };
 
   appState.mustMove = state.mustMove;
+  appState.turn = {
+    hasRolled: Boolean(state.diceValue),
+    movePending: Boolean(state.mustMove),
+    selectedToken: null,
+    diceLocked: Boolean(state.mustMove),
+    canRoll: !state.mustMove && !state.diceValue
+  };
   appState.isRolling = false;
   appState.winner = state.winner;
   appState.myPlayerIndex = Number.isInteger(state.myPlayerIndex) ? state.myPlayerIndex : appState.myPlayerIndex;
