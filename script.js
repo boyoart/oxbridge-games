@@ -1,7 +1,6 @@
 const COLORS = ["red", "blue", "green", "yellow"];
 const COLOR_LABEL = { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" };
 const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
-const SAFE_PATH_INDEX = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
 const PATH_LEN = 52;
 const AI_MIN_DELAY_MS = 200;
 const AI_MAX_DELAY_MS = 500;
@@ -113,10 +112,9 @@ function setupBoard() {
     [13, 6], [12, 6], [11, 6], [10, 6], [9, 6], [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [8, 0], [7, 0], [6, 0]
   ];
   boardPath = P;
-  P.forEach(([r, c], i) => {
+  P.forEach(([r, c]) => {
     const t = getTile(r, c);
     t.classList.add("track");
-    if (SAFE_PATH_INDEX.has(i)) t.classList.add("safe");
   });
 
   homePaths.red = [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5], [7, 6]];
@@ -181,9 +179,10 @@ function newTokens() {
     id: i,
     owner: null,
     pos: -1,
+    onBoard: false,
+    inHome: false,
     pathIndex: null,
     inBase: true,
-    inFinalHome: false,
     tileKey: null,
     coord: null
   }));
@@ -204,11 +203,12 @@ function syncTokenStateForPlayer(player) {
     // DEBUG: authoritative token state is stored/updated here for every token.
     token.owner = player.color;
     token.inBase = token.pos === -1;
-    token.inFinalHome = token.pos === FINAL_HOME_POSITION;
+    token.inHome = token.pos === FINAL_HOME_POSITION;
+    token.onBoard = token.pos >= 0 && token.pos < FINAL_HOME_POSITION;
     token.pathIndex = token.pos >= 0 && token.pos <= 51 ? token.pos : null;
 
     if (token.inBase) token.tileKey = `base:${player.color}:${token.id}`;
-    else if (token.inFinalHome) token.tileKey = "final-home";
+    else if (token.inHome) token.tileKey = "final-home";
     else if (token.pos >= 52 && token.pos <= 57) token.tileKey = tokenHomeKey(player.color, token.pos);
     else if (token.pathIndex !== null) token.tileKey = tokenBoardKey(player.color, token.pathIndex);
     else token.tileKey = null;
@@ -319,17 +319,18 @@ function render() {
 
   if (rollBtn) rollBtn.disabled = !canCurrentPlayerRoll();
 
-  // DEBUG: sidebar counters are recalculated from authoritative token state only.
+  // DEBUG: active/home counters are recalculated from authoritative token state only.
   const progress = appState.players.map((p) => ({
     name: p.name,
     color: p.color,
-    homeCount: p.tokens.filter((t) => t.inFinalHome).length
+    activeCount: p.tokens.filter((t) => t.onBoard && !t.inHome).length,
+    homeCount: p.tokens.filter((t) => t.inHome).length
   }));
 
   scoreBoard.innerHTML = progress.map((p) => `
     <li class="score-item ${p.color}">
       <span class="score-label">${p.name}</span>
-      <span class="score-value">${p.homeCount}/4</span>
+      <span class="score-value">Active ${p.activeCount}/4 | Home ${p.homeCount}/4</span>
     </li>
   `).join("");
 }
@@ -346,11 +347,6 @@ function getTokenCoordinates(color, pos, tokenId) {
   if (pos >= 52 && pos <= 57) return homePaths[color][pos - 52];
   if (pos === FINAL_HOME_POSITION) return [7, 7];
   return null;
-}
-
-// safe tile rule is centralized so capture/move checks always agree.
-function isSafeTile(pathIndex) {
-  return SAFE_PATH_INDEX.has(pathIndex);
 }
 
 // entry rule is centralized here: token leaves base only on a 6.
@@ -401,14 +397,11 @@ function chooseTokenMove(playerIdx, tokenId) {
   applyMove(playerIdx, tokenId, appState.dice.value, true);
 }
 
-// capture rule helper: only opponents can be captured and only on non-safe tiles.
+// capture rule helper: opponents can be captured anywhere on the normal path.
 function canCapture(moverIdx, targetPos) {
   const mover = appState.players[moverIdx];
   if (!mover || targetPos < 0 || targetPos > 51) return false;
   const tileId = tokenBoardKey(mover.color, targetPos);
-  const abs = Number(tileId.split(":")[1]);
-  if (isSafeTile(abs)) return false;
-
   return appState.players.some((op, idx) => idx !== moverIdx
     && op.tokens.some((token) => token.tileKey === tileId));
 }
@@ -419,11 +412,6 @@ function handleCapture(moverIdx, tokenId) {
   if (moved.pos < 0 || moved.pos > 51) return false;
 
   const tileId = tokenBoardKey(mover.color, moved.pos);
-  const abs = Number(tileId.split(":")[1]);
-  // safe tile rule enforced before capture resolution.
-  // DEBUG: safe tile overlap is handled here; no capture on safe tiles.
-  if (isSafeTile(abs)) return false;
-
   let capturedAny = false;
   appState.players.forEach((op, idx) => {
     if (idx === moverIdx) return; // same-color tokens can never capture each other.
@@ -472,12 +460,19 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false) {
   }
 
   token.pos = targetPos;
+  // DEBUG: order step 1 - update authoritative token state immediately after moving.
   syncTokenStateForPlayer(playerIdx >= 0 ? appState.players[playerIdx] : null);
+  // DEBUG: order step 2 - resolve capture immediately on the landing tile.
   const captured = handleCapture(playerIdx, tokenId);
+  // DEBUG: order step 3 - recalculate all authoritative token states/counters from latest positions.
   syncAllTokenStates();
+  // DEBUG: order step 4 - recompute valid moves from true state (prevents stuck-turn desyncs).
+  getValidMoves(playerIdx, rollValue);
   sfx("move");
+  // DEBUG: order step 5 - rerender board from authoritative state only.
+  render();
 
-  // DEBUG: turn flow order after move: update state -> capture/safe logic -> recalc -> rerender -> continue.
+  // DEBUG: order step 6 - continue extra-turn/switch-turn logic only after state+render are complete.
   if (hasWon(playerIdx)) {
     appState.winner = playerIdx;
     statusText.textContent = `Winner: ${player.name} (${COLOR_LABEL[player.color]})!`;
@@ -494,7 +489,6 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false) {
     else updateStatus("Turn changed.");
   }
 
-  render();
   maybeAITurn();
 
   if (allowNetworkEmit && appState.mode === "online") {
@@ -527,7 +521,9 @@ function handleNoValidMove(player, rollValue) {
   appState.mustMove = false;
   resetDiceDisplay();
   advanceTurn(shouldGrantExtraTurn(rollValue));
+  // DEBUG: active/home counters are recalculated here for no-move turns.
   syncAllTokenStates();
+  // DEBUG: board rerender happens here after the no-move recalculation flow.
   render();
   maybeAITurn();
 }
@@ -667,9 +663,10 @@ function hydrateOnlineState(state) {
       id: Number.isInteger(token.id) ? token.id : index,
       owner: player.color,
       pos: Number.isInteger(token.pos) ? token.pos : -1,
+      onBoard: false,
+      inHome: false,
       pathIndex: null,
       inBase: false,
-      inFinalHome: false,
       tileKey: null,
       coord: null
     }))

@@ -200,8 +200,9 @@ select, input {
 .center-logo-watermark img {
   max-width:100%;
   max-height:100%;
-  opacity:.16;
-  filter: saturate(.8) contrast(1.05);
+  /* Center Oxbridge watermark opacity increased ~70% while staying gameplay-safe. */
+  opacity:.27;
+  filter: saturate(.85) contrast(1.02);
 }
 .center-logo-watermark span { display:none; opacity:.25; font-weight:800; text-align:center; color:#6c0000; }
 
@@ -310,12 +311,13 @@ select, input {
 }
 .score-label { font-size: .92rem; }
 .score-value {
-  min-width: 44px;
-  text-align: center;
+  min-width: 160px;
+  text-align: right;
   padding: 3px 6px;
   border-radius: 999px;
   background: rgba(179, 0, 0, .1);
   color: #660000;
+  font-size: .82rem;
 }
 .score-item.red { border-left: 4px solid #e02828; }
 .score-item.blue { border-left: 4px solid #2d53c4; }
@@ -348,6 +350,6 @@ select, input {
     margin-bottom: 4px;
   }
   .score-label { font-size: .82rem; }
-  .score-value { min-width: 40px; font-size: .82rem; }
+  .score-value { min-width: 138px; font-size: .76rem; }
   .board-dice-zone { width: clamp(52px, 19vw, 70px); right: 2.8%; bottom: 2.8%; }
 }
