@@ -24,6 +24,9 @@ const modeMenu = document.getElementById("modeMenu");
 const localConfig = document.getElementById("localConfig");
 const onlineConfig = document.getElementById("onlineConfig");
 const connectionStatus = document.getElementById("connectionStatus");
+const board3dEl = document.getElementById("board3d");
+const boardScalerEl = document.getElementById("boardScaler");
+const BOARD_BASE_SIZE = 720;
 
 const appState = {
   mode: null,
@@ -121,6 +124,7 @@ function setupBoard() {
   makeBase(1,10,"blue");
   makeBase(10,1,"green");
   makeBase(10,10,"yellow");
+  updateBoardScale();
 }
 
 function makeBase(startR, startC, color) {
@@ -164,6 +168,7 @@ function configureGame(mode, localCount = 4) {
   render();
   updateStatus();
   maybeAITurn();
+  requestAnimationFrame(updateBoardScale);
 }
 
 function render() {
@@ -430,6 +435,24 @@ function hydrateOnlineState(state) {
 
   statusText.textContent = state.status || "Online game synchronized.";
   render();
+  requestAnimationFrame(updateBoardScale);
+}
+
+function updateBoardScale() {
+  if (!board3dEl || !boardScalerEl) return;
+
+  const styles = window.getComputedStyle(board3dEl);
+  const horizontalPadding = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+  const availableWidth = Math.max(220, board3dEl.clientWidth - horizontalPadding - 4);
+
+  const boardTop = board3dEl.getBoundingClientRect().top;
+  const availableHeight = Math.max(220, window.innerHeight - boardTop - 12);
+  const maxSquare = Math.min(availableWidth, availableHeight);
+  const scale = Math.min(1, maxSquare / BOARD_BASE_SIZE);
+
+  board3dEl.style.setProperty("--board-size", `${BOARD_BASE_SIZE}px`);
+  board3dEl.style.setProperty("--board-scale", scale.toFixed(3));
+  board3dEl.style.minHeight = `${Math.max(240, BOARD_BASE_SIZE * scale + 24)}px`;
 }
 
 function bindUI() {
@@ -485,10 +508,16 @@ function bindUI() {
     } else {
       await document.exitFullscreen?.();
     }
+    setTimeout(updateBoardScale, 120);
   });
+
+  window.addEventListener("resize", updateBoardScale);
+  window.addEventListener("orientationchange", updateBoardScale);
+  document.addEventListener("fullscreenchange", () => setTimeout(updateBoardScale, 120));
 }
 
 setupBoard();
 initLogoFallbacks();
 bindUI();
+updateBoardScale();
 updateStatus("Choose a mode, then press Start Game.");
