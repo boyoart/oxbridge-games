@@ -20,6 +20,7 @@ const restartBtn = document.getElementById("restartBtn");
 const fullscreenBtn = document.getElementById("fullscreenBtn");
 const soundToggleBtn = document.getElementById("soundToggleBtn");
 const dice1El = document.getElementById("dice1");
+const dieShadowEl = document.getElementById("dieShadow");
 const diceSummaryEl = document.getElementById("diceSummary");
 const gameSection = document.getElementById("gameSection");
 const modeMenu = document.getElementById("modeMenu");
@@ -46,6 +47,7 @@ const appState = {
   soundEnabled: true,
   roomCode: null,
   mySocketId: null,
+  myPlayerIndex: null,
   online: { ws: null, connected: false, isHost: false, myColor: null, players: [] }
 };
 
@@ -246,7 +248,8 @@ function render() {
     });
   });
 
-  dice1El.textContent = appState.dice.value ?? "-";
+  syncDieFace(appState.dice.value || 1);
+  dice1El?.setAttribute("aria-label", `Die showing ${appState.dice.value ?? "-"}`);
   diceSummaryEl.textContent = `Die: ${appState.dice.value ?? "-"}`;
 
   const cp = appState.players[appState.currentTurn];
@@ -315,6 +318,7 @@ function canMoveToken(playerIdx, tokenId, rollValue) {
 function getValidMoves(playerIdx, rollValue) {
   const player = appState.players[playerIdx];
   if (!player) return [];
+  // valid moves are calculated strictly from canMoveToken() so illegal moves are never offered.
   return player.tokens
     .map((_, i) => i)
     .filter((tokenId) => canMoveToken(playerIdx, tokenId, rollValue));
@@ -324,6 +328,7 @@ function isTokenClickable(playerIdx, tokenId) {
   if (!appState.mustMove || appState.winner) return false;
   const current = appState.players[appState.currentTurn];
   if (!current || current.type !== "human") return false;
+  if (appState.mode === "online" && appState.myPlayerIndex !== appState.currentTurn) return false;
   if (playerIdx !== appState.currentTurn) return false;
   return canMoveToken(playerIdx, tokenId, appState.dice.value);
 }
@@ -384,6 +389,12 @@ function resetDiceDisplay() {
   appState.dice = { value: null, rolledSix: false };
 }
 
+function syncDieFace(faceValue) {
+  if (!dice1El) return;
+  const face = Math.max(1, Math.min(6, Number(faceValue) || 1));
+  dice1El.className = `board-die face-${face}${appState.isRolling ? " rolling" : ""}`;
+}
+
 function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false) {
   const player = appState.players[playerIdx];
   const token = player.tokens[tokenId];
@@ -424,18 +435,32 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false) {
 }
 
 function rollDie() {
+  // one-die rule logic is enforced here: exactly one standard six-sided die is rolled.
   const value = Math.floor(Math.random() * 6) + 1;
   return { value, rolledSix: shouldGrantExtraTurn(value) };
 }
 
 function startDiceAnimation() {
+  // die roll animation starts here with tumble + bounce styling.
   appState.isRolling = true;
-  dice1El.classList.add("rolling");
+  dice1El?.classList.add("rolling");
+  dieShadowEl?.classList.add("rolling");
 }
 
 function stopDiceAnimation() {
-  dice1El.classList.remove("rolling");
+  dice1El?.classList.remove("rolling");
+  dieShadowEl?.classList.remove("rolling");
   appState.isRolling = false;
+}
+
+function handleNoValidMove(player, rollValue) {
+  // valid moves are calculated and consumed here for no-move auto-turn behavior.
+  updateStatus(`${player.name} rolled ${rollValue}. No valid move.`);
+  appState.mustMove = false;
+  resetDiceDisplay();
+  advanceTurn(shouldGrantExtraTurn(rollValue));
+  render();
+  maybeAITurn();
 }
 
 function rollDice() {
@@ -453,16 +478,14 @@ function rollDice() {
     stopDiceAnimation();
 
     const roll = rollDie();
+    // final rolled value is assigned here and is the exact value used by game logic.
     appState.dice = roll;
+    syncDieFace(roll.value);
     const moves = getValidMoves(appState.currentTurn, roll.value);
 
     if (!moves.length) {
       // valid move rule: no legal move ends the turn automatically.
-      updateStatus(`${p.name} rolled ${roll.value}. No valid move.`);
-      resetDiceDisplay();
-      advanceTurn(shouldGrantExtraTurn(roll.value));
-      render();
-      maybeAITurn();
+      handleNoValidMove(p, roll.value);
       return;
     }
 
@@ -504,7 +527,7 @@ function pickAIMove(playerIndex, moves, rollValue) {
 function canCurrentPlayerRoll() {
   const p = appState.players[appState.currentTurn];
   if (!p || appState.winner || appState.mustMove || appState.isRolling) return false;
-  if (appState.mode === "online") return true;
+  if (appState.mode === "online") return appState.myPlayerIndex === appState.currentTurn;
   return p.type === "human" || p.type === "ai";
 }
 
@@ -580,6 +603,7 @@ function hydrateOnlineState(state) {
   appState.mustMove = state.mustMove;
   appState.isRolling = false;
   appState.winner = state.winner;
+  appState.myPlayerIndex = Number.isInteger(state.myPlayerIndex) ? state.myPlayerIndex : appState.myPlayerIndex;
   gameSection.classList.remove("hidden");
   modeMenu.classList.add("hidden");
 
