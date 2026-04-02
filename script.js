@@ -10,27 +10,26 @@ const logoWrap = document.getElementById('logoWrap');
 const container = document.getElementById('gameContainer');
 
 
-const pieceGlyph = {
-  p: '♟',
-  n: '♞',
-  b: '♝',
-  r: '♜',
-  q: '♛',
-  k: '♚'
-};
-
 function pieceSvg(color, type) {
   const ivory = color === 'w';
-  const main = ivory ? '#f6efe2' : '#8f1125';
-  const mid = ivory ? '#d4c6b1' : '#5d0013';
+  const main = ivory ? '#f7efe3' : '#9f1228';
+  const mid = ivory ? '#d9c8b2' : '#650216';
   const edge = ivory ? '#7f6b55' : '#2b0009';
-  const glyph = ivory ? '#5c4a37' : '#f7dce0';
+  const shine = ivory ? 'rgba(255,255,255,0.62)' : 'rgba(255,226,232,0.2)';
+  const piecePaths = {
+    p: `<ellipse cx="50" cy="38" rx="10" ry="10"/><path d="M37 72 C40 54, 44 48, 50 46 C56 48, 60 54, 63 72 Z"/>`,
+    n: `<path d="M34 74 C35 58, 39 42, 48 30 C56 24, 66 27, 67 37 C62 37, 57 40, 56 45 C58 47, 62 50, 63 56 C61 63, 55 68, 49 70 C44 71, 40 73, 34 74 Z"/><circle cx="58" cy="35" r="2.2"/>`,
+    b: `<ellipse cx="50" cy="30" rx="8" ry="10"/><path d="M50 16 L50 25 M46 20 L54 20" stroke-width="2.6" stroke-linecap="round"/><path d="M36 72 C38 56, 42 45, 50 36 C58 45, 62 56, 64 72 Z"/>`,
+    r: `<path d="M34 74 L34 40 L40 34 L60 34 L66 40 L66 74 Z"/><path d="M34 40 L30 33 L38 33 L42 28 L46 33 L54 33 L58 28 L62 33 L70 33 L66 40 Z"/>`,
+    q: `<path d="M34 74 C36 57, 40 44, 50 36 C60 44, 64 57, 66 74 Z"/><circle cx="36" cy="31" r="4"/><circle cx="50" cy="26" r="4"/><circle cx="64" cy="31" r="4"/>`,
+    k: `<path d="M34 74 C37 56, 41 44, 50 34 C59 44, 63 56, 66 74 Z"/><path d="M50 18 L50 34 M43 25 L57 25" stroke-width="3" stroke-linecap="round"/>`
+  };
 
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="${type}">
   <defs>
     <radialGradient id="g1" cx="30%" cy="25%" r="70%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.65"/>
+      <stop offset="0%" stop-color="${shine}"/>
       <stop offset="60%" stop-color="${main}"/>
       <stop offset="100%" stop-color="${mid}"/>
     </radialGradient>
@@ -38,12 +37,17 @@ function pieceSvg(color, type) {
       <stop offset="0%" stop-color="${main}"/>
       <stop offset="100%" stop-color="${mid}"/>
     </linearGradient>
+    <linearGradient id="ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${shine}"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </linearGradient>
   </defs>
   <ellipse cx="50" cy="82" rx="28" ry="9" fill="${edge}" opacity="0.25"/>
-  <ellipse cx="50" cy="74" rx="24" ry="8" fill="url(#base)" stroke="${edge}" stroke-width="2"/>
-  <path d="M24 74 C26 56, 36 34, 50 26 C64 34, 74 56, 76 74 Z" fill="url(#g1)" stroke="${edge}" stroke-width="2"/>
-  <circle cx="50" cy="19" r="9" fill="url(#g1)" stroke="${edge}" stroke-width="2"/>
-  <text x="50" y="63" font-size="36" text-anchor="middle" fill="${glyph}" font-family="Georgia, serif">${pieceGlyph[type]}</text>
+  <ellipse cx="50" cy="76" rx="25" ry="8" fill="url(#base)" stroke="${edge}" stroke-width="2"/>
+  <ellipse cx="50" cy="72" rx="16" ry="5" fill="url(#ring)" opacity="0.42"/>
+  <g fill="url(#g1)" stroke="${edge}" stroke-width="2.2" stroke-linejoin="round">
+    ${piecePaths[type]}
+  </g>
 </svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;

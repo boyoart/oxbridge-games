@@ -17,7 +17,7 @@
         </div>
         <div class="title-wrap">
           <p class="kicker">OXBRIDGE STRATEGIC PLAY SUITE</p>
-          <h1>Chess Strategy — Grandmaster Isometric Edition</h1>
+          <h1>Chess Strategy — Luxury 3D Boardroom Edition</h1>
         </div>
       </div>
       <div class="header-actions">
@@ -30,24 +30,25 @@
       <div class="hud-row">
         <p class="status-pill" id="turnStatus">Your turn (Ivory)</p>
         <p class="status-pill" id="gameStatus">Ready to play.</p>
-        <div class="timer-pill" aria-hidden="true">
-          <span>Ivory Clock</span><strong>10:00</strong>
-        </div>
-        <div class="timer-pill" aria-hidden="true">
-          <span>Oxbridge Clock</span><strong>10:00</strong>
-        </div>
       </div>
 
       <div class="board-panel">
-        <div class="board-scene" aria-label="Angled chessboard scene">
-          <div class="board-shadow"></div>
-          <div class="board-stage">
-            <div class="board-frame">
-              <div class="board-crest" aria-hidden="true">OXBRIDGE</div>
-              <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+        <div class="board-shell">
+          <div class="board-scene" aria-label="Angled chessboard scene">
+            <div class="tabletop" aria-hidden="true"></div>
+            <div class="board-shadow" aria-hidden="true"></div>
+            <div class="board-stage">
+              <div class="board-frame">
+                <div class="board-crest" aria-hidden="true">
+                  <span class="crest-ring"></span>
+                  <span class="crest-wordmark">OXBRIDGE</span>
+                </div>
+                <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+              </div>
+              <div class="board-edge board-edge-front" aria-hidden="true"></div>
+              <div class="board-edge board-edge-right" aria-hidden="true"></div>
+              <div class="board-edge board-edge-left" aria-hidden="true"></div>
             </div>
-            <div class="board-edge board-edge-front" aria-hidden="true"></div>
-            <div class="board-edge board-edge-right" aria-hidden="true"></div>
           </div>
         </div>
 
@@ -55,7 +56,7 @@
           <h2>Command Deck</h2>
           <p class="control-subtitle">Premium match controls</p>
 
-          <div class="controls-row">
+          <div class="controls-row controls-row-stack">
             <label for="difficulty">AI Difficulty</label>
             <select id="difficulty" aria-label="AI difficulty">
               <option value="1">Scholar (Easy)</option>
