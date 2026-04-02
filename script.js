@@ -41,6 +41,7 @@ const appState = {
   currentTurn: 0,
   dice: { die1: null, die2: null, total: null, rolledSix: false },
   mustMove: false,
+  isRolling: false,
   winner: null,
   soundEnabled: true,
   roomCode: null,
@@ -189,6 +190,7 @@ function configureGame(mode, localCount = 4) {
   appState.currentTurn = 0;
   appState.dice = { die1: null, die2: null, total: null, rolledSix: false };
   appState.mustMove = false;
+  appState.isRolling = false;
   appState.winner = null;
 
   if (mode === "single") {
@@ -259,12 +261,22 @@ function render() {
   const cp = appState.players[appState.currentTurn];
   turnInfo.textContent = cp ? `Turn: ${cp.name} (${COLOR_LABEL[cp.color]})` : "";
 
-  // Sidebar counts are recalculated immediately on every render so capture/home updates show instantly.
-  scoreBoard.innerHTML = appState.players.map((p) => {
-    const homeCount = p.tokens.filter((t) => t.pos === 58).length;
-    const baseCount = p.tokens.filter((t) => t.pos === -1).length;
-    return `<li>${p.name}: ${homeCount}/4 home | ${baseCount} in base</li>`;
-  }).join("");
+  if (rollBtn) rollBtn.disabled = !canCurrentPlayerRoll();
+
+  // Player counters are recalculated here on every render (move/capture/home/restart).
+  const progress = appState.players.map((p) => ({
+    name: p.name,
+    color: p.color,
+    homeCount: p.tokens.filter((t) => t.pos === 58).length
+  }));
+
+  // UI scoreboard is refreshed from latest counters so values update immediately.
+  scoreBoard.innerHTML = progress.map((p) => `
+    <li class="score-item ${p.color}">
+      <span class="score-label">${p.name}</span>
+      <span class="score-value">${p.homeCount}/4</span>
+    </li>
+  `).join("");
 }
 
 function getTokenCoordinates(color, pos, tokenId) {
@@ -374,11 +386,15 @@ function resetDiceDisplay() {
 }
 
 function rollDice(emit = false) {
+  // Dice roll state is handled here: permission checks, animation start, and final result commit.
+  if (!canCurrentPlayerRoll()) return;
   if (appState.winner) return;
   const p = appState.players[appState.currentTurn];
   if (!p) return;
-  if (appState.mode !== "online" && p.type !== "human") return;
+  if (appState.mode !== "online" && p.type !== "human" && p.type !== "ai") return;
 
+  appState.isRolling = true;
+  render();
   dice1El.classList.add("rolling");
   dice2El.classList.add("rolling");
   // Play dice-roll sound each time the dice roll starts.
@@ -390,6 +406,7 @@ function rollDice(emit = false) {
 
     const roll = rollTwoDice();
     appState.dice = roll;
+    appState.isRolling = false;
     const moves = validMovesFor(appState.currentTurn, roll.total, roll.rolledSix);
     if (!moves.length) {
       updateStatus(`${p.name} rolled ${roll.die1} + ${roll.die2} = ${roll.total}. No valid moves.`);
@@ -401,6 +418,10 @@ function rollDice(emit = false) {
       appState.mustMove = true;
       updateStatus(`${p.name} rolled ${roll.die1} + ${roll.die2} = ${roll.total}. Move a piece.`);
       render();
+      if (p.type === "ai") {
+        const tokenId = pickAIMove(appState.currentTurn, moves, roll.total, roll.rolledSix);
+        applyMove(appState.currentTurn, tokenId, roll.total, roll.rolledSix);
+      }
     }
 
     if (emit && appState.mode === "online") sendOnline({ type: "roll", value: roll.total });
@@ -424,26 +445,23 @@ function maybeAITurn() {
   statusText.textContent = "Computer thinking...";
   const thinkDelay = AI_MIN_DELAY_MS + Math.floor(Math.random() * (AI_MAX_DELAY_MS - AI_MIN_DELAY_MS + 1));
   setTimeout(() => {
-    const roll = rollTwoDice();
-    appState.dice = roll;
-
-    const currentPlayer = appState.players[appState.currentTurn];
-    const moves = validMovesFor(appState.currentTurn, roll.total, roll.rolledSix);
-    if (!moves.length) {
-      updateStatus(`${currentPlayer.name} rolled ${roll.die1} + ${roll.die2} = ${roll.total}. No valid moves.`);
-      resetDiceDisplay();
-      if (!roll.rolledSix) appState.currentTurn = (appState.currentTurn + 1) % appState.players.length;
-      render();
-      maybeAITurn();
-      return;
-    }
-
-    // Fast AI priority: capture > bring token out > first valid token.
-    let tokenId = moves.find((i) => canCaptureWithMove(appState.currentTurn, i, roll.total, roll.rolledSix));
-    if (tokenId === undefined) tokenId = moves.find((i) => currentPlayer.tokens[i].pos === -1);
-    if (tokenId === undefined) tokenId = moves[0];
-    applyMove(appState.currentTurn, tokenId, roll.total, roll.rolledSix);
+    rollDice();
   }, thinkDelay);
+}
+
+function pickAIMove(playerIndex, moves, rollTotal, rolledSix) {
+  const currentPlayer = appState.players[playerIndex];
+  let tokenId = moves.find((i) => canCaptureWithMove(playerIndex, i, rollTotal, rolledSix));
+  if (tokenId === undefined) tokenId = moves.find((i) => currentPlayer.tokens[i].pos === -1);
+  if (tokenId === undefined) tokenId = moves[0];
+  return tokenId;
+}
+
+function canCurrentPlayerRoll() {
+  const p = appState.players[appState.currentTurn];
+  if (!p || appState.winner || appState.mustMove || appState.isRolling) return false;
+  if (appState.mode === "online") return true;
+  return p.type === "human" || p.type === "ai";
 }
 
 function canCaptureWithMove(playerIdx, tokenId, rollTotal, rolledSix) {
@@ -526,10 +544,11 @@ function hydrateOnlineState(state) {
 
   const synced = Number(state.diceValue || 0);
   appState.dice = synced > 0
-    ? { die1: synced, die2: 0, total: synced, rolledSix: synced === 6 }
+    ? { die1: synced, die2: null, total: synced, rolledSix: synced === 6 }
     : { die1: null, die2: null, total: null, rolledSix: false };
 
   appState.mustMove = state.mustMove;
+  appState.isRolling = false;
   appState.winner = state.winner;
   gameSection.classList.remove("hidden");
   modeMenu.classList.add("hidden");
@@ -601,24 +620,25 @@ function bindUI() {
   });
   startOnlineBtn?.addEventListener("click", () => sendOnline({ type: "start-game" }));
 
-  rollBtn.addEventListener("click", () => {
+  // Roll Dice button initialization.
+  rollBtn?.addEventListener("click", () => {
     if (appState.mode === "online") sendOnline({ type: "roll-request" });
     else rollDice();
   });
 
-  restartBtn.addEventListener("click", () => {
+  restartBtn?.addEventListener("click", () => {
     if (appState.mode === "online") {
       sendOnline({ type: "restart" });
     } else if (appState.mode === "single") configureGame("single", 4);
     else if (appState.mode === "local") configureGame("local", appState.players.length || 4);
   });
 
-  soundToggleBtn.addEventListener("click", () => {
+  soundToggleBtn?.addEventListener("click", () => {
     appState.soundEnabled = !appState.soundEnabled;
     soundToggleBtn.textContent = `Sound: ${appState.soundEnabled ? "On" : "Off"}`;
   });
 
-  fullscreenBtn.addEventListener("click", async () => {
+  fullscreenBtn?.addEventListener("click", async () => {
     const app = document.getElementById("app");
     if (!document.fullscreenElement) {
       await app.requestFullscreen?.();
