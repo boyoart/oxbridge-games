@@ -1,0 +1,11 @@
+Title:
+Ludo Classic
+
+Excerpt:
+Roll the dice, move your tokens, and race to bring all your pieces home in this interactive Ludo game.
+
+Description:
+Ludo Classic is a branded Oxbridge board game that supports single-player, local multiplayer, and online multiplayer by room code. It builds planning, counting, patience, and decision-making skills.
+
+WordPress iframe embed code:
+<iframe src="/games/ludo/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>

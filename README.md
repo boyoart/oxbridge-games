@@ -1,66 +1,105 @@
-# Flags of the World Quiz
+# Ludo Classic (Oxbridge Tutorial College)
 
-A self-hosted HTML5 quiz game designed for school websites.
+A self-hosted HTML5 Ludo game designed for deployment at:
 
-## Upload location
-Upload this folder to:
+`public_html/games/ludo/`
 
-```text
-public_html/games/flags-world/
-```
+It supports:
+- Single Player (You vs 3 computer players)
+- Local Multiplayer (2 to 4 players)
+- Online Multiplayer by room code (with separate Node.js WebSocket backend)
 
-All files use **relative paths only**, so it works directly from that directory.
-
-## File structure
+## Project structure
 
 ```text
-flags-world/
-├─ index.html
-├─ style.css
-├─ script.js
-├─ assets/
-│  ├─ flags/
-│  │  ├─ argentina.svg
-│  │  ├─ australia.svg
-│  │  ├─ brazil.svg
-│  │  ├─ canada.svg
-│  │  ├─ france.svg
-│  │  ├─ germany.svg
-│  │  ├─ india.svg
-│  │  ├─ italy.svg
-│  │  ├─ japan.svg
-│  │  ├─ mexico.svg
-│  │  ├─ nigeria.svg
-│  │  ├─ south-korea.svg
-│  │  ├─ spain.svg
-│  │  ├─ sweden.svg
-│  │  ├─ turkey.svg
-│  │  └─ usa.svg
-│  └─ sounds/
-└─ README.md
+public_html/games/ludo/
+├── index.html
+├── style.css
+├── script.js
+├── README.md
+├── README-backend.md
+├── embed-code.txt
+├── sound-file-list.txt
+├── backend/
+│   ├── package.json
+│   └── server.js
+└── assets/
+    ├── board/
+    ├── pieces/
+    ├── dice/
+    ├── logo/
+    │   └── logo.png   (upload this manually)
+    └── sounds/
+        ├── dice-roll.mp3
+        ├── token-move.mp3
+        ├── capture.mp3
+        ├── win.mp3
+        ├── click.mp3
+        └── join-room.mp3 (optional)
 ```
 
-## Features
-- Start screen + How to Play
-- Start Game button
-- Fullscreen button
-- Return to Games button (`/games`)
-- One flag per question
-- 4 randomized answers
-- Randomized question order
-- Score tracking
-- 3 lives system
-- 15-second countdown per question
-- End screen with replay
-- Responsive layout for phones and laptops
-- No external libraries/frameworks
+## cPanel upload steps (frontend)
 
-## Embedding on a page
+1. Zip the frontend files (`index.html`, `style.css`, `script.js`, `assets/`, and docs).
+2. Upload them to `public_html/games/ludo/`.
+3. Ensure file paths remain relative and unchanged.
+4. Open: `https://YOURDOMAIN.com/games/ludo/`
+
+## School logo placement
+
+Upload your school logo to:
+
+`public_html/games/ludo/assets/logo/logo.png`
+
+The game already references:
 
 ```html
-<iframe src="/games/flags-world/" style="width:100%;height:85vh;border:0;" allowfullscreen></iframe>
+<img src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo">
 ```
 
-## Notes
-- Works offline once uploaded.
-- You can add more flags by placing more `.svg` files in `assets/flags/` and extending the `flags` array in `script.js`.
+If missing, the UI automatically falls back to text:
+
+`Oxbridge Tutorial College`
+
+## WordPress embed
+
+Use this iframe:
+
+```html
+<iframe src="/games/ludo/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>
+```
+
+## Adjusting rules
+
+Open `script.js` and change constants near the top:
+- `ENTRY_ROLL` (default 6)
+- `HOME_STEPS`
+- `SAFE_PATH_INDEX`
+- AI strategy in `maybeAITurn()`
+
+## Adjusting board/piece styling
+
+Use `style.css`:
+- Board grid and 3D panel: `.board`, `.board-3d`
+- Token look: `.token`, `.token.red/.blue/.green/.yellow`
+- Dice style/animation: `.dice`, `.dice.rolling`
+- Branded buttons: `.brand-btn`
+
+## Disable sounds
+
+- In UI: use the **Sound: On/Off** button.
+- In code: set `appState.soundEnabled = false` in `script.js`.
+
+## Required sound file names
+
+The game expects exact names:
+- `assets/sounds/dice-roll.mp3`
+- `assets/sounds/token-move.mp3`
+- `assets/sounds/capture.mp3`
+- `assets/sounds/win.mp3`
+- `assets/sounds/click.mp3`
+- `assets/sounds/join-room.mp3` (optional)
+
+Exact upload folder:
+
+`public_html/games/ludo/assets/sounds/`
