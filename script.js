@@ -177,7 +177,60 @@ function getTile(r, c) {
 }
 
 function newTokens() {
-  return Array.from({ length: 4 }, (_, i) => ({ id: i, pos: -1 }));
+  return Array.from({ length: 4 }, (_, i) => ({
+    id: i,
+    owner: null,
+    pos: -1,
+    pathIndex: null,
+    inBase: true,
+    inFinalHome: false,
+    tileKey: null,
+    coord: null
+  }));
+}
+
+function tokenBoardKey(color, localPos) {
+  const absolutePathIndex = (START_INDEX[color] + localPos) % PATH_LEN;
+  return `track:${absolutePathIndex}`;
+}
+
+function tokenHomeKey(color, localPos) {
+  return `home:${color}:${localPos - 52}`;
+}
+
+function syncTokenStateForPlayer(player) {
+  if (!player) return;
+  player.tokens.forEach((token) => {
+    // DEBUG: authoritative token state is stored/updated here for every token.
+    token.owner = player.color;
+    token.inBase = token.pos === -1;
+    token.inFinalHome = token.pos === FINAL_HOME_POSITION;
+    token.pathIndex = token.pos >= 0 && token.pos <= 51 ? token.pos : null;
+
+    if (token.inBase) token.tileKey = `base:${player.color}:${token.id}`;
+    else if (token.inFinalHome) token.tileKey = "final-home";
+    else if (token.pos >= 52 && token.pos <= 57) token.tileKey = tokenHomeKey(player.color, token.pos);
+    else if (token.pathIndex !== null) token.tileKey = tokenBoardKey(player.color, token.pathIndex);
+    else token.tileKey = null;
+
+    token.coord = getTokenCoordinates(player.color, token.pos, token.id);
+  });
+}
+
+function syncAllTokenStates() {
+  appState.players.forEach(syncTokenStateForPlayer);
+}
+
+function buildTileOccupancy() {
+  const occupancy = new Map();
+  appState.players.forEach((player, playerIndex) => {
+    player.tokens.forEach((token) => {
+      if (!token.tileKey || !token.coord) return;
+      if (!occupancy.has(token.tileKey)) occupancy.set(token.tileKey, []);
+      occupancy.get(token.tileKey).push({ playerIndex, tokenId: token.id, color: player.color });
+    });
+  });
+  return occupancy;
 }
 
 function configureGame(mode, localCount = 4) {
@@ -198,6 +251,7 @@ function configureGame(mode, localCount = 4) {
   } else if (mode === "local") {
     appState.players = COLORS.slice(0, localCount).map((c, i) => ({ type: "human", color: c, tokens: newTokens(), name: `Player ${i + 1}` }));
   }
+  syncAllTokenStates();
 
   modeMenu.classList.add("hidden");
   gameSection.classList.remove("hidden");
@@ -231,15 +285,23 @@ function setSelectedMode(mode) {
 
 function render() {
   document.querySelectorAll(".token").forEach((t) => t.remove());
+  const occupancy = buildTileOccupancy();
 
   appState.players.forEach((player, pIndex) => {
     player.tokens.forEach((token) => {
-      const spot = getTokenCoordinates(player.color, token.pos, token.id);
+      const spot = token.coord;
       if (!spot) return;
       const tile = getTile(spot[0], spot[1]);
       const el = document.createElement("div");
       el.className = `token ${player.color}`;
       el.title = `${player.name} Token ${token.id + 1}`;
+      // DEBUG: board render uses token state + occupancy with offsets for stacked tokens.
+      const stack = occupancy.get(token.tileKey) || [];
+      const stackIndex = stack.findIndex((entry) => entry.playerIndex === pIndex && entry.tokenId === token.id);
+      const stackOffsetX = ((stackIndex % 2) - 0.5) * 24;
+      const stackOffsetY = (Math.floor(stackIndex / 2) - 0.5) * 24;
+      el.style.transform = `translate(${stackOffsetX}%, ${stackOffsetY}%)`;
+      el.style.zIndex = String(3 + Math.max(0, stackIndex));
       if (isTokenClickable(pIndex, token.id)) {
         el.classList.add("clickable");
         el.addEventListener("click", () => chooseTokenMove(pIndex, token.id));
@@ -257,10 +319,11 @@ function render() {
 
   if (rollBtn) rollBtn.disabled = !canCurrentPlayerRoll();
 
+  // DEBUG: sidebar counters are recalculated from authoritative token state only.
   const progress = appState.players.map((p) => ({
     name: p.name,
     color: p.color,
-    homeCount: p.tokens.filter((t) => t.pos === FINAL_HOME_POSITION).length
+    homeCount: p.tokens.filter((t) => t.inFinalHome).length
   }));
 
   scoreBoard.innerHTML = progress.map((p) => `
@@ -318,7 +381,7 @@ function canMoveToken(playerIdx, tokenId, rollValue) {
 function getValidMoves(playerIdx, rollValue) {
   const player = appState.players[playerIdx];
   if (!player) return [];
-  // valid moves are calculated strictly from canMoveToken() so illegal moves are never offered.
+  // DEBUG: movable token calculation happens from real token model (not UI position).
   return player.tokens
     .map((_, i) => i)
     .filter((tokenId) => canMoveToken(playerIdx, tokenId, rollValue));
@@ -342,11 +405,12 @@ function chooseTokenMove(playerIdx, tokenId) {
 function canCapture(moverIdx, targetPos) {
   const mover = appState.players[moverIdx];
   if (!mover || targetPos < 0 || targetPos > 51) return false;
-  const abs = (START_INDEX[mover.color] + targetPos) % PATH_LEN;
+  const tileId = tokenBoardKey(mover.color, targetPos);
+  const abs = Number(tileId.split(":")[1]);
   if (isSafeTile(abs)) return false;
 
   return appState.players.some((op, idx) => idx !== moverIdx
-    && op.tokens.some((token) => token.pos >= 0 && token.pos <= 51 && ((START_INDEX[op.color] + token.pos) % PATH_LEN) === abs));
+    && op.tokens.some((token) => token.tileKey === tileId));
 }
 
 function handleCapture(moverIdx, tokenId) {
@@ -354,19 +418,20 @@ function handleCapture(moverIdx, tokenId) {
   const moved = mover.tokens[tokenId];
   if (moved.pos < 0 || moved.pos > 51) return false;
 
-  const abs = (START_INDEX[mover.color] + moved.pos) % PATH_LEN;
+  const tileId = tokenBoardKey(mover.color, moved.pos);
+  const abs = Number(tileId.split(":")[1]);
   // safe tile rule enforced before capture resolution.
+  // DEBUG: safe tile overlap is handled here; no capture on safe tiles.
   if (isSafeTile(abs)) return false;
 
   let capturedAny = false;
   appState.players.forEach((op, idx) => {
     if (idx === moverIdx) return; // same-color tokens can never capture each other.
     op.tokens.forEach((t) => {
-      if (t.pos < 0 || t.pos > 51) return;
-      const opos = (START_INDEX[op.color] + t.pos) % PATH_LEN;
-      if (opos === abs) {
-        // capture rule enforced: captured opponent token returns to base immediately.
+      if (t.tileKey === tileId) {
+        // DEBUG: capture is resolved immediately and token is sent to base.
         t.pos = -1;
+        syncTokenStateForPlayer(op);
         capturedAny = true;
       }
     });
@@ -407,9 +472,12 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false) {
   }
 
   token.pos = targetPos;
+  syncTokenStateForPlayer(playerIdx >= 0 ? appState.players[playerIdx] : null);
   const captured = handleCapture(playerIdx, tokenId);
+  syncAllTokenStates();
   sfx("move");
 
+  // DEBUG: turn flow order after move: update state -> capture/safe logic -> recalc -> rerender -> continue.
   if (hasWon(playerIdx)) {
     appState.winner = playerIdx;
     statusText.textContent = `Winner: ${player.name} (${COLOR_LABEL[player.color]})!`;
@@ -459,6 +527,7 @@ function handleNoValidMove(player, rollValue) {
   appState.mustMove = false;
   resetDiceDisplay();
   advanceTurn(shouldGrantExtraTurn(rollValue));
+  syncAllTokenStates();
   render();
   maybeAITurn();
 }
@@ -592,7 +661,19 @@ function sendOnline(payload) {
 function hydrateOnlineState(state) {
   if (!state) return;
   appState.mode = "online";
-  appState.players = state.players;
+  appState.players = (state.players || []).map((player) => ({
+    ...player,
+    tokens: (player.tokens || []).map((token, index) => ({
+      id: Number.isInteger(token.id) ? token.id : index,
+      owner: player.color,
+      pos: Number.isInteger(token.pos) ? token.pos : -1,
+      pathIndex: null,
+      inBase: false,
+      inFinalHome: false,
+      tileKey: null,
+      coord: null
+    }))
+  }));
   appState.currentTurn = state.currentTurn;
 
   const synced = Number(state.diceValue || 0);
@@ -604,6 +685,7 @@ function hydrateOnlineState(state) {
   appState.isRolling = false;
   appState.winner = state.winner;
   appState.myPlayerIndex = Number.isInteger(state.myPlayerIndex) ? state.myPlayerIndex : appState.myPlayerIndex;
+  syncAllTokenStates();
   gameSection.classList.remove("hidden");
   modeMenu.classList.add("hidden");
 
