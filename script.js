@@ -357,12 +357,24 @@ function render() {
         }
       }
 
+      if (c === 0) {
+        sq.dataset.rank = String(8 - r);
+      }
+
+      if (r === 7) {
+        const fileLabel = document.createElement('span');
+        fileLabel.className = 'coord-file';
+        fileLabel.textContent = String.fromCharCode(97 + c);
+        sq.dataset.file = fileLabel.textContent;
+        sq.appendChild(fileLabel);
+      }
+
       const piece = state.board[r][c];
       if (piece) {
         const img = document.createElement('img');
         img.className = 'piece';
         img.src = pieceArt[piece.color][piece.type];
-        img.alt = `${piece.color === 'w' ? 'White' : 'Black'} ${piece.type}`;
+        img.alt = `${piece.color === 'w' ? 'Ivory' : 'Oxbridge Red'} ${piece.type}`;
         sq.appendChild(img);
       }
 
@@ -371,7 +383,7 @@ function render() {
     }
   }
 
-  turnStatusEl.textContent = state.turn === 'w' ? 'Your turn (White)' : 'Computer turn (Black)';
+  turnStatusEl.textContent = state.turn === 'w' ? 'Your turn (Ivory)' : 'Computer turn (Oxbridge Red)';
   if (state.over) {
     turnStatusEl.textContent = state.status;
   }
