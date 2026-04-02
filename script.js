@@ -29,6 +29,12 @@ const connectionStatus = document.getElementById("connectionStatus");
 const board3dEl = document.getElementById("board3d");
 const boardScalerEl = document.getElementById("boardScaler");
 
+function getRequiredEl(id) {
+  const el = document.getElementById(id);
+  if (!el) console.warn(`[Ludo] Missing element: #${id}`);
+  return el;
+}
+
 const appState = {
   mode: null,
   players: [],
@@ -178,6 +184,7 @@ function newTokens() {
 }
 
 function configureGame(mode, localCount = 4) {
+  // Mode state is updated immediately when a game mode is confirmed/started.
   appState.mode = mode;
   appState.currentTurn = 0;
   appState.dice = { die1: null, die2: null, total: null, rolledSix: false };
@@ -202,6 +209,28 @@ function configureGame(mode, localCount = 4) {
   updateStatus();
   maybeAITurn();
   requestAnimationFrame(updateBoardScale);
+}
+
+function setSelectedMode(mode) {
+  // Centralized mode state change for menu selection (before full game start).
+  appState.mode = mode;
+  if (mode === "single") {
+    localConfig?.classList.add("hidden");
+    onlineConfig?.classList.add("hidden");
+    updateStatus("Single Player selected. Starting vs computer...");
+    return;
+  }
+  if (mode === "local") {
+    localConfig?.classList.remove("hidden");
+    onlineConfig?.classList.add("hidden");
+    updateStatus("Local Multiplayer selected. Choose players and start.");
+    return;
+  }
+  if (mode === "online") {
+    onlineConfig?.classList.remove("hidden");
+    localConfig?.classList.add("hidden");
+    updateStatus("Online Multiplayer selected. Create or join a room.");
+  }
 }
 
 function render() {
@@ -533,29 +562,44 @@ function bindUI() {
     b.addEventListener("click", () => sfx("click"));
   });
 
-  document.getElementById("singleBtn").addEventListener("click", () => configureGame("single", 4));
-  document.getElementById("localBtn").addEventListener("click", () => {
-    localConfig.classList.toggle("hidden");
-    onlineConfig.classList.add("hidden");
+  // Initialize game mode buttons and listeners.
+  const singleBtn = getRequiredEl("singleBtn");
+  const localBtn = getRequiredEl("localBtn");
+  const onlineBtn = getRequiredEl("onlineBtn");
+  const startLocalBtn = getRequiredEl("startLocalBtn");
+  const localPlayersSelect = getRequiredEl("localPlayers");
+  const createRoomBtn = getRequiredEl("createRoomBtn");
+  const joinRoomBtn = getRequiredEl("joinRoomBtn");
+  const roomCodeInput = getRequiredEl("roomCodeInput");
+  const startOnlineBtn = getRequiredEl("startOnlineBtn");
+
+  singleBtn?.addEventListener("click", () => {
+    setSelectedMode("single");
+    configureGame("single", 4);
   });
-  document.getElementById("onlineBtn").addEventListener("click", () => {
-    onlineConfig.classList.toggle("hidden");
-    localConfig.classList.add("hidden");
+
+  localBtn?.addEventListener("click", () => {
+    setSelectedMode("local");
+  });
+
+  onlineBtn?.addEventListener("click", () => {
+    setSelectedMode("online");
     if (!appState.online.ws) connectOnline();
   });
-  document.getElementById("startLocalBtn").addEventListener("click", () => {
-    const c = Number(document.getElementById("localPlayers").value);
+
+  startLocalBtn?.addEventListener("click", () => {
+    const c = Number(localPlayersSelect?.value || 4);
     configureGame("local", c);
   });
 
-  document.getElementById("createRoomBtn").addEventListener("click", () => sendOnline({ type: "create-room" }));
-  document.getElementById("joinRoomBtn").addEventListener("click", () => {
-    const code = document.getElementById("roomCodeInput").value.trim().toUpperCase();
+  createRoomBtn?.addEventListener("click", () => sendOnline({ type: "create-room" }));
+  joinRoomBtn?.addEventListener("click", () => {
+    const code = roomCodeInput?.value.trim().toUpperCase() || "";
     if (!code) return;
     appState.roomCode = code;
     sendOnline({ type: "join-room", roomCode: code });
   });
-  document.getElementById("startOnlineBtn").addEventListener("click", () => sendOnline({ type: "start-game" }));
+  startOnlineBtn?.addEventListener("click", () => sendOnline({ type: "start-game" }));
 
   rollBtn.addEventListener("click", () => {
     if (appState.mode === "online") sendOnline({ type: "roll-request" });
