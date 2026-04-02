@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="chess piece">
+  <g fill="#f9f9f9" stroke="#666" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    
+<path d="M50 19c6 0 9 6 7 11-2 4-7 8-7 8s-5-4-7-8c-2-5 1-11 7-11z" />
+<path d="M42 42h16l7 24H35z" />
+<path d="M47 34l8 12" />
+<rect x="28" y="66" width="44" height="8" rx="2" />
+<rect x="24" y="74" width="52" height="8" rx="2" />
+  </g>
+  <g stroke="#6b2f2f" stroke-width="2" opacity="0.35" fill="none">
+    <circle cx="50" cy="58" r="8" />
+    <path d="M45 58h10M50 53v10" />
+    <path d="M43 63l14-10" opacity="0.2" />
+  </g>
+</svg>

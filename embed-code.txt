@@ -1,0 +1,11 @@
+Title:
+Chess Strategy
+
+Excerpt:
+Play chess against the computer and sharpen your planning, logic, and decision-making skills.
+
+Description:
+Chess Strategy is a classic board game that challenges students to think ahead, protect their king, and outsmart their opponent. It helps develop concentration, patience, and strategic thinking.
+
+WordPress Embed Code:
+<iframe src="/games/chess/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>

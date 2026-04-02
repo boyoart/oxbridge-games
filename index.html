@@ -3,71 +3,58 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Flags of the World Quiz</title>
+  <title>Chess Strategy | Oxbridge Tutorial College</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="app">
-    <header class="brand-header" aria-label="Oxbridge Tutorial College game header">
-      <div class="brand-mark-wrap">
-        <img class="brand-logo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
+  <div class="bg-overlay" aria-hidden="true"></div>
+  <main id="gameApp" class="app-shell">
+    <header class="brand-header" aria-label="Oxbridge Tutorial College Header">
+      <div class="logo-wrap" id="logoWrap">
+        <img src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" id="schoolLogo" />
+        <span class="logo-fallback" id="logoFallback">Oxbridge Tutorial College</span>
       </div>
-      <div class="brand-title-wrap">
-        <p class="brand-kicker">Oxbridge Interactive Learning</p>
-        <h1 class="brand-title">Flags of the World Quiz</h1>
+      <div class="title-wrap">
+        <p class="kicker">Oxbridge Interactive Learning</p>
+        <h1>Chess Strategy</h1>
       </div>
-      <div class="top-actions">
-        <a class="ghost-btn" href="/games" aria-label="Return to games list">← Return to Games</a>
-        <button id="fullscreenBtn" class="ghost-btn" type="button">⛶ Fullscreen</button>
+      <div class="header-actions">
+        <a class="btn" href="/games">Return to Games</a>
+        <button class="btn" id="fullscreenBtn" type="button">Fullscreen</button>
       </div>
     </header>
 
-    <section id="startScreen" class="card active" aria-labelledby="startTitle">
-      <h2 id="startTitle">Welcome to the Oxbridge Flag Challenge</h2>
-      <p class="subtitle">Can you identify the country from its flag before time runs out?</p>
-
-      <div class="how-to-play">
-        <h3>How to Play</h3>
-        <ul>
-          <li>You start with <strong>3 lives</strong>.</li>
-          <li>Each question has a <strong>15-second timer</strong>.</li>
-          <li>Choose the correct country name from 4 choices.</li>
-          <li>Wrong answers and timeouts cost 1 life.</li>
-          <li>Game ends when lives reach 0 or all questions are finished.</li>
-        </ul>
+    <section class="game-card" id="gameContainer">
+      <div class="top-bar">
+        <p class="status-pill" id="turnStatus">Your turn (White)</p>
+        <p class="status-pill" id="gameStatus">Ready to play.</p>
       </div>
 
-      <button id="startGameBtn" class="primary-btn" type="button">Start Game</button>
-    </section>
-
-    <section id="gameScreen" class="card" aria-live="polite">
-      <div class="status-row">
-        <p id="questionCount">Question 1 / 16</p>
-        <p id="scoreDisplay">Score: 0</p>
-        <p id="livesDisplay" aria-label="Lives remaining">Lives: ❤❤❤</p>
-        <p id="timerDisplay" class="timer">Time: 15s</p>
+      <div class="controls-row">
+        <label for="difficulty">AI Difficulty</label>
+        <select id="difficulty" aria-label="AI difficulty">
+          <option value="1">Easy</option>
+          <option value="2" selected>Medium</option>
+          <option value="3">Hard</option>
+        </select>
+        <button class="btn" id="restartBtn" type="button">Restart Game</button>
+        <button class="btn" id="undoBtn" type="button">Undo Move</button>
       </div>
 
-      <div class="flag-frame">
-        <img id="flagImage" src="" alt="Flag question" />
-      </div>
-
-      <h2 id="prompt">Which country's flag is this?</h2>
-
-      <div id="answers" class="answers-grid"></div>
-      <p id="feedback" class="feedback" role="status"></p>
-    </section>
-
-    <section id="endScreen" class="card" aria-labelledby="endTitle">
-      <div class="end-brand-wrap">
-        <img class="brand-logo end-logo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
-      </div>
-      <h2 id="endTitle">Game Over</h2>
-      <p id="finalMessage"></p>
-      <p id="finalScore"></p>
-      <div class="end-actions">
-        <button id="playAgainBtn" class="primary-btn" type="button">Play Again</button>
-        <a class="ghost-btn" href="/games">Return to Games</a>
+      <div class="board-panel">
+        <div class="board-wrap">
+          <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+        </div>
+        <aside class="info-panel">
+          <h2>Match Notes</h2>
+          <ul>
+            <li>You play White and move first.</li>
+            <li>Tap a piece to view legal moves.</li>
+            <li>Promotion is automatic to Queen.</li>
+            <li>Use Undo to take back your last turn.</li>
+          </ul>
+          <p class="notice">Check, checkmate, and draw are detected automatically.</p>
+        </aside>
       </div>
     </section>
   </main>
