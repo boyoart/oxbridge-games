@@ -65,29 +65,78 @@ select, input {
 .status-row { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom: 8px; font-weight:700; }
 
 .play-area { display:grid; grid-template-columns: minmax(260px, 1fr) 260px; gap: 12px; align-items: start; }
-.board-3d { position: relative; padding: 12px; background: linear-gradient(145deg, #fff, #f5f5f5); }
+.board-3d {
+  --board-size: 720px;
+  --board-scale: 1;
+  position: relative;
+  padding: 14px;
+  background: linear-gradient(145deg, #4a4a4a, #2f2f2f);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.board-stage {
+  width: 100%;
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+}
+.board-scaler {
+  width: var(--board-size);
+  height: var(--board-size);
+  position: relative;
+  transform: scale(var(--board-scale));
+  transform-origin: center center;
+}
 .board {
   display:grid; grid-template-columns: repeat(15, 1fr); grid-template-rows: repeat(15, 1fr);
-  width: min(74vw, 760px); aspect-ratio: 1/1; border-radius: 16px;
-  overflow:hidden; margin:auto;
-  box-shadow: inset 0 2px 5px rgba(255,255,255,.9), inset 0 -6px 10px rgba(0,0,0,.09);
+  width: 100%;
+  height: 100%;
+  border-radius: 22px;
+  overflow:hidden;
+  margin:auto;
+  background: #3a3a3a;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 4px rgba(255,255,255,.14), inset 0 -10px 16px rgba(0,0,0,.34), 0 10px 24px rgba(0,0,0,.32);
   position: relative;
 }
 .tile {
-  border: 1px solid rgba(0,0,0,.06); background: #fafafa; position:relative; display:grid; place-items:center;
+  border: 1px solid rgba(255,255,255,.05);
+  background: #3f3f3f;
+  position:relative;
+  display:grid;
+  place-items:center;
 }
-.tile.track { background:#fff; }
+.tile.track {
+  background: #f6f7f9;
+  border-color: rgba(0, 0, 0, 0.11);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.62);
+}
 .tile.safe::after {
-  content:"★"; font-size:.68rem; color:#333; opacity:.6;
+  content:"★";
+  font-size:.68rem;
+  color:#2e2e2e;
+  opacity:.92;
+  text-shadow: 0 0 4px rgba(255,255,255,.55);
 }
-.tile.home-path-red{background:#ffd0d0}.tile.home-path-blue{background:#d7e6ff}
-.tile.home-path-green{background:#d8f4da}.tile.home-path-yellow{background:#fff2b8}
+.tile.home-path-red { background: #ffcbcb; }
+.tile.home-path-blue { background: #cfe0ff; }
+.tile.home-path-green { background: #cff0d8; }
+.tile.home-path-yellow { background: #ffeeb0; }
 
-.base-zone { border-radius: 10px; display:grid; place-items:center; font-size:.6rem; font-weight:700; color:#fff; }
-.base-red { background: linear-gradient(145deg, #ff6464, #b30000); }
-.base-blue { background: linear-gradient(145deg, #6ca7ff, #2d5ecf); }
-.base-green { background: linear-gradient(145deg, #6ed184, #258642); }
-.base-yellow { background: linear-gradient(145deg, #ffe18c, #cfa61b); color:#3c2f00; }
+.base-zone {
+  border-radius: 14px;
+  display:grid;
+  place-items:center;
+  font-size:.6rem;
+  font-weight:700;
+  color:#fff;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.25);
+}
+.base-red { background: #c62828; }
+.base-blue { background: #1f62d1; }
+.base-green { background: #2e9b4d; }
+.base-yellow { background: #f2c434; color:#3c2f00; }
 
 .token {
   width: 74%; height: 74%; border-radius: 50%; position: absolute; cursor: pointer;
@@ -103,9 +152,14 @@ select, input {
 .token.yellow{background:radial-gradient(circle at 30% 30%, #fff0ac, #d5a800 65%)}
 
 .center-logo-watermark {
-  position:absolute; inset: 38% 38%; pointer-events:none; z-index: 1; display:grid; place-items:center;
+  position:absolute;
+  inset: 39% 39%;
+  pointer-events:none;
+  z-index: 1;
+  display:grid;
+  place-items:center;
 }
-.center-logo-watermark img { max-width:100%; max-height:100%; opacity:.17; }
+.center-logo-watermark img { max-width:100%; max-height:100%; opacity:.12; filter: grayscale(1) contrast(1.1); }
 .center-logo-watermark span { display:none; opacity:.25; font-weight:800; text-align:center; color:#6c0000; }
 
 .side-panel { padding: 12px; }
@@ -123,5 +177,11 @@ select, input {
 
 @media (max-width: 940px) {
   .play-area { grid-template-columns: 1fr; }
-  .board { width: min(94vw, 620px); }
+  .board-stage { min-height: 280px; }
+}
+
+@media (max-width: 560px) {
+  .board-3d { padding: 10px; }
+  .board-stage { min-height: 250px; }
+  .side-panel { padding: 10px; }
 }
