@@ -4,6 +4,8 @@ const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
 const SAFE_PATH_INDEX = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
 const ENTRY_ROLL = 6;
 const PATH_LEN = 52;
+const AI_MIN_DELAY_MS = 200;
+const AI_MAX_DELAY_MS = 500;
 const HOME_STEPS = 6;
 
 const boardEl = document.getElementById("board");
@@ -324,19 +326,27 @@ function maybeAITurn() {
   if (p.type !== "ai") return;
 
   statusText.textContent = "Computer thinking...";
+  const thinkDelay = AI_MIN_DELAY_MS + Math.floor(Math.random() * (AI_MAX_DELAY_MS - AI_MIN_DELAY_MS + 1));
   setTimeout(() => {
-    rollDice(false);
-    setTimeout(() => {
-      const roll = appState.diceValue;
-      const moves = validMovesFor(appState.currentTurn, roll || 0);
-      if (!moves.length) return;
+    const roll = Math.floor(Math.random() * 6) + 1;
+    appState.diceValue = roll;
 
-      let tokenId = moves.find(i => canCaptureWithMove(appState.currentTurn, i, roll));
-      if (tokenId === undefined) tokenId = moves.find(i => appState.players[appState.currentTurn].tokens[i].pos === -1);
-      if (tokenId === undefined) tokenId = moves[0];
-      applyMove(appState.currentTurn, tokenId, roll);
-    }, 900);
-  }, 700);
+    const currentPlayer = appState.players[appState.currentTurn];
+    const moves = validMovesFor(appState.currentTurn, roll);
+    if (!moves.length) {
+      updateStatus(`${currentPlayer.name} rolled ${roll}. No valid moves.`);
+      appState.diceValue = null;
+      if (roll !== 6) appState.currentTurn = (appState.currentTurn + 1) % appState.players.length;
+      render();
+      maybeAITurn();
+      return;
+    }
+
+    let tokenId = moves.find(i => canCaptureWithMove(appState.currentTurn, i, roll));
+    if (tokenId === undefined) tokenId = moves.find(i => currentPlayer.tokens[i].pos === -1);
+    if (tokenId === undefined) tokenId = moves[0];
+    applyMove(appState.currentTurn, tokenId, roll);
+  }, thinkDelay);
 }
 
 function canCaptureWithMove(playerIdx, tokenId, roll) {
