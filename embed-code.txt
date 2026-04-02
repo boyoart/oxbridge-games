@@ -2,10 +2,10 @@ Title:
 Chess Strategy
 
 Excerpt:
-Play chess against the computer and sharpen your planning, logic, and decision-making skills.
+Challenge the computer and sharpen your planning, logic, and decision-making skills in this premium interactive chess game.
 
 Description:
-Chess Strategy is a classic board game that challenges students to think ahead, protect their king, and outsmart their opponent. It helps develop concentration, patience, and strategic thinking.
+Chess Strategy is an Oxbridge-branded digital chess experience that combines elegant visuals, strategic gameplay, and a polished premium interface. It helps develop concentration, planning, and critical thinking.
 
 WordPress Embed Code:
 <iframe src="/games/chess/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>

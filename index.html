@@ -8,7 +8,8 @@
 </head>
 <body>
   <div class="bg-overlay" aria-hidden="true"></div>
-  <main id="gameApp" class="app-shell">
+
+  <main id="gameApp" class="app-shell prestart">
     <header class="brand-header" aria-label="Oxbridge Tutorial College Header">
       <div class="header-shine" aria-hidden="true"></div>
       <div class="header-center">
@@ -21,10 +22,37 @@
           <p class="subtitle">Interactive Chess Strategy</p>
         </div>
       </div>
-      <p class="turn-badge" id="headerTurnIndicator">White to move</p>
+      <p class="turn-badge" id="headerTurnIndicator">Awaiting start</p>
     </header>
 
-    <section class="game-card" id="gameContainer">
+    <section class="game-stage" id="gameContainer">
+      <section class="intro-screen" id="introScreen" aria-label="Game intro screen">
+        <div class="intro-card">
+          <p class="intro-kicker">OXBRIDGE DIGITAL GAME</p>
+          <h2>Chess Strategy</h2>
+          <p class="intro-sub">A premium chess challenge for planning, logic, and tactical thinking.</p>
+
+          <div class="intro-grid">
+            <label for="difficulty">Difficulty</label>
+            <select id="difficulty" aria-label="AI difficulty">
+              <option value="1">Scholar (Easy)</option>
+              <option value="2" selected>Oxford (Medium)</option>
+              <option value="3">Master (Hard)</option>
+            </select>
+
+            <label for="timeControl">Time Control</label>
+            <select id="timeControl" aria-label="Game timer">
+              <option value="180000">3:00 Blitz</option>
+              <option value="300000" selected>5:00 Standard</option>
+              <option value="600000">10:00 Classic</option>
+            </select>
+          </div>
+
+          <p class="intro-note">How to play: select one of your ivory pieces, choose a glowing square, and outplay the Oxbridge red AI before your timer runs out.</p>
+          <button class="btn intro-start" id="startBtn" type="button">Start Game</button>
+        </div>
+      </section>
+
       <div class="board-shell">
         <div class="board-scene" aria-label="Front-facing premium chessboard scene">
           <div class="board-shadow" aria-hidden="true"></div>
@@ -51,23 +79,15 @@
 
         <div class="console-center">
           <div class="status-row">
-            <p class="status-pill" id="turnStatus">Your turn (Ivory)</p>
-            <p class="status-pill" id="gameStatus">Ready to play.</p>
-          </div>
-
-          <div class="controls-row controls-row-stack">
-            <label for="difficulty">AI Difficulty</label>
-            <select id="difficulty" aria-label="AI difficulty">
-              <option value="1">Scholar (Easy)</option>
-              <option value="2" selected>Oxford (Medium)</option>
-              <option value="3">Master (Hard)</option>
-            </select>
+            <p class="status-pill" id="turnStatus">Press Start to begin.</p>
+            <p class="status-pill" id="gameStatus">Game loaded.</p>
           </div>
 
           <div class="control-buttons">
             <button class="btn" id="restartBtn" type="button">Restart</button>
             <button class="btn" id="undoBtn" type="button">Undo</button>
             <button class="btn" id="fullscreenBtn" type="button">Fullscreen</button>
+            <button class="btn" id="soundToggleBtn" type="button">Sound: On</button>
             <a class="btn btn-ghost" href="/games">Return to Games</a>
           </div>
         </div>
