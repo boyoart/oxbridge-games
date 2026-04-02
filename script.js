@@ -44,6 +44,33 @@ let secondsLeft = QUESTION_TIME;
 let timerId = null;
 let acceptingInput = false;
 
+
+function handleMissingLogo(img) {
+  img.classList.add('is-hidden');
+  const container = img.closest('.brand-mark-wrap, .end-brand-wrap');
+  if (container) {
+    container.classList.add('logo-missing');
+  }
+}
+
+function initializeBrandLogos() {
+  const logos = document.querySelectorAll('.brand-logo');
+  logos.forEach((img) => {
+    const checkAndHandle = () => {
+      if (!img.complete || img.naturalWidth > 0) return;
+      handleMissingLogo(img);
+    };
+
+    img.addEventListener('error', () => handleMissingLogo(img), { once: true });
+
+    if (img.complete) {
+      checkAndHandle();
+    } else {
+      img.addEventListener('load', checkAndHandle, { once: true });
+    }
+  });
+}
+
 function shuffle(input) {
   const arr = [...input];
   for (let i = arr.length - 1; i > 0; i -= 1) {
@@ -243,4 +270,5 @@ startGameBtn.addEventListener('click', startGame);
 playAgainBtn.addEventListener('click', startGame);
 fullscreenBtn.addEventListener('click', toggleFullscreen);
 
+initializeBrandLogos();
 setScreen('start');

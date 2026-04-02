@@ -8,17 +8,26 @@
 </head>
 <body>
   <main class="app">
-    <header class="top-bar">
-      <a class="ghost-btn" href="/games" aria-label="Return to games list">← Return to Games</a>
-      <button id="fullscreenBtn" class="ghost-btn" type="button">⛶ Fullscreen</button>
+    <header class="brand-header" aria-label="Oxbridge Tutorial College game header">
+      <div class="brand-mark-wrap">
+        <img class="brand-logo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
+      </div>
+      <div class="brand-title-wrap">
+        <p class="brand-kicker">Oxbridge Interactive Learning</p>
+        <h1 class="brand-title">Flags of the World Quiz</h1>
+      </div>
+      <div class="top-actions">
+        <a class="ghost-btn" href="/games" aria-label="Return to games list">← Return to Games</a>
+        <button id="fullscreenBtn" class="ghost-btn" type="button">⛶ Fullscreen</button>
+      </div>
     </header>
 
     <section id="startScreen" class="card active" aria-labelledby="startTitle">
-      <h1 id="startTitle">Flags of the World Quiz</h1>
-      <p class="subtitle">Can you identify the country from its flag?</p>
+      <h2 id="startTitle">Welcome to the Oxbridge Flag Challenge</h2>
+      <p class="subtitle">Can you identify the country from its flag before time runs out?</p>
 
       <div class="how-to-play">
-        <h2>How to Play</h2>
+        <h3>How to Play</h3>
         <ul>
           <li>You start with <strong>3 lives</strong>.</li>
           <li>Each question has a <strong>15-second timer</strong>.</li>
@@ -50,6 +59,9 @@
     </section>
 
     <section id="endScreen" class="card" aria-labelledby="endTitle">
+      <div class="end-brand-wrap">
+        <img class="brand-logo end-logo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
+      </div>
       <h2 id="endTitle">Game Over</h2>
       <p id="finalMessage"></p>
       <p id="finalScore"></p>
