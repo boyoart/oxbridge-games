@@ -3,71 +3,106 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Flags of the World Quiz</title>
+  <title>Ludo Classic | Oxbridge Tutorial College</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="app">
-    <header class="brand-header" aria-label="Oxbridge Tutorial College game header">
-      <div class="brand-mark-wrap">
-        <img class="brand-logo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
+  <div class="bg-shape bg-shape-1"></div>
+  <div class="bg-shape bg-shape-2"></div>
+
+  <main id="app" class="app-shell">
+    <header class="brand-header">
+      <div class="logo-wrap">
+        <img id="schoolLogo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
+        <span id="logoFallback" class="logo-fallback">Oxbridge Tutorial College</span>
       </div>
-      <div class="brand-title-wrap">
-        <p class="brand-kicker">Oxbridge Interactive Learning</p>
-        <h1 class="brand-title">Flags of the World Quiz</h1>
-      </div>
-      <div class="top-actions">
-        <a class="ghost-btn" href="/games" aria-label="Return to games list">← Return to Games</a>
-        <button id="fullscreenBtn" class="ghost-btn" type="button">⛶ Fullscreen</button>
+      <div>
+        <h1>Ludo Classic</h1>
+        <p>Oxbridge Tutorial College Interactive Board Game</p>
       </div>
     </header>
 
-    <section id="startScreen" class="card active" aria-labelledby="startTitle">
-      <h2 id="startTitle">Welcome to the Oxbridge Flag Challenge</h2>
-      <p class="subtitle">Can you identify the country from its flag before time runs out?</p>
-
-      <div class="how-to-play">
-        <h3>How to Play</h3>
-        <ul>
-          <li>You start with <strong>3 lives</strong>.</li>
-          <li>Each question has a <strong>15-second timer</strong>.</li>
-          <li>Choose the correct country name from 4 choices.</li>
-          <li>Wrong answers and timeouts cost 1 life.</li>
-          <li>Game ends when lives reach 0 or all questions are finished.</li>
-        </ul>
+    <section class="menu-panel card" id="modeMenu">
+      <h2>Choose Game Mode</h2>
+      <div class="btn-grid">
+        <button class="brand-btn" id="singleBtn">Single Player</button>
+        <button class="brand-btn" id="localBtn">Local Multiplayer</button>
+        <button class="brand-btn" id="onlineBtn">Online Multiplayer</button>
       </div>
 
-      <button id="startGameBtn" class="primary-btn" type="button">Start Game</button>
+      <div id="localConfig" class="sub-panel hidden">
+        <label for="localPlayers">Local Players (2-4):</label>
+        <select id="localPlayers">
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4" selected>4</option>
+        </select>
+        <button class="brand-btn" id="startLocalBtn">Start Game</button>
+      </div>
+
+      <div id="onlineConfig" class="sub-panel hidden">
+        <div class="online-actions">
+          <button class="brand-btn" id="createRoomBtn">Create Room</button>
+          <input type="text" id="roomCodeInput" placeholder="Enter Room Code" maxlength="6" />
+          <button class="brand-btn" id="joinRoomBtn">Join Room</button>
+        </div>
+        <button class="brand-btn hidden" id="startOnlineBtn">Start Game</button>
+        <p id="connectionStatus">Connection: Offline</p>
+      </div>
     </section>
 
-    <section id="gameScreen" class="card" aria-live="polite">
-      <div class="status-row">
-        <p id="questionCount">Question 1 / 16</p>
-        <p id="scoreDisplay">Score: 0</p>
-        <p id="livesDisplay" aria-label="Lives remaining">Lives: ❤❤❤</p>
-        <p id="timerDisplay" class="timer">Time: 15s</p>
+    <section id="gameSection" class="hidden">
+      <div class="hud card">
+        <div class="status-row">
+          <span id="statusText">Pick a mode to begin.</span>
+          <span id="roomCodeLabel" class="hidden">Room Code: <strong id="roomCodeValue"></strong></span>
+        </div>
+        <div class="controls">
+          <button class="brand-btn" id="rollBtn">Roll Die</button>
+          <button class="brand-btn" id="restartBtn">Restart Game</button>
+          <button class="brand-btn" id="fullscreenBtn">Fullscreen</button>
+          <button class="brand-btn" id="soundToggleBtn">Sound: On</button>
+          <a class="brand-btn return-link" href="/games">Return to Games</a>
+        </div>
       </div>
 
-      <div class="flag-frame">
-        <img id="flagImage" src="" alt="Flag question" />
-      </div>
+      <div class="play-area">
+        <div id="board3d" class="board-3d card">
+          <div class="board-stage">
+            <div id="boardScaler" class="board-scaler">
+              <div id="board" class="board"></div>
+              <div class="board-dice-zone" aria-live="polite">
+                <div id="dice1" class="board-die face-1" aria-label="Die showing 1">
+                  <div id="dieCube" class="die-cube">
+                    <div class="die-face face-1"><span class="pip p-center"></span></div>
+                    <div class="die-face face-2"><span class="pip p-tl"></span><span class="pip p-br"></span></div>
+                    <div class="die-face face-3"><span class="pip p-tl"></span><span class="pip p-center"></span><span class="pip p-br"></span></div>
+                    <div class="die-face face-4"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
+                    <div class="die-face face-5"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-center"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
+                    <div class="die-face face-6">
+                      <span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-ml"></span>
+                      <span class="pip p-mr"></span><span class="pip p-bl"></span><span class="pip p-br"></span>
+                    </div>
+                  </div>
+                </div>
+                <div id="dieShadow" class="die-shadow" aria-hidden="true"></div>
+              </div>
+              <div class="center-logo-watermark" aria-hidden="true">
+                <img id="boardLogo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
+                <span id="boardLogoFallback">Oxbridge Tutorial College</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      <h2 id="prompt">Which country's flag is this?</h2>
-
-      <div id="answers" class="answers-grid"></div>
-      <p id="feedback" class="feedback" role="status"></p>
-    </section>
-
-    <section id="endScreen" class="card" aria-labelledby="endTitle">
-      <div class="end-brand-wrap">
-        <img class="brand-logo end-logo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
-      </div>
-      <h2 id="endTitle">Game Over</h2>
-      <p id="finalMessage"></p>
-      <p id="finalScore"></p>
-      <div class="end-actions">
-        <button id="playAgainBtn" class="primary-btn" type="button">Play Again</button>
-        <a class="ghost-btn" href="/games">Return to Games</a>
+        <div class="side-panel card">
+          <div class="dice-wrap">
+            <div id="diceSummary" class="dice-summary">Die: -</div>
+          </div>
+          <div id="turnInfo" class="turn-info"></div>
+          <h3 class="score-title">Home Progress</h3>
+          <ul id="scoreBoard" class="score-board"></ul>
+        </div>
       </div>
     </section>
   </main>

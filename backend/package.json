@@ -1,0 +1,12 @@
+{
+  "name": "ludo-classic-backend",
+  "version": "1.0.0",
+  "description": "Realtime room-code multiplayer backend for Ludo Classic",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
