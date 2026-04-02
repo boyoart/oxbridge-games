@@ -12,7 +12,6 @@ const rooms = new Map();
 const sockets = new Map();
 const COLORS = ["red", "blue", "green", "yellow"];
 const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
-const SAFE = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
 const PATH_LEN = 52;
 const FINAL_HOME_POSITION = 58;
 const ENTRY_ROLL = 6;
@@ -42,11 +41,6 @@ function shouldGrantExtraTurn(roll) {
   return roll === ENTRY_ROLL;
 }
 
-// safe tile rule is centralized so capture checks are consistent.
-function isSafeTile(pathIndex) {
-  return SAFE.has(pathIndex);
-}
-
 function getTargetPosition(tokenPos, roll) {
   if (tokenPos === FINAL_HOME_POSITION) return null;
   if (tokenPos === -1) return canEnterBoard(roll) ? 0 : null;
@@ -70,7 +64,6 @@ function canCapture(room, moverIdx, targetPos) {
   const mover = room.players[moverIdx];
   if (!mover || targetPos < 0 || targetPos > 51) return false;
   const abs = (START_INDEX[mover.color] + targetPos) % PATH_LEN;
-  if (isSafeTile(abs)) return false;
 
   return room.players.some((op, idx) => idx !== moverIdx
     && op.tokens.some((token) => token.pos >= 0 && token.pos <= 51
@@ -82,8 +75,6 @@ function capture(room, pIdx, tokenId) {
   const t = p.tokens[tokenId];
   if (t.pos < 0 || t.pos > 51) return false;
   const abs = (START_INDEX[p.color] + t.pos) % PATH_LEN;
-  // safe tile rule enforced before applying capture.
-  if (isSafeTile(abs)) return false;
 
   let cap = false;
   room.players.forEach((op, i) => {
