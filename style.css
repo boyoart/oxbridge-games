@@ -41,7 +41,7 @@ h1 { margin:0; font-size:1.55rem; }
 .brand-header p { margin:2px 0 0; opacity:.9; }
 h2 { margin-top: 0; }
 
-.menu-panel { padding: 16px; }
+.menu-panel { padding: 16px; position: relative; z-index: 5; pointer-events: auto; }
 .btn-grid, .controls, .online-actions { display:flex; flex-wrap:wrap; gap:10px; }
 .sub-panel { margin-top: 14px; padding: 12px; border-radius: 10px; background: #fff6f6; border: 1px dashed rgba(179,0,0,.35); }
 .hidden { display:none !important; }
@@ -53,6 +53,7 @@ h2 { margin-top: 0; }
   box-shadow: 0 5px 0 #710000, 0 9px 12px rgba(0,0,0,.2);
   text-decoration: none; display: inline-flex; align-items:center;
   transition: transform .12s ease, box-shadow .12s ease, filter .2s ease;
+  touch-action: manipulation;
 }
 .brand-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
 .brand-btn:active { transform: translateY(2px); box-shadow: 0 3px 0 #710000, 0 6px 9px rgba(0,0,0,.2); }
