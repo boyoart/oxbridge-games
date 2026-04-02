@@ -5,7 +5,8 @@ const SAFE_PATH_INDEX = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
 const PATH_LEN = 52;
 const AI_MIN_DELAY_MS = 200;
 const AI_MAX_DELAY_MS = 500;
-const HOME_STEPS = 6;
+const FINAL_HOME_POSITION = 58;
+const ENTRY_ROLL = 6;
 const BOARD_BASE_SIZE = 720;
 
 const boardEl = document.getElementById("board");
@@ -19,7 +20,6 @@ const restartBtn = document.getElementById("restartBtn");
 const fullscreenBtn = document.getElementById("fullscreenBtn");
 const soundToggleBtn = document.getElementById("soundToggleBtn");
 const dice1El = document.getElementById("dice1");
-const dice2El = document.getElementById("dice2");
 const diceSummaryEl = document.getElementById("diceSummary");
 const gameSection = document.getElementById("gameSection");
 const modeMenu = document.getElementById("modeMenu");
@@ -39,7 +39,7 @@ const appState = {
   mode: null,
   players: [],
   currentTurn: 0,
-  dice: { die1: null, die2: null, total: null, rolledSix: false },
+  dice: { value: null, rolledSix: false },
   mustMove: false,
   isRolling: false,
   winner: null,
@@ -54,17 +54,11 @@ let boardPath = [];
 let homePaths = { red: [], blue: [], green: [], yellow: [] };
 
 const sounds = {
-  // dice roll sound is triggered whenever both dice are rolled
   dice: new Audio("assets/sounds/dice-roll.mp3"),
-  // token move sound is triggered after every valid token move
   move: new Audio("assets/sounds/token-move.mp3"),
-  // capture sound is triggered when an opponent token is captured
   capture: new Audio("assets/sounds/capture.mp3"),
-  // win sound is triggered when a player completes all tokens
   win: new Audio("assets/sounds/win.mp3"),
-  // click sound is triggered for menu/control buttons
   click: new Audio("assets/sounds/click.mp3"),
-  // join sound is triggered when creating/joining online room
   join: new Audio("assets/sounds/join-room.mp3")
 };
 Object.values(sounds).forEach((a) => {
@@ -131,7 +125,7 @@ function setupBoard() {
   Object.entries(homePaths).forEach(([color, tiles]) => {
     tiles.forEach(([r, c]) => {
       const tile = getTile(r, c);
-      tile.classList.add(`track`, `home-path-${color}`);
+      tile.classList.add("track", `home-path-${color}`);
     });
   });
 
@@ -185,10 +179,9 @@ function newTokens() {
 }
 
 function configureGame(mode, localCount = 4) {
-  // Mode state is updated immediately when a game mode is confirmed/started.
   appState.mode = mode;
   appState.currentTurn = 0;
-  appState.dice = { die1: null, die2: null, total: null, rolledSix: false };
+  appState.dice = { value: null, rolledSix: false };
   appState.mustMove = false;
   appState.isRolling = false;
   appState.winner = null;
@@ -214,7 +207,6 @@ function configureGame(mode, localCount = 4) {
 }
 
 function setSelectedMode(mode) {
-  // Centralized mode state change for menu selection (before full game start).
   appState.mode = mode;
   if (mode === "single") {
     localConfig?.classList.add("hidden");
@@ -254,24 +246,20 @@ function render() {
     });
   });
 
-  // Dice UI values update here after each roll state transition.
-  dice1El.textContent = appState.dice.die1 ?? "-";
-  dice2El.textContent = appState.dice.die2 ?? "-";
-  diceSummaryEl.textContent = `Die 1: ${appState.dice.die1 ?? "-"} | Die 2: ${appState.dice.die2 ?? "-"} | Total: ${appState.dice.total ?? "-"}`;
+  dice1El.textContent = appState.dice.value ?? "-";
+  diceSummaryEl.textContent = `Die: ${appState.dice.value ?? "-"}`;
 
   const cp = appState.players[appState.currentTurn];
   turnInfo.textContent = cp ? `Turn: ${cp.name} (${COLOR_LABEL[cp.color]})` : "";
 
   if (rollBtn) rollBtn.disabled = !canCurrentPlayerRoll();
 
-  // Player counters are recalculated here on every render (move/capture/home/restart).
   const progress = appState.players.map((p) => ({
     name: p.name,
     color: p.color,
-    homeCount: p.tokens.filter((t) => t.pos === 58).length
+    homeCount: p.tokens.filter((t) => t.pos === FINAL_HOME_POSITION).length
   }));
 
-  // UI scoreboard is refreshed from latest counters so values update immediately.
   scoreBoard.innerHTML = progress.map((p) => `
     <li class="score-item ${p.color}">
       <span class="score-label">${p.name}</span>
@@ -290,8 +278,46 @@ function getTokenCoordinates(color, pos, tokenId) {
   if (pos === -1) return baseMap[color][tokenId];
   if (pos <= 51) return boardPath[(START_INDEX[color] + pos) % PATH_LEN];
   if (pos >= 52 && pos <= 57) return homePaths[color][pos - 52];
-  if (pos === 58) return [7, 7];
+  if (pos === FINAL_HOME_POSITION) return [7, 7];
   return null;
+}
+
+// safe tile rule is centralized so capture/move checks always agree.
+function isSafeTile(pathIndex) {
+  return SAFE_PATH_INDEX.has(pathIndex);
+}
+
+// entry rule is centralized here: token leaves base only on a 6.
+function canEnterBoard(rollValue) {
+  return rollValue === ENTRY_ROLL;
+}
+
+// extra-turn rule is centralized here: only a 6 grants an extra turn.
+function shouldGrantExtraTurn(rollValue) {
+  return rollValue === ENTRY_ROLL;
+}
+
+function getTargetPosition(tokenPos, rollValue) {
+  if (tokenPos === FINAL_HOME_POSITION) return null;
+  if (tokenPos === -1) return canEnterBoard(rollValue) ? 0 : null;
+  const target = tokenPos + rollValue;
+  // exact home rule is enforced here: overshoot beyond final home is illegal.
+  if (target > FINAL_HOME_POSITION) return null;
+  return target;
+}
+
+function canMoveToken(playerIdx, tokenId, rollValue) {
+  const token = appState.players[playerIdx]?.tokens[tokenId];
+  if (!token) return false;
+  return getTargetPosition(token.pos, rollValue) !== null;
+}
+
+function getValidMoves(playerIdx, rollValue) {
+  const player = appState.players[playerIdx];
+  if (!player) return [];
+  return player.tokens
+    .map((_, i) => i)
+    .filter((tokenId) => canMoveToken(playerIdx, tokenId, rollValue));
 }
 
 function isTokenClickable(playerIdx, tokenId) {
@@ -299,69 +325,42 @@ function isTokenClickable(playerIdx, tokenId) {
   const current = appState.players[appState.currentTurn];
   if (!current || current.type !== "human") return false;
   if (playerIdx !== appState.currentTurn) return false;
-  return isMoveValid(playerIdx, tokenId, appState.dice.total, appState.dice.rolledSix);
-}
-
-function isMoveValid(playerIdx, tokenId, rollTotal, rolledSix) {
-  const token = appState.players[playerIdx].tokens[tokenId];
-  if (token.pos === 58) return false;
-  if (token.pos === -1) return rolledSix;
-  const target = token.pos + rollTotal;
-  return target <= 58;
+  return canMoveToken(playerIdx, tokenId, appState.dice.value);
 }
 
 function chooseTokenMove(playerIdx, tokenId) {
   if (!isTokenClickable(playerIdx, tokenId)) return;
-  applyMove(playerIdx, tokenId, appState.dice.total, appState.dice.rolledSix, true);
+  applyMove(playerIdx, tokenId, appState.dice.value, true);
 }
 
-function applyMove(playerIdx, tokenId, rollTotal, rolledSix, allowNetworkEmit = false) {
-  const p = appState.players[playerIdx];
-  const token = p.tokens[tokenId];
-  const oldPos = token.pos;
-  token.pos = token.pos === -1 ? 0 : token.pos + rollTotal;
-  if (token.pos === 58) token.pos = 58;
+// capture rule helper: only opponents can be captured and only on non-safe tiles.
+function canCapture(moverIdx, targetPos) {
+  const mover = appState.players[moverIdx];
+  if (!mover || targetPos < 0 || targetPos > 51) return false;
+  const abs = (START_INDEX[mover.color] + targetPos) % PATH_LEN;
+  if (isSafeTile(abs)) return false;
 
-  // Capture updates happen atomically here so token reset/state/sidebar are immediately in sync.
-  const captured = handleCapture(playerIdx, tokenId);
-  sfx("move");
-
-  if (checkWinner(playerIdx)) {
-    appState.winner = playerIdx;
-    statusText.textContent = `Winner: ${p.name} (${COLOR_LABEL[p.color]})!`;
-    sfx("win");
-    appState.mustMove = false;
-  } else {
-    const extraTurn = rolledSix;
-    appState.mustMove = false;
-    appState.dice = { die1: null, die2: null, total: null, rolledSix: false };
-    if (!extraTurn) appState.currentTurn = (appState.currentTurn + 1) % appState.players.length;
-    updateStatus(captured ? `${p.name} captured a token!` : (extraTurn ? `${p.name} rolled a 6: extra turn.` : "Turn changed."));
-  }
-
-  render();
-  maybeAITurn();
-
-  if (allowNetworkEmit && appState.mode === "online") {
-    sendOnline({ type: "move", tokenId, oldPos, player: playerIdx });
-  }
+  return appState.players.some((op, idx) => idx !== moverIdx
+    && op.tokens.some((token) => token.pos >= 0 && token.pos <= 51 && ((START_INDEX[op.color] + token.pos) % PATH_LEN) === abs));
 }
 
 function handleCapture(moverIdx, tokenId) {
   const mover = appState.players[moverIdx];
   const moved = mover.tokens[tokenId];
   if (moved.pos < 0 || moved.pos > 51) return false;
+
   const abs = (START_INDEX[mover.color] + moved.pos) % PATH_LEN;
-  if (SAFE_PATH_INDEX.has(abs)) return false;
+  // safe tile rule enforced before capture resolution.
+  if (isSafeTile(abs)) return false;
 
   let capturedAny = false;
   appState.players.forEach((op, idx) => {
-    if (idx === moverIdx) return;
+    if (idx === moverIdx) return; // same-color tokens can never capture each other.
     op.tokens.forEach((t) => {
       if (t.pos < 0 || t.pos > 51) return;
       const opos = (START_INDEX[op.color] + t.pos) % PATH_LEN;
       if (opos === abs) {
-        // Captured token is immediately reset to base in the same state update tick.
+        // capture rule enforced: captured opponent token returns to base immediately.
         t.pos = -1;
         capturedAny = true;
       }
@@ -372,78 +371,110 @@ function handleCapture(moverIdx, tokenId) {
   return capturedAny;
 }
 
-function checkWinner(pIndex) {
-  return appState.players[pIndex].tokens.every((t) => t.pos === 58);
+function hasWon(playerIdx) {
+  return appState.players[playerIdx].tokens.every((t) => t.pos === FINAL_HOME_POSITION);
 }
 
-function rollTwoDice() {
-  const die1 = Math.floor(Math.random() * 6) + 1;
-  const die2 = Math.floor(Math.random() * 6) + 1;
-  return { die1, die2, total: die1 + die2, rolledSix: die1 === 6 || die2 === 6 };
+function advanceTurn(extraTurn) {
+  // turn switching happens here and respects extra-turn rule.
+  if (!extraTurn) appState.currentTurn = (appState.currentTurn + 1) % appState.players.length;
 }
 
 function resetDiceDisplay() {
-  appState.dice = { die1: null, die2: null, total: null, rolledSix: false };
+  appState.dice = { value: null, rolledSix: false };
+}
+
+function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false) {
+  const player = appState.players[playerIdx];
+  const token = player.tokens[tokenId];
+  const targetPos = getTargetPosition(token.pos, rollValue);
+
+  // every move is validated before state mutation.
+  if (targetPos === null) {
+    updateStatus("Illegal move.");
+    return;
+  }
+
+  token.pos = targetPos;
+  const captured = handleCapture(playerIdx, tokenId);
+  sfx("move");
+
+  if (hasWon(playerIdx)) {
+    appState.winner = playerIdx;
+    statusText.textContent = `Winner: ${player.name} (${COLOR_LABEL[player.color]})!`;
+    sfx("win");
+    appState.mustMove = false;
+  } else {
+    const extraTurn = shouldGrantExtraTurn(rollValue);
+    appState.mustMove = false;
+    resetDiceDisplay();
+    advanceTurn(extraTurn);
+
+    if (captured) updateStatus(`${player.name} captured a token!`);
+    else if (extraTurn) updateStatus("Extra turn!");
+    else updateStatus("Turn changed.");
+  }
+
+  render();
+  maybeAITurn();
+
+  if (allowNetworkEmit && appState.mode === "online") {
+    sendOnline({ type: "move", tokenId, player: playerIdx });
+  }
+}
+
+function rollDie() {
+  const value = Math.floor(Math.random() * 6) + 1;
+  return { value, rolledSix: shouldGrantExtraTurn(value) };
 }
 
 function startDiceAnimation() {
   appState.isRolling = true;
   dice1El.classList.add("rolling");
-  dice2El.classList.add("rolling");
 }
 
 function stopDiceAnimation() {
   dice1El.classList.remove("rolling");
-  dice2El.classList.remove("rolling");
   appState.isRolling = false;
 }
 
-function rollDice(emit = false) {
-  // Dice roll state is handled here: permission checks, animation start, and final result commit.
+function rollDice() {
   if (!canCurrentPlayerRoll()) return;
   if (appState.winner) return;
   const p = appState.players[appState.currentTurn];
   if (!p) return;
   if (appState.mode !== "online" && p.type !== "human" && p.type !== "ai") return;
 
-  // Dice roll logic starts here so button/AI/turn flows all use one shared path.
   startDiceAnimation();
   render();
-  // Play dice-roll sound each time the dice roll starts.
   sfx("dice");
 
   setTimeout(() => {
     stopDiceAnimation();
 
-    const roll = rollTwoDice();
+    const roll = rollDie();
     appState.dice = roll;
-    const moves = validMovesFor(appState.currentTurn, roll.total, roll.rolledSix);
+    const moves = getValidMoves(appState.currentTurn, roll.value);
+
     if (!moves.length) {
-      updateStatus(`${p.name} rolled ${roll.die1} + ${roll.die2} = ${roll.total}. No valid moves.`);
+      // valid move rule: no legal move ends the turn automatically.
+      updateStatus(`${p.name} rolled ${roll.value}. No valid move.`);
       resetDiceDisplay();
-      if (!roll.rolledSix) appState.currentTurn = (appState.currentTurn + 1) % appState.players.length;
+      advanceTurn(shouldGrantExtraTurn(roll.value));
       render();
       maybeAITurn();
-    } else {
-      appState.mustMove = true;
-      updateStatus(`${p.name} rolled ${roll.die1} + ${roll.die2} = ${roll.total}. Move a piece.`);
-      render();
-      if (p.type === "ai") {
-        const tokenId = pickAIMove(appState.currentTurn, moves, roll.total, roll.rolledSix);
-        applyMove(appState.currentTurn, tokenId, roll.total, roll.rolledSix);
-      }
+      return;
     }
 
-    if (emit && appState.mode === "online") sendOnline({ type: "roll", value: roll.total });
-  }, 450);
-}
+    appState.mustMove = true;
+    updateStatus(`${p.name} rolled ${roll.value}. Move a piece.`);
+    render();
 
-function validMovesFor(playerIdx, rollTotal, rolledSix) {
-  const p = appState.players[playerIdx];
-  return p.tokens
-    .map((t, i) => ({ i, valid: isMoveValid(playerIdx, i, rollTotal, rolledSix) }))
-    .filter((x) => x.valid)
-    .map((x) => x.i);
+    if (p.type === "ai") {
+      const tokenId = pickAIMove(appState.currentTurn, moves, roll.value);
+      applyMove(appState.currentTurn, tokenId, roll.value);
+    }
+  }, 450);
 }
 
 function maybeAITurn() {
@@ -459,9 +490,12 @@ function maybeAITurn() {
   }, thinkDelay);
 }
 
-function pickAIMove(playerIndex, moves, rollTotal, rolledSix) {
+function pickAIMove(playerIndex, moves, rollValue) {
   const currentPlayer = appState.players[playerIndex];
-  let tokenId = moves.find((i) => canCaptureWithMove(playerIndex, i, rollTotal, rolledSix));
+  let tokenId = moves.find((i) => {
+    const targetPos = getTargetPosition(currentPlayer.tokens[i].pos, rollValue);
+    return targetPos !== null && canCapture(playerIndex, targetPos);
+  });
   if (tokenId === undefined) tokenId = moves.find((i) => currentPlayer.tokens[i].pos === -1);
   if (tokenId === undefined) tokenId = moves[0];
   return tokenId;
@@ -474,25 +508,13 @@ function canCurrentPlayerRoll() {
   return p.type === "human" || p.type === "ai";
 }
 
-function canCaptureWithMove(playerIdx, tokenId, rollTotal, rolledSix) {
-  const p = appState.players[playerIdx];
-  const t = p.tokens[tokenId];
-  if (t.pos === -1 && !rolledSix) return false;
-  const npos = t.pos === -1 ? 0 : t.pos + rollTotal;
-  if (npos > 51 || npos < 0) return false;
-  const abs = (START_INDEX[p.color] + npos) % PATH_LEN;
-  if (SAFE_PATH_INDEX.has(abs)) return false;
-  return appState.players.some((op, idx) => idx !== playerIdx
-    && op.tokens.some((ot) => ot.pos >= 0 && ot.pos <= 51 && ((START_INDEX[op.color] + ot.pos) % PATH_LEN) === abs));
-}
-
 function updateStatus(message) {
   if (message) {
     statusText.textContent = message;
     return;
   }
   const p = appState.players[appState.currentTurn];
-  statusText.textContent = p ? `${p.name}'s turn. Roll the two dice.` : "Ready.";
+  statusText.textContent = p ? `${p.name}'s turn. Roll the die.` : "Ready.";
 }
 
 function connectOnline() {
@@ -522,7 +544,6 @@ function connectOnline() {
       roomCodeLabel.classList.remove("hidden");
       document.getElementById("startOnlineBtn").classList.remove("hidden");
       statusText.textContent = "Room created. Waiting for players...";
-      // join-room sound is triggered when room is created/joined.
       sfx("join");
     }
     if (msg.type === "room-joined") {
@@ -530,7 +551,6 @@ function connectOnline() {
       roomCodeValue.textContent = msg.roomCode;
       roomCodeLabel.classList.remove("hidden");
       statusText.textContent = "Room joined. Waiting for host to start...";
-      // join-room sound is triggered when room is created/joined.
       sfx("join");
     }
     if (msg.type === "state") {
@@ -554,8 +574,8 @@ function hydrateOnlineState(state) {
 
   const synced = Number(state.diceValue || 0);
   appState.dice = synced > 0
-    ? { die1: synced, die2: null, total: synced, rolledSix: synced === 6 }
-    : { die1: null, die2: null, total: null, rolledSix: false };
+    ? { value: synced, rolledSix: shouldGrantExtraTurn(synced) }
+    : { value: null, rolledSix: false };
 
   appState.mustMove = state.mustMove;
   appState.isRolling = false;
@@ -571,7 +591,6 @@ function hydrateOnlineState(state) {
 function updateBoardScale() {
   if (!board3dEl || !boardScalerEl) return;
 
-  // Board scaling is driven by viewport width/height so the full square stays visible on mobile/fullscreen.
   const styles = window.getComputedStyle(board3dEl);
   const horizontalPadding = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
   const verticalPadding = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
@@ -593,7 +612,6 @@ function bindUI() {
     b.addEventListener("click", () => sfx("click"));
   });
 
-  // Initialize game mode buttons and listeners.
   const singleBtn = getRequiredEl("singleBtn");
   const localBtn = getRequiredEl("localBtn");
   const onlineBtn = getRequiredEl("onlineBtn");
@@ -632,7 +650,6 @@ function bindUI() {
   });
   startOnlineBtn?.addEventListener("click", () => sendOnline({ type: "start-game" }));
 
-  // Roll Dice button initialization.
   rollBtn?.addEventListener("click", () => {
     if (appState.mode === "online") sendOnline({ type: "roll-request" });
     else rollDice();
