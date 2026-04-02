@@ -3,4 +3,4 @@ token-move.mp3
 capture.mp3
 win.mp3
 click.mp3
-join-room.mp3 (optional)
+join-room.mp3
