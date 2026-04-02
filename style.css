@@ -91,6 +91,15 @@ select, input {
   aspect-ratio: 1 / 1;
   position: relative;
 }
+.board-dice-zone {
+  position: absolute;
+  right: 1.9%;
+  bottom: 1.9%;
+  width: clamp(56px, 10vw, 88px);
+  aspect-ratio: 1 / 1;
+  z-index: 3;
+  pointer-events: none;
+}
 .board {
   display:grid;
   grid-template-columns: repeat(15, 1fr);
@@ -198,25 +207,80 @@ select, input {
 
 .side-panel { padding: 10px; }
 .dice-wrap { display:grid; gap: 8px; margin-bottom:10px; }
-.dice-pair { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.dice {
-  width: 100%;
-  aspect-ratio: 1/1;
-  border-radius: 16px;
-  display:grid;
-  place-items:center;
-  font-size:2rem;
-  font-weight:900;
-  color:#580000;
-  background: linear-gradient(160deg, #ffffff 0%, #f4f4f4 48%, #dfdfdf 100%);
-  border: 1px solid rgba(0,0,0,.18);
-  box-shadow: inset 0 2px 5px #fff, inset 0 -6px 10px rgba(0,0,0,.2), 0 6px 12px rgba(0,0,0,.26);
+.board-die {
+  position: absolute;
+  inset: 0;
+  perspective: 700px;
+  transform-style: preserve-3d;
 }
-.dice.rolling { animation: tumble .5s linear infinite; }
-@keyframes tumble {
-  0% { transform: rotate(0deg) scale(1); }
-  50% { transform: rotate(18deg) scale(.97); }
-  100% { transform: rotate(0deg) scale(1); }
+.die-cube {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform .35s cubic-bezier(.25,.95,.2,1);
+}
+.die-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(0,0,0,.2);
+  background: linear-gradient(145deg, #ffffff 0%, #f6f6f6 55%, #e1e1e1 100%);
+  box-shadow: inset 0 3px 6px rgba(255,255,255,.95), inset 0 -10px 14px rgba(0,0,0,.16);
+}
+.die-face.face-1 { transform: rotateY(0deg) translateZ(calc(clamp(56px, 10vw, 88px) / 2)); }
+.die-face.face-2 { transform: rotateY(90deg) translateZ(calc(clamp(56px, 10vw, 88px) / 2)); }
+.die-face.face-3 { transform: rotateX(90deg) translateZ(calc(clamp(56px, 10vw, 88px) / 2)); }
+.die-face.face-4 { transform: rotateX(-90deg) translateZ(calc(clamp(56px, 10vw, 88px) / 2)); }
+.die-face.face-5 { transform: rotateY(-90deg) translateZ(calc(clamp(56px, 10vw, 88px) / 2)); }
+.die-face.face-6 { transform: rotateY(180deg) translateZ(calc(clamp(56px, 10vw, 88px) / 2)); }
+
+.pip {
+  position: absolute;
+  width: 16%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  background: #780000;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.75), 0 1px 1px rgba(0,0,0,.2);
+}
+.p-center { left: 42%; top: 42%; }
+.p-tl { left: 16%; top: 16%; }
+.p-tr { right: 16%; top: 16%; }
+.p-ml { left: 16%; top: 42%; }
+.p-mr { right: 16%; top: 42%; }
+.p-bl { left: 16%; bottom: 16%; }
+.p-br { right: 16%; bottom: 16%; }
+
+.board-die.face-1 .die-cube { transform: rotateX(0deg) rotateY(0deg); }
+.board-die.face-2 .die-cube { transform: rotateX(0deg) rotateY(-90deg); }
+.board-die.face-3 .die-cube { transform: rotateX(-90deg) rotateY(0deg); }
+.board-die.face-4 .die-cube { transform: rotateX(90deg) rotateY(0deg); }
+.board-die.face-5 .die-cube { transform: rotateX(0deg) rotateY(90deg); }
+.board-die.face-6 .die-cube { transform: rotateX(0deg) rotateY(180deg); }
+
+.board-die.rolling .die-cube { animation: die-tumble 560ms cubic-bezier(.15,.75,.2,1) infinite; }
+
+.die-shadow {
+  position: absolute;
+  left: 11%;
+  right: 11%;
+  bottom: -10%;
+  height: 18%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,0,0,.34), rgba(0,0,0,0) 70%);
+  filter: blur(2px);
+}
+.die-shadow.rolling { animation: die-shadow-bounce 560ms ease-in-out infinite; }
+
+@keyframes die-tumble {
+  0% { transform: translateY(0) rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  35% { transform: translateY(-20%) rotateX(180deg) rotateY(220deg) rotateZ(80deg); }
+  70% { transform: translateY(8%) rotateX(300deg) rotateY(470deg) rotateZ(180deg); }
+  100% { transform: translateY(0) rotateX(390deg) rotateY(620deg) rotateZ(260deg); }
+}
+@keyframes die-shadow-bounce {
+  0%, 100% { transform: scale(1); opacity: .42; }
+  35% { transform: scale(.73); opacity: .2; }
+  70% { transform: scale(1.12); opacity: .48; }
 }
 .dice-summary {
   font-size: .92rem;
@@ -262,6 +326,7 @@ select, input {
   .app-shell { width: min(1000px, 98vw); }
   .play-area { grid-template-columns: 1fr; }
   .side-panel { display: grid; grid-template-columns: minmax(220px, 360px) 1fr; gap: 10px; align-items: start; }
+  .board-dice-zone { right: 2.4%; bottom: 2.4%; width: clamp(54px, 11vw, 84px); }
 }
 
 @media (max-width: 640px) {
@@ -284,5 +349,5 @@ select, input {
   }
   .score-label { font-size: .82rem; }
   .score-value { min-width: 40px; font-size: .82rem; }
-  .dice { font-size: 1.45rem; }
+  .board-dice-zone { width: clamp(52px, 19vw, 70px); right: 2.8%; bottom: 2.8%; }
 }

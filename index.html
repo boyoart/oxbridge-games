@@ -71,6 +71,22 @@
           <div class="board-stage">
             <div id="boardScaler" class="board-scaler">
               <div id="board" class="board"></div>
+              <div class="board-dice-zone" aria-live="polite">
+                <div id="dice1" class="board-die face-1" aria-label="Die showing 1">
+                  <div id="dieCube" class="die-cube">
+                    <div class="die-face face-1"><span class="pip p-center"></span></div>
+                    <div class="die-face face-2"><span class="pip p-tl"></span><span class="pip p-br"></span></div>
+                    <div class="die-face face-3"><span class="pip p-tl"></span><span class="pip p-center"></span><span class="pip p-br"></span></div>
+                    <div class="die-face face-4"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
+                    <div class="die-face face-5"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-center"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
+                    <div class="die-face face-6">
+                      <span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-ml"></span>
+                      <span class="pip p-mr"></span><span class="pip p-bl"></span><span class="pip p-br"></span>
+                    </div>
+                  </div>
+                </div>
+                <div id="dieShadow" class="die-shadow" aria-hidden="true"></div>
+              </div>
               <div class="center-logo-watermark" aria-hidden="true">
                 <img id="boardLogo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
                 <span id="boardLogoFallback">Oxbridge Tutorial College</span>
@@ -81,9 +97,6 @@
 
         <div class="side-panel card">
           <div class="dice-wrap">
-            <div id="dicePair" class="dice-pair">
-              <div id="dice1" class="dice" aria-label="Die">1</div>
-            </div>
             <div id="diceSummary" class="dice-summary">Die: -</div>
           </div>
           <div id="turnInfo" class="turn-info"></div>

@@ -140,7 +140,9 @@ function broadcastRoom(room) {
   };
   room.players.forEach((p) => {
     const ws = sockets.get(p.socketId);
-    if (ws) send(ws, { type: "state", state });
+    if (!ws) return;
+    const myPlayerIndex = room.players.findIndex((rp) => rp.socketId === p.socketId);
+    send(ws, { type: "state", state: { ...state, myPlayerIndex } });
   });
 }
 
@@ -196,6 +198,7 @@ wss.on("connection", (ws) => {
 
     if (msg.type === "roll-request") {
       if (room.mustMove) return;
+      // one-die rule logic is enforced server-side for authoritative online play.
       const roll = Math.floor(Math.random() * 6) + 1;
       room.diceValue = roll;
       const moves = getValidMoves(room.players[pIdx], roll);
