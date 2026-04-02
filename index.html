@@ -24,6 +24,17 @@
 
     <section class="menu-panel card" id="modeMenu">
       <h2>Choose Game Mode</h2>
+      <div class="sub-panel">
+        <label for="difficultySelect">Difficulty:</label>
+        <select id="difficultySelect">
+          <option value="easy" selected>Easy Mode</option>
+          <option value="hard">Hard Mode</option>
+        </select>
+        <div class="difficulty-rules">
+          <p><strong>Easy Mode:</strong> Capture sends opponent home AND sends your token directly home.</p>
+          <p><strong>Hard Mode:</strong> Capture sends opponent home. Your token stays on the board.</p>
+        </div>
+      </div>
       <div class="btn-grid">
         <button class="brand-btn" id="singleBtn">Single Player</button>
         <button class="brand-btn" id="localBtn">Local Multiplayer</button>
@@ -56,6 +67,9 @@
         <div class="status-row">
           <span id="statusText">Pick a mode to begin.</span>
           <span id="roomCodeLabel" class="hidden">Room Code: <strong id="roomCodeValue"></strong></span>
+        </div>
+        <div class="status-row">
+          <span id="difficultyInfo">Difficulty: Easy</span>
         </div>
         <div class="controls">
           <button class="brand-btn" id="rollBtn">Roll Die</button>

@@ -28,6 +28,8 @@ const onlineConfig = document.getElementById("onlineConfig");
 const connectionStatus = document.getElementById("connectionStatus");
 const board3dEl = document.getElementById("board3d");
 const boardScalerEl = document.getElementById("boardScaler");
+const difficultyInfoEl = document.getElementById("difficultyInfo");
+const difficultySelectEl = document.getElementById("difficultySelect");
 
 function getRequiredEl(id) {
   const el = document.getElementById(id);
@@ -37,6 +39,7 @@ function getRequiredEl(id) {
 
 const appState = {
   mode: null,
+  difficulty: "easy",
   players: [],
   currentTurn: 0,
   dice: { value: null, rolledSix: false },
@@ -242,6 +245,7 @@ function configureGame(mode, localCount = 4) {
   appState.turn = { hasRolled: false, movePending: false, selectedToken: null, diceLocked: false, canRoll: true };
   appState.isRolling = false;
   appState.winner = null;
+  appState.difficulty = (difficultySelectEl?.value === "hard") ? "hard" : "easy";
 
   if (mode === "single") {
     appState.players = [
@@ -262,6 +266,7 @@ function configureGame(mode, localCount = 4) {
   updateStatus();
   maybeAITurn();
   requestAnimationFrame(updateBoardScale);
+  updateDifficultyInfo();
 }
 
 function resetTurnStateForActivePlayer() {
@@ -329,6 +334,7 @@ function render() {
 
   const cp = appState.players[appState.currentTurn];
   turnInfo.textContent = cp ? `Turn: ${cp.name} (${COLOR_LABEL[cp.color]})` : "";
+  updateDifficultyInfo();
 
   if (rollBtn) rollBtn.disabled = !canCurrentPlayerRoll();
 
@@ -346,6 +352,11 @@ function render() {
       <span class="score-value">Active ${p.activeCount}/4 | Home ${p.homeCount}/4</span>
     </li>
   `).join("");
+}
+
+function updateDifficultyInfo() {
+  if (!difficultyInfoEl) return;
+  difficultyInfoEl.textContent = `Difficulty: ${appState.difficulty === "hard" ? "Hard" : "Easy"}`;
 }
 
 function getTokenCoordinates(color, pos, tokenId) {
@@ -443,6 +454,16 @@ function handleCapture(moverIdx, tokenId) {
   return capturedAny;
 }
 
+function applyDifficultyCaptureRule(moverIdx, tokenId, capturedAny) {
+  if (!capturedAny) return;
+  // DEBUG: difficulty logic branch for capture resolution (Easy vs Hard) is applied here.
+  if (appState.difficulty === "easy") {
+    const mover = appState.players[moverIdx];
+    mover.tokens[tokenId].pos = FINAL_HOME_POSITION;
+    syncTokenStateForPlayer(mover);
+  }
+}
+
 function hasWon(playerIdx) {
   return appState.players[playerIdx].tokens.every((t) => t.pos === FINAL_HOME_POSITION);
 }
@@ -478,6 +499,8 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false) {
   syncTokenStateForPlayer(playerIdx >= 0 ? appState.players[playerIdx] : null);
   // DEBUG: order step 2 - resolve capture immediately on the landing tile.
   const captured = handleCapture(playerIdx, tokenId);
+  // DEBUG: capture difficulty branch is applied immediately after capture detection.
+  applyDifficultyCaptureRule(playerIdx, tokenId, captured);
   // DEBUG: order step 3 - recalculate all authoritative token states/counters from latest positions.
   syncAllTokenStates();
   // DEBUG: order step 4 - recompute valid moves from true state (prevents stuck-turn desyncs).
@@ -512,7 +535,7 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false) {
   maybeAITurn();
 
   if (allowNetworkEmit && appState.mode === "online") {
-    sendOnline({ type: "move", tokenId, player: playerIdx });
+    sendOnline({ type: "move", tokenId, player: playerIdx, difficulty: appState.difficulty });
   }
 }
 
@@ -702,6 +725,7 @@ function hydrateOnlineState(state) {
     }))
   }));
   appState.currentTurn = state.currentTurn;
+  appState.difficulty = state.difficulty === "hard" ? "hard" : "easy";
 
   const synced = Number(state.diceValue || 0);
   appState.dice = synced > 0
@@ -762,6 +786,11 @@ function bindUI() {
   const roomCodeInput = getRequiredEl("roomCodeInput");
   const startOnlineBtn = getRequiredEl("startOnlineBtn");
 
+  difficultySelectEl?.addEventListener("change", () => {
+    appState.difficulty = difficultySelectEl.value === "hard" ? "hard" : "easy";
+    updateDifficultyInfo();
+  });
+
   singleBtn?.addEventListener("click", () => {
     setSelectedMode("single");
     configureGame("single", 4);
@@ -788,7 +817,10 @@ function bindUI() {
     appState.roomCode = code;
     sendOnline({ type: "join-room", roomCode: code });
   });
-  startOnlineBtn?.addEventListener("click", () => sendOnline({ type: "start-game" }));
+  startOnlineBtn?.addEventListener("click", () => sendOnline({
+    type: "start-game",
+    difficulty: difficultySelectEl?.value === "hard" ? "hard" : "easy"
+  }));
 
   rollBtn?.addEventListener("click", () => {
     if (appState.mode === "online") sendOnline({ type: "roll-request" });

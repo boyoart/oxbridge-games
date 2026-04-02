@@ -112,7 +112,8 @@ function createRoom(hostId) {
     diceValue: null,
     mustMove: false,
     winner: null,
-    status: "Waiting for players"
+    status: "Waiting for players",
+    difficulty: "easy"
   };
   rooms.set(code, room);
   return room;
@@ -127,7 +128,8 @@ function broadcastRoom(room) {
     diceValue: room.diceValue,
     mustMove: room.mustMove,
     winner: room.winner,
-    status: room.status
+    status: room.status,
+    difficulty: room.difficulty
   };
   room.players.forEach((p) => {
     const ws = sockets.get(p.socketId);
@@ -179,8 +181,9 @@ wss.on("connection", (ws) => {
       room.diceValue = null;
       room.mustMove = false;
       room.winner = null;
+      room.difficulty = msg.difficulty === "hard" ? "hard" : "easy";
       room.players.forEach((p) => { p.tokens = newTokens(); });
-      room.status = "Game started. Player 1 turn.";
+      room.status = `Game started (${room.difficulty === "hard" ? "Hard" : "Easy"}). Player 1 turn.`;
       return broadcastRoom(room);
     }
 
@@ -219,6 +222,10 @@ wss.on("connection", (ws) => {
       token.pos = targetPos;
       const didCapture = canCapture(room, pIdx, targetPos);
       if (didCapture) capture(room, pIdx, tok);
+      // difficulty branch for capture: easy sends the capturing token directly home.
+      if (didCapture && room.difficulty === "easy") {
+        token.pos = FINAL_HOME_POSITION;
+      }
 
       if (hasWon(room, pIdx)) {
         room.winner = pIdx;
@@ -241,7 +248,7 @@ wss.on("connection", (ws) => {
       room.diceValue = null;
       room.mustMove = false;
       room.winner = null;
-      room.status = "Game restarted.";
+      room.status = `Game restarted (${room.difficulty === "hard" ? "Hard" : "Easy"}).`;
       return broadcastRoom(room);
     }
   });
