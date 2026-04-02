@@ -1,274 +1,288 @@
-const QUESTION_TIME = 15;
-const STARTING_LIVES = 3;
+(() => {
+  const symbols = ["📚", "🔬", "🌍", "✏️", "🏆", "🎵", "🧮", "🚩", "🧠", "📝", "🧪", "📐"];
+  const difficulties = {
+    easy: { rows: 4, cols: 4 },
+    medium: { rows: 4, cols: 5 },
+    hard: { rows: 4, cols: 6 }
+  };
 
-const flags = [
-  { country: 'France', file: 'assets/flags/france.svg' },
-  { country: 'Germany', file: 'assets/flags/germany.svg' },
-  { country: 'Italy', file: 'assets/flags/italy.svg' },
-  { country: 'Japan', file: 'assets/flags/japan.svg' },
-  { country: 'Sweden', file: 'assets/flags/sweden.svg' },
-  { country: 'Brazil', file: 'assets/flags/brazil.svg' },
-  { country: 'Canada', file: 'assets/flags/canada.svg' },
-  { country: 'Nigeria', file: 'assets/flags/nigeria.svg' },
-  { country: 'India', file: 'assets/flags/india.svg' },
-  { country: 'Mexico', file: 'assets/flags/mexico.svg' },
-  { country: 'South Korea', file: 'assets/flags/south-korea.svg' },
-  { country: 'Argentina', file: 'assets/flags/argentina.svg' },
-  { country: 'Turkey', file: 'assets/flags/turkey.svg' },
-  { country: 'United States', file: 'assets/flags/usa.svg' },
-  { country: 'Australia', file: 'assets/flags/australia.svg' },
-  { country: 'Spain', file: 'assets/flags/spain.svg' }
-];
+  const app = document.getElementById("gameApp");
+  const board = document.getElementById("gameBoard");
+  const startBtn = document.getElementById("startBtn");
+  const restartBtn = document.getElementById("restartBtn");
+  const fullscreenBtn = document.getElementById("fullscreenBtn");
+  const returnBtn = document.getElementById("returnBtn");
+  const playAgainBtn = document.getElementById("playAgainBtn");
+  const soundToggle = document.getElementById("soundToggle");
+  const difficultySelect = document.getElementById("difficulty");
+  const movesCount = document.getElementById("movesCount");
+  const matchedCount = document.getElementById("matchedCount");
+  const totalPairs = document.getElementById("totalPairs");
+  const timeCount = document.getElementById("timeCount");
+  const endScreen = document.getElementById("endScreen");
+  const endMessage = document.getElementById("endMessage");
+  const schoolLogo = document.getElementById("schoolLogo");
+  const logoFallback = document.getElementById("logoFallback");
 
-const startScreen = document.getElementById('startScreen');
-const gameScreen = document.getElementById('gameScreen');
-const endScreen = document.getElementById('endScreen');
-const startGameBtn = document.getElementById('startGameBtn');
-const playAgainBtn = document.getElementById('playAgainBtn');
-const fullscreenBtn = document.getElementById('fullscreenBtn');
-const questionCount = document.getElementById('questionCount');
-const scoreDisplay = document.getElementById('scoreDisplay');
-const livesDisplay = document.getElementById('livesDisplay');
-const timerDisplay = document.getElementById('timerDisplay');
-const flagImage = document.getElementById('flagImage');
-const answersEl = document.getElementById('answers');
-const feedbackEl = document.getElementById('feedback');
-const finalMessage = document.getElementById('finalMessage');
-const finalScore = document.getElementById('finalScore');
+  let cards = [];
+  let openCards = [];
+  let moves = 0;
+  let matches = 0;
+  let total = 0;
+  let timer = null;
+  let seconds = 0;
+  let lockBoard = false;
+  let gameActive = false;
+  let soundOn = true;
 
-let questions = [];
-let currentIndex = 0;
-let score = 0;
-let lives = STARTING_LIVES;
-let secondsLeft = QUESTION_TIME;
-let timerId = null;
-let acceptingInput = false;
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
+  const playTone = (type, duration = 0.08, frequency = 440, volume = 0.03) => {
+    if (!soundOn) return;
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume().catch(() => {});
+    }
 
-function handleMissingLogo(img) {
-  img.classList.add('is-hidden');
-  const container = img.closest('.brand-mark-wrap, .end-brand-wrap');
-  if (container) {
-    container.classList.add('logo-missing');
-  }
-}
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    oscillator.type = type;
+    oscillator.frequency.value = frequency;
+    gainNode.gain.value = volume;
 
-function initializeBrandLogos() {
-  const logos = document.querySelectorAll('.brand-logo');
-  logos.forEach((img) => {
-    const checkAndHandle = () => {
-      if (!img.complete || img.naturalWidth > 0) return;
-      handleMissingLogo(img);
-    };
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    oscillator.start();
 
-    img.addEventListener('error', () => handleMissingLogo(img), { once: true });
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+    oscillator.stop(audioCtx.currentTime + duration);
+  };
 
-    if (img.complete) {
-      checkAndHandle();
+  const sounds = {
+    button: () => playTone("square", 0.06, 300),
+    flip: () => playTone("triangle", 0.05, 540),
+    match: () => {
+      playTone("sine", 0.09, 640);
+      setTimeout(() => playTone("sine", 0.11, 850), 55);
+    },
+    mismatch: () => playTone("sawtooth", 0.1, 180, 0.025),
+    win: () => {
+      [660, 880, 1100].forEach((freq, i) => setTimeout(() => playTone("triangle", 0.12, freq, 0.035), i * 120));
+    }
+  };
+
+  schoolLogo.addEventListener("error", () => {
+    schoolLogo.style.display = "none";
+    logoFallback.style.display = "block";
+  });
+
+  const shuffle = (array) => {
+    for (let i = array.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  };
+
+  const formatTime = (s) => {
+    const mins = Math.floor(s / 60).toString().padStart(2, "0");
+    const secs = (s % 60).toString().padStart(2, "0");
+    return `${mins}:${secs}`;
+  };
+
+  const updateStats = () => {
+    movesCount.textContent = moves;
+    matchedCount.textContent = matches;
+    totalPairs.textContent = total;
+    timeCount.textContent = formatTime(seconds);
+  };
+
+  const stopTimer = () => {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  };
+
+  const startTimer = () => {
+    stopTimer();
+    timer = setInterval(() => {
+      seconds += 1;
+      timeCount.textContent = formatTime(seconds);
+    }, 1000);
+  };
+
+  const makeCard = (symbol, index) => {
+    const cardBtn = document.createElement("button");
+    cardBtn.className = "card";
+    cardBtn.type = "button";
+    cardBtn.dataset.value = symbol;
+    cardBtn.dataset.index = String(index);
+    cardBtn.setAttribute("aria-label", "Memory card");
+
+    cardBtn.innerHTML = `
+      <span class="card-inner">
+        <span class="card-face card-front" aria-hidden="true"></span>
+        <span class="card-face card-back" aria-hidden="true">${symbol}</span>
+      </span>
+    `;
+
+    cardBtn.addEventListener("click", () => flipCard(cardBtn));
+    return cardBtn;
+  };
+
+  const applyGrid = ({ rows, cols }) => {
+    board.style.gridTemplateColumns = `repeat(${cols}, minmax(58px, 1fr))`;
+    board.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+  };
+
+  const resetState = () => {
+    cards = [];
+    openCards = [];
+    moves = 0;
+    matches = 0;
+    seconds = 0;
+    lockBoard = false;
+    gameActive = true;
+    updateStats();
+    endScreen.classList.add("hidden");
+  };
+
+  const buildDeck = () => {
+    const difficulty = difficulties[difficultySelect.value] || difficulties.easy;
+    const pairCount = (difficulty.rows * difficulty.cols) / 2;
+    const selected = symbols.slice(0, pairCount);
+    const deck = shuffle([...selected, ...selected]);
+
+    total = pairCount;
+    applyGrid(difficulty);
+
+    board.innerHTML = "";
+    cards = deck.map((symbol, idx) => makeCard(symbol, idx));
+    cards.forEach((card) => board.appendChild(card));
+  };
+
+  const allMatched = () => matches === total;
+
+  const endGame = () => {
+    stopTimer();
+    gameActive = false;
+    sounds.win();
+    endMessage.textContent = `Completed in ${moves} moves and ${formatTime(seconds)}.`;
+    endScreen.classList.remove("hidden");
+  };
+
+  const unflipOpenCards = () => {
+    lockBoard = true;
+    sounds.mismatch();
+    setTimeout(() => {
+      openCards.forEach((card) => card.classList.remove("flipped"));
+      openCards = [];
+      lockBoard = false;
+    }, 700);
+  };
+
+  const markMatched = () => {
+    openCards.forEach((card) => {
+      card.classList.add("matched");
+      card.disabled = true;
+    });
+
+    openCards = [];
+    matches += 1;
+    updateStats();
+    sounds.match();
+
+    if (allMatched()) {
+      endGame();
+    }
+  };
+
+  const flipCard = (card) => {
+    if (!gameActive || lockBoard || card.disabled || card.classList.contains("flipped")) {
+      return;
+    }
+
+    if (moves === 0 && openCards.length === 0) {
+      startTimer();
+    }
+
+    card.classList.add("flipped");
+    openCards.push(card);
+    sounds.flip();
+
+    if (openCards.length < 2) return;
+
+    moves += 1;
+    updateStats();
+
+    const [first, second] = openCards;
+    if (first.dataset.value === second.dataset.value) {
+      markMatched();
     } else {
-      img.addEventListener('load', checkAndHandle, { once: true });
+      unflipOpenCards();
     }
-  });
-}
+  };
 
-function shuffle(input) {
-  const arr = [...input];
-  for (let i = arr.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
+  const newGame = () => {
+    resetState();
+    stopTimer();
+    buildDeck();
+    updateStats();
+  };
 
-function setScreen(active) {
-  startScreen.classList.toggle('active', active === 'start');
-  gameScreen.classList.toggle('active', active === 'game');
-  endScreen.classList.toggle('active', active === 'end');
-}
+  const toggleFullscreen = async () => {
+    sounds.button();
 
-function makeChoices(correctCountry) {
-  const wrong = shuffle(flags.filter((f) => f.country !== correctCountry)).slice(0, 3);
-  const choices = shuffle([correctCountry, ...wrong.map((item) => item.country)]);
-  return choices;
-}
-
-function updateHud() {
-  questionCount.textContent = `Question ${currentIndex + 1} / ${questions.length}`;
-  scoreDisplay.textContent = `Score: ${score}`;
-  livesDisplay.textContent = `Lives: ${'❤'.repeat(lives)}${'♡'.repeat(STARTING_LIVES - lives)}`;
-  timerDisplay.textContent = `Time: ${secondsLeft}s`;
-}
-
-function stopTimer() {
-  if (timerId) {
-    clearInterval(timerId);
-    timerId = null;
-  }
-}
-
-function startTimer() {
-  stopTimer();
-  secondsLeft = QUESTION_TIME;
-  timerDisplay.classList.remove('urgent');
-  timerDisplay.textContent = `Time: ${secondsLeft}s`;
-
-  timerId = setInterval(() => {
-    secondsLeft -= 1;
-    timerDisplay.textContent = `Time: ${secondsLeft}s`;
-
-    if (secondsLeft <= 5) {
-      timerDisplay.classList.add('urgent');
-    }
-
-    if (secondsLeft <= 0) {
-      handleTimeout();
-    }
-  }, 1000);
-}
-
-function renderQuestion() {
-  feedbackEl.textContent = '';
-
-  if (currentIndex >= questions.length || lives <= 0) {
-    endGame();
-    return;
-  }
-
-  const current = questions[currentIndex];
-  const choices = makeChoices(current.country);
-
-  flagImage.src = current.file;
-  flagImage.alt = 'Flag to identify';
-  answersEl.innerHTML = '';
-
-  choices.forEach((choice) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'answer-btn';
-    btn.textContent = choice;
-    btn.addEventListener('click', () => handleAnswer(choice, current.country));
-    answersEl.appendChild(btn);
-  });
-
-  acceptingInput = true;
-  updateHud();
-  startTimer();
-}
-
-function disableAnswers() {
-  const buttons = answersEl.querySelectorAll('button');
-  buttons.forEach((btn) => { btn.disabled = true; });
-}
-
-function decorateAnswers(correctCountry, selectedChoice) {
-  const buttons = answersEl.querySelectorAll('button');
-  buttons.forEach((btn) => {
-    if (btn.textContent === correctCountry) {
-      btn.classList.add('correct');
-    } else if (selectedChoice && btn.textContent === selectedChoice) {
-      btn.classList.add('wrong');
-    }
-  });
-}
-
-function nextQuestionSoon() {
-  setTimeout(() => {
-    currentIndex += 1;
-    renderQuestion();
-  }, 1000);
-}
-
-function handleAnswer(choice, correctCountry) {
-  if (!acceptingInput) return;
-
-  acceptingInput = false;
-  stopTimer();
-  disableAnswers();
-
-  if (choice === correctCountry) {
-    score += 1;
-    feedbackEl.textContent = '✅ Correct!';
-  } else {
-    lives -= 1;
-    feedbackEl.textContent = `❌ Incorrect. Correct answer: ${correctCountry}`;
-  }
-
-  decorateAnswers(correctCountry, choice);
-  updateHud();
-
-  if (lives <= 0) {
-    setTimeout(endGame, 1000);
-    return;
-  }
-
-  nextQuestionSoon();
-}
-
-function handleTimeout() {
-  if (!acceptingInput) return;
-
-  acceptingInput = false;
-  stopTimer();
-  lives -= 1;
-
-  const current = questions[currentIndex];
-  feedbackEl.textContent = `⏰ Time's up! Correct answer: ${current.country}`;
-
-  disableAnswers();
-  decorateAnswers(current.country, null);
-  updateHud();
-
-  if (lives <= 0) {
-    setTimeout(endGame, 1000);
-    return;
-  }
-
-  nextQuestionSoon();
-}
-
-function endGame() {
-  stopTimer();
-  setScreen('end');
-
-  const finishedAll = currentIndex >= questions.length;
-  if (lives <= 0) {
-    finalMessage.textContent = 'You ran out of lives!';
-  } else if (finishedAll) {
-    finalMessage.textContent = 'Great job! You completed all flags.';
-  } else {
-    finalMessage.textContent = 'Game ended.';
-  }
-
-  finalScore.textContent = `Final Score: ${score} / ${questions.length}`;
-}
-
-function startGame() {
-  questions = shuffle(flags);
-  currentIndex = 0;
-  score = 0;
-  lives = STARTING_LIVES;
-  secondsLeft = QUESTION_TIME;
-
-  setScreen('game');
-  renderQuestion();
-}
-
-async function toggleFullscreen() {
-  const root = document.documentElement;
-  try {
     if (!document.fullscreenElement) {
-      await root.requestFullscreen();
+      try {
+        await app.requestFullscreen();
+      } catch (_) {
+        // No-op for browsers that block fullscreen without user permissions.
+      }
     } else {
       await document.exitFullscreen();
     }
-  } catch (_error) {
-    // Some browsers block fullscreen in embedded contexts without user permission.
-  }
-}
+  };
 
-startGameBtn.addEventListener('click', startGame);
-playAgainBtn.addEventListener('click', startGame);
-fullscreenBtn.addEventListener('click', toggleFullscreen);
+  startBtn.addEventListener("click", () => {
+    sounds.button();
+    newGame();
+  });
 
-initializeBrandLogos();
-setScreen('start');
+  restartBtn.addEventListener("click", () => {
+    sounds.button();
+    newGame();
+  });
+
+  playAgainBtn.addEventListener("click", () => {
+    sounds.button();
+    newGame();
+  });
+
+  difficultySelect.addEventListener("change", () => {
+    sounds.button();
+    newGame();
+  });
+
+  fullscreenBtn.addEventListener("click", toggleFullscreen);
+
+  returnBtn.addEventListener("click", () => {
+    sounds.button();
+  });
+
+  soundToggle.addEventListener("click", () => {
+    soundOn = !soundOn;
+    soundToggle.textContent = soundOn ? "On" : "Off";
+    sounds.button();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && gameActive) {
+      stopTimer();
+    } else if (!document.hidden && gameActive && !allMatched() && moves > 0) {
+      startTimer();
+    }
+  });
+
+  newGame();
+})();
