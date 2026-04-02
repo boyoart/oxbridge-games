@@ -1,14 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="chess piece">
-  <g fill="#1f1f1f" stroke="#d7d7d7" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
-    
-<path d="M50 15v16M43 23h14" />
-<path d="M36 33h28l-5 32H41z" />
-<rect x="30" y="65" width="40" height="8" rx="2" />
-<rect x="24" y="73" width="52" height="9" rx="2" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="OxbridgeRed k">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e45366"/>
+      <stop offset="100%" stop-color="#820a1f"/>
+    </linearGradient>
+    <radialGradient id="h" cx="35%" cy="24%" r="44%">
+      <stop offset="0%" stop-color="rgba(255,180,190,0.55)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="50" cy="84" rx="24" ry="6" fill="rgba(0,0,0,0.28)"/>
+  <g fill="url(#g)" stroke="#3f0814" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="48" y="12" width="4" height="18" rx="2"/><rect x="42" y="18" width="16" height="4" rx="2"/><path d="M34 31h32l-3 33H37z"/><rect x="37" y="28" width="26" height="6" rx="3"/><ellipse cx="50" cy="67" rx="23" ry="8"/><rect x="24" y="71" width="52" height="9" rx="4"/>
   </g>
-  <g stroke="#e6e6e6" stroke-width="2" opacity="0.35" fill="none">
-    <circle cx="50" cy="58" r="8" />
-    <path d="M45 58h10M50 53v10" />
-    <path d="M43 63l14-10" opacity="0.2" />
-  </g>
+  <ellipse cx="45" cy="36" rx="22" ry="14" fill="url(#h)"/>
 </svg>

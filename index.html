@@ -16,7 +16,7 @@
       </div>
       <div class="title-wrap">
         <p class="kicker">Oxbridge Interactive Learning</p>
-        <h1>Chess Strategy</h1>
+        <h1>Chess Strategy — 3D Edition</h1>
       </div>
       <div class="header-actions">
         <a class="btn" href="/games">Return to Games</a>
@@ -25,9 +25,15 @@
     </header>
 
     <section class="game-card" id="gameContainer">
-      <div class="top-bar">
-        <p class="status-pill" id="turnStatus">Your turn (White)</p>
+      <div class="hud-row">
+        <p class="status-pill" id="turnStatus">Your turn (Ivory)</p>
         <p class="status-pill" id="gameStatus">Ready to play.</p>
+        <div class="timer-pill" aria-hidden="true">
+          <span>Player</span><strong>10:00</strong>
+        </div>
+        <div class="timer-pill" aria-hidden="true">
+          <span>Computer</span><strong>10:00</strong>
+        </div>
       </div>
 
       <div class="controls-row">
@@ -42,13 +48,18 @@
       </div>
 
       <div class="board-panel">
-        <div class="board-wrap">
-          <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+        <div class="board-scene">
+          <div class="board-stage">
+            <div class="board-wrap">
+              <div class="board-crest" aria-hidden="true">OXBRIDGE</div>
+              <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+            </div>
+          </div>
         </div>
         <aside class="info-panel">
           <h2>Match Notes</h2>
           <ul>
-            <li>You play White and move first.</li>
+            <li>You play Ivory and move first.</li>
             <li>Tap a piece to view legal moves.</li>
             <li>Promotion is automatic to Queen.</li>
             <li>Use Undo to take back your last turn.</li>
