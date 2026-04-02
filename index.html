@@ -10,51 +10,50 @@
   <div class="bg-overlay" aria-hidden="true"></div>
   <main id="gameApp" class="app-shell">
     <header class="brand-header" aria-label="Oxbridge Tutorial College Header">
-      <div class="brand-main">
+      <div class="header-shine" aria-hidden="true"></div>
+      <div class="header-center">
         <div class="logo-wrap" id="logoWrap">
           <img src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" id="schoolLogo" />
           <span class="logo-fallback" id="logoFallback">Oxbridge Tutorial College</span>
         </div>
         <div class="title-wrap">
-          <p class="kicker">OXBRIDGE STRATEGIC PLAY SUITE</p>
-          <h1>Chess Strategy — Luxury 3D Boardroom Edition</h1>
+          <h1>OXBRIDGE TUTORIAL COLLEGE</h1>
+          <p class="subtitle">Interactive Chess Strategy</p>
         </div>
       </div>
-      <div class="header-actions">
-        <a class="btn btn-ghost" href="/games">Return to Games</a>
-        <button class="btn" id="fullscreenBtn" type="button">Fullscreen</button>
-      </div>
+      <p class="turn-badge" id="headerTurnIndicator">White to move</p>
     </header>
 
     <section class="game-card" id="gameContainer">
-      <div class="hud-row">
-        <p class="status-pill" id="turnStatus">Your turn (Ivory)</p>
-        <p class="status-pill" id="gameStatus">Ready to play.</p>
-      </div>
-
-      <div class="board-panel">
-        <div class="board-shell">
-          <div class="board-scene" aria-label="Angled chessboard scene">
-            <div class="tabletop" aria-hidden="true"></div>
-            <div class="board-shadow" aria-hidden="true"></div>
-            <div class="board-stage">
-              <div class="board-frame">
-                <div class="board-crest" aria-hidden="true">
-                  <span class="crest-ring"></span>
-                  <span class="crest-wordmark">OXBRIDGE</span>
-                </div>
-                <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+      <div class="board-shell">
+        <div class="board-scene" aria-label="Front-facing premium chessboard scene">
+          <div class="board-shadow" aria-hidden="true"></div>
+          <div class="board-stage">
+            <div class="board-frame">
+              <div class="board-crest" aria-hidden="true">
+                <span class="crest-ring"></span>
+                <span class="crest-wordmark">OXBRIDGE</span>
               </div>
-              <div class="board-edge board-edge-front" aria-hidden="true"></div>
-              <div class="board-edge board-edge-right" aria-hidden="true"></div>
-              <div class="board-edge board-edge-left" aria-hidden="true"></div>
+              <div id="board" class="board" role="grid" aria-label="Chess board"></div>
             </div>
+            <div class="board-edge board-edge-front" aria-hidden="true"></div>
+            <div class="board-edge board-edge-right" aria-hidden="true"></div>
+            <div class="board-edge board-edge-left" aria-hidden="true"></div>
           </div>
         </div>
+      </div>
 
-        <aside class="control-panel">
-          <h2>Command Deck</h2>
-          <p class="control-subtitle">Premium match controls</p>
+      <section class="control-console" aria-label="Game controls and timer panel">
+        <article class="timer-panel ivory" id="whitePanel">
+          <p class="timer-label">WHITE · YOU</p>
+          <p class="timer-value" id="whiteTimer">05:00</p>
+        </article>
+
+        <div class="console-center">
+          <div class="status-row">
+            <p class="status-pill" id="turnStatus">Your turn (Ivory)</p>
+            <p class="status-pill" id="gameStatus">Ready to play.</p>
+          </div>
 
           <div class="controls-row controls-row-stack">
             <label for="difficulty">AI Difficulty</label>
@@ -66,18 +65,18 @@
           </div>
 
           <div class="control-buttons">
-            <button class="btn" id="restartBtn" type="button">Restart Match</button>
-            <button class="btn" id="undoBtn" type="button">Undo Move</button>
+            <button class="btn" id="restartBtn" type="button">Restart</button>
+            <button class="btn" id="undoBtn" type="button">Undo</button>
+            <button class="btn" id="fullscreenBtn" type="button">Fullscreen</button>
+            <a class="btn btn-ghost" href="/games">Return to Games</a>
           </div>
+        </div>
 
-          <ul>
-            <li>You command the Ivory pieces and move first.</li>
-            <li>Tap a piece to reveal legal destinations.</li>
-            <li>Promotion upgrades pawns to queens automatically.</li>
-            <li>Check, checkmate, and draws are detected live.</li>
-          </ul>
-        </aside>
-      </div>
+        <article class="timer-panel red" id="redPanel">
+          <p class="timer-label">RED · COMPUTER</p>
+          <p class="timer-value" id="redTimer">05:00</p>
+        </article>
+      </section>
     </section>
   </main>
 
