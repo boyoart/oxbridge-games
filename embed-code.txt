@@ -1,0 +1,11 @@
+Title:
+Chess Strategy
+
+Excerpt:
+Challenge the computer and sharpen your planning, logic, and decision-making skills in this premium interactive chess game.
+
+Description:
+Chess Strategy is an Oxbridge-branded digital chess experience that combines elegant visuals, strategic gameplay, and a polished premium interface. It helps develop concentration, planning, and critical thinking.
+
+WordPress Embed Code:
+<iframe src="/games/chess/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>

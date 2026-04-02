@@ -3,72 +3,100 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Flags of the World Quiz</title>
+  <title>Chess Strategy | Oxbridge Tutorial College</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="app">
-    <header class="brand-header" aria-label="Oxbridge Tutorial College game header">
-      <div class="brand-mark-wrap">
-        <img class="brand-logo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
+  <div class="bg-overlay" aria-hidden="true"></div>
+
+  <main id="gameApp" class="app-shell prestart">
+    <header class="brand-header" aria-label="Oxbridge Tutorial College Header">
+      <div class="header-shine" aria-hidden="true"></div>
+      <div class="header-center">
+        <div class="logo-wrap" id="logoWrap">
+          <img src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" id="schoolLogo" />
+          <span class="logo-fallback" id="logoFallback">Oxbridge Tutorial College</span>
+        </div>
+        <div class="title-wrap">
+          <h1>OXBRIDGE TUTORIAL COLLEGE</h1>
+          <p class="subtitle">Interactive Chess Strategy</p>
+        </div>
       </div>
-      <div class="brand-title-wrap">
-        <p class="brand-kicker">Oxbridge Interactive Learning</p>
-        <h1 class="brand-title">Flags of the World Quiz</h1>
-      </div>
-      <div class="top-actions">
-        <a class="ghost-btn" href="/games" aria-label="Return to games list">← Return to Games</a>
-        <button id="fullscreenBtn" class="ghost-btn" type="button">⛶ Fullscreen</button>
-      </div>
+      <p class="turn-badge" id="headerTurnIndicator">Awaiting start</p>
     </header>
 
-    <section id="startScreen" class="card active" aria-labelledby="startTitle">
-      <h2 id="startTitle">Welcome to the Oxbridge Flag Challenge</h2>
-      <p class="subtitle">Can you identify the country from its flag before time runs out?</p>
+    <section class="game-stage" id="gameContainer">
+      <section class="intro-screen" id="introScreen" aria-label="Game intro screen">
+        <div class="intro-card">
+          <p class="intro-kicker">OXBRIDGE DIGITAL GAME</p>
+          <h2>Chess Strategy</h2>
+          <p class="intro-sub">A premium chess challenge for planning, logic, and tactical thinking.</p>
 
-      <div class="how-to-play">
-        <h3>How to Play</h3>
-        <ul>
-          <li>You start with <strong>3 lives</strong>.</li>
-          <li>Each question has a <strong>15-second timer</strong>.</li>
-          <li>Choose the correct country name from 4 choices.</li>
-          <li>Wrong answers and timeouts cost 1 life.</li>
-          <li>Game ends when lives reach 0 or all questions are finished.</li>
-        </ul>
+          <div class="intro-grid">
+            <label for="difficulty">Difficulty</label>
+            <select id="difficulty" aria-label="AI difficulty">
+              <option value="1">Scholar (Easy)</option>
+              <option value="2" selected>Oxford (Medium)</option>
+              <option value="3">Master (Hard)</option>
+            </select>
+
+            <label for="timeControl">Time Control</label>
+            <select id="timeControl" aria-label="Game timer">
+              <option value="180000">3:00 Blitz</option>
+              <option value="300000" selected>5:00 Standard</option>
+              <option value="600000">10:00 Classic</option>
+            </select>
+          </div>
+
+          <p class="intro-note">How to play: select one of your ivory pieces, choose a glowing square, and outplay the Oxbridge red AI before your timer runs out.</p>
+          <button class="btn intro-start" id="startBtn" type="button">Start Game</button>
+        </div>
+      </section>
+
+      <div class="board-shell">
+        <div class="board-scene" aria-label="Front-facing premium chessboard scene">
+          <div class="board-shadow" aria-hidden="true"></div>
+          <div class="board-stage">
+            <div class="board-frame">
+              <div class="board-crest" aria-hidden="true">
+                <span class="crest-ring"></span>
+                <span class="crest-wordmark">OXBRIDGE</span>
+              </div>
+              <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+            </div>
+            <div class="board-edge board-edge-front" aria-hidden="true"></div>
+            <div class="board-edge board-edge-right" aria-hidden="true"></div>
+            <div class="board-edge board-edge-left" aria-hidden="true"></div>
+          </div>
+        </div>
       </div>
 
-      <button id="startGameBtn" class="primary-btn" type="button">Start Game</button>
-    </section>
+      <section class="control-console" aria-label="Game controls and timer panel">
+        <article class="timer-panel ivory" id="whitePanel">
+          <p class="timer-label">WHITE · YOU</p>
+          <p class="timer-value" id="whiteTimer">05:00</p>
+        </article>
 
-    <section id="gameScreen" class="card" aria-live="polite">
-      <div class="status-row">
-        <p id="questionCount">Question 1 / 16</p>
-        <p id="scoreDisplay">Score: 0</p>
-        <p id="livesDisplay" aria-label="Lives remaining">Lives: ❤❤❤</p>
-        <p id="timerDisplay" class="timer">Time: 15s</p>
-      </div>
+        <div class="console-center">
+          <div class="status-row">
+            <p class="status-pill" id="turnStatus">Press Start to begin.</p>
+            <p class="status-pill" id="gameStatus">Game loaded.</p>
+          </div>
 
-      <div class="flag-frame">
-        <img id="flagImage" src="" alt="Flag question" />
-      </div>
+          <div class="control-buttons">
+            <button class="btn" id="restartBtn" type="button">Restart</button>
+            <button class="btn" id="undoBtn" type="button">Undo</button>
+            <button class="btn" id="fullscreenBtn" type="button">Fullscreen</button>
+            <button class="btn" id="soundToggleBtn" type="button">Sound: On</button>
+            <a class="btn btn-ghost" href="/games">Return to Games</a>
+          </div>
+        </div>
 
-      <h2 id="prompt">Which country's flag is this?</h2>
-
-      <div id="answers" class="answers-grid"></div>
-      <p id="feedback" class="feedback" role="status"></p>
-    </section>
-
-    <section id="endScreen" class="card" aria-labelledby="endTitle">
-      <div class="end-brand-wrap">
-        <img class="brand-logo end-logo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
-      </div>
-      <h2 id="endTitle">Game Over</h2>
-      <p id="finalMessage"></p>
-      <p id="finalScore"></p>
-      <div class="end-actions">
-        <button id="playAgainBtn" class="primary-btn" type="button">Play Again</button>
-        <a class="ghost-btn" href="/games">Return to Games</a>
-      </div>
+        <article class="timer-panel red" id="redPanel">
+          <p class="timer-label">RED · COMPUTER</p>
+          <p class="timer-value" id="redTimer">05:00</p>
+        </article>
+      </section>
     </section>
   </main>
 
