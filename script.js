@@ -9,24 +9,45 @@ const logo = document.getElementById('schoolLogo');
 const logoWrap = document.getElementById('logoWrap');
 const container = document.getElementById('gameContainer');
 
-const pieceArt = {
-  w: {
-    p: 'assets/pieces/w-pawn.svg',
-    n: 'assets/pieces/w-knight.svg',
-    b: 'assets/pieces/w-bishop.svg',
-    r: 'assets/pieces/w-rook.svg',
-    q: 'assets/pieces/w-queen.svg',
-    k: 'assets/pieces/w-king.svg'
-  },
-  b: {
-    p: 'assets/pieces/b-pawn.svg',
-    n: 'assets/pieces/b-knight.svg',
-    b: 'assets/pieces/b-bishop.svg',
-    r: 'assets/pieces/b-rook.svg',
-    q: 'assets/pieces/b-queen.svg',
-    k: 'assets/pieces/b-king.svg'
-  }
+
+const pieceGlyph = {
+  p: '♟',
+  n: '♞',
+  b: '♝',
+  r: '♜',
+  q: '♛',
+  k: '♚'
 };
+
+function pieceSvg(color, type) {
+  const ivory = color === 'w';
+  const main = ivory ? '#f6efe2' : '#8f1125';
+  const mid = ivory ? '#d4c6b1' : '#5d0013';
+  const edge = ivory ? '#7f6b55' : '#2b0009';
+  const glyph = ivory ? '#5c4a37' : '#f7dce0';
+
+  const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="${type}">
+  <defs>
+    <radialGradient id="g1" cx="30%" cy="25%" r="70%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.65"/>
+      <stop offset="60%" stop-color="${main}"/>
+      <stop offset="100%" stop-color="${mid}"/>
+    </radialGradient>
+    <linearGradient id="base" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${main}"/>
+      <stop offset="100%" stop-color="${mid}"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="50" cy="82" rx="28" ry="9" fill="${edge}" opacity="0.25"/>
+  <ellipse cx="50" cy="74" rx="24" ry="8" fill="url(#base)" stroke="${edge}" stroke-width="2"/>
+  <path d="M24 74 C26 56, 36 34, 50 26 C64 34, 74 56, 76 74 Z" fill="url(#g1)" stroke="${edge}" stroke-width="2"/>
+  <circle cx="50" cy="19" r="9" fill="url(#g1)" stroke="${edge}" stroke-width="2"/>
+  <text x="50" y="63" font-size="36" text-anchor="middle" fill="${glyph}" font-family="Georgia, serif">${pieceGlyph[type]}</text>
+</svg>`;
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
 
 const values = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
 const knightOffsets = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]];
@@ -371,11 +392,16 @@ function render() {
 
       const piece = state.board[r][c];
       if (piece) {
+        const pieceWrap = document.createElement('span');
+        pieceWrap.className = 'piece-wrap';
+
         const img = document.createElement('img');
         img.className = 'piece';
-        img.src = pieceArt[piece.color][piece.type];
+        img.src = pieceSvg(piece.color, piece.type);
         img.alt = `${piece.color === 'w' ? 'Ivory' : 'Oxbridge Red'} ${piece.type}`;
-        sq.appendChild(img);
+
+        pieceWrap.appendChild(img);
+        sq.appendChild(pieceWrap);
       }
 
       sq.addEventListener('click', onSquareClick);
