@@ -86,34 +86,40 @@
             <div id="boardScaler" class="board-scaler">
               <div id="board" class="board"></div>
               <div class="board-dice-zone" aria-live="polite">
-                <div id="dice1" class="board-die face-1" data-die-index="0" aria-label="Die 1 showing 1">
-                  <div class="die-cube">
-                    <div class="die-face face-1"><span class="pip p-center"></span></div>
-                    <div class="die-face face-2"><span class="pip p-tl"></span><span class="pip p-br"></span></div>
-                    <div class="die-face face-3"><span class="pip p-tl"></span><span class="pip p-center"></span><span class="pip p-br"></span></div>
-                    <div class="die-face face-4"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
-                    <div class="die-face face-5"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-center"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
-                    <div class="die-face face-6">
-                      <span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-ml"></span>
-                      <span class="pip p-mr"></span><span class="pip p-bl"></span><span class="pip p-br"></span>
+                <div class="die-slot" data-slot-index="0">
+                  <span class="die-slot-label">Die 1</span>
+                  <div id="dice1" class="board-die face-1" data-die-index="0" aria-label="Die 1 showing 1">
+                    <div class="die-cube">
+                      <div class="die-face face-1"><span class="pip p-center"></span></div>
+                      <div class="die-face face-2"><span class="pip p-tl"></span><span class="pip p-br"></span></div>
+                      <div class="die-face face-3"><span class="pip p-tl"></span><span class="pip p-center"></span><span class="pip p-br"></span></div>
+                      <div class="die-face face-4"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
+                      <div class="die-face face-5"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-center"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
+                      <div class="die-face face-6">
+                        <span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-ml"></span>
+                        <span class="pip p-mr"></span><span class="pip p-bl"></span><span class="pip p-br"></span>
+                      </div>
                     </div>
                   </div>
+                  <div id="dieShadow1" class="die-shadow" aria-hidden="true"></div>
                 </div>
-                <div id="dice2" class="board-die face-1" data-die-index="1" aria-label="Die 2 showing 1">
-                  <div class="die-cube">
-                    <div class="die-face face-1"><span class="pip p-center"></span></div>
-                    <div class="die-face face-2"><span class="pip p-tl"></span><span class="pip p-br"></span></div>
-                    <div class="die-face face-3"><span class="pip p-tl"></span><span class="pip p-center"></span><span class="pip p-br"></span></div>
-                    <div class="die-face face-4"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
-                    <div class="die-face face-5"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-center"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
-                    <div class="die-face face-6">
-                      <span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-ml"></span>
-                      <span class="pip p-mr"></span><span class="pip p-bl"></span><span class="pip p-br"></span>
+                <div class="die-slot" data-slot-index="1">
+                  <span class="die-slot-label">Die 2</span>
+                  <div id="dice2" class="board-die face-1" data-die-index="1" aria-label="Die 2 showing 1">
+                    <div class="die-cube">
+                      <div class="die-face face-1"><span class="pip p-center"></span></div>
+                      <div class="die-face face-2"><span class="pip p-tl"></span><span class="pip p-br"></span></div>
+                      <div class="die-face face-3"><span class="pip p-tl"></span><span class="pip p-center"></span><span class="pip p-br"></span></div>
+                      <div class="die-face face-4"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
+                      <div class="die-face face-5"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-center"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
+                      <div class="die-face face-6">
+                        <span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-ml"></span>
+                        <span class="pip p-mr"></span><span class="pip p-bl"></span><span class="pip p-br"></span>
+                      </div>
                     </div>
                   </div>
+                  <div id="dieShadow2" class="die-shadow" aria-hidden="true"></div>
                 </div>
-                <div id="dieShadow1" class="die-shadow shadow-1" aria-hidden="true"></div>
-                <div id="dieShadow2" class="die-shadow shadow-2" aria-hidden="true"></div>
                 <div id="diceAssignment" class="dice-assignment"></div>
               </div>
               <div class="center-logo-watermark" aria-hidden="true">
