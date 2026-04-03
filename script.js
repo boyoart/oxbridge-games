@@ -15,6 +15,9 @@ const statusText = document.getElementById("statusText");
 const roomCodeLabel = document.getElementById("roomCodeLabel");
 const roomCodeValue = document.getElementById("roomCodeValue");
 const scoreBoard = document.getElementById("scoreBoard");
+const placementsPanelEl = document.getElementById("placementsPanel");
+const finalResultsOverlayEl = document.getElementById("finalResultsOverlay");
+const finalPlacementsEl = document.getElementById("finalPlacements");
 const turnInfo = document.getElementById("turnInfo");
 const rollBtn = document.getElementById("rollBtn");
 const restartBtn = document.getElementById("restartBtn");
@@ -52,7 +55,8 @@ const appState = {
   mustMove: false,
   turn: { hasRolled: false, movePending: false, selectedToken: null, diceLocked: false, canRoll: true },
   isRolling: false,
-  winner: null,
+  placements: [],
+  gameOver: false,
   soundEnabled: true,
   roomCode: null,
   mySocketId: null,
@@ -250,15 +254,16 @@ function configureGame(mode, localCount = 4) {
   appState.mustMove = false;
   appState.turn = { hasRolled: false, movePending: false, selectedToken: null, diceLocked: false, canRoll: true };
   appState.isRolling = false;
-  appState.winner = null;
+  appState.placements = [];
+  appState.gameOver = false;
   appState.difficulty = (difficultySelectEl?.value === "hard") ? "hard" : "easy";
 
   if (mode === "single") {
     appState.players = [
-      { type: "human", color: "red", tokens: newTokens(), name: "You" },
-      { type: "ai", color: "blue", tokens: newTokens(), name: "Computer Blue" },
-      { type: "ai", color: "green", tokens: newTokens(), name: "Computer Green" },
-      { type: "ai", color: "yellow", tokens: newTokens(), name: "Computer Yellow" }
+      { type: "human", color: "red", tokens: newTokens(), name: "You", finished: false, place: null },
+      { type: "ai", color: "blue", tokens: newTokens(), name: "Computer Blue", finished: false, place: null },
+      { type: "ai", color: "green", tokens: newTokens(), name: "Computer Green", finished: false, place: null },
+      { type: "ai", color: "yellow", tokens: newTokens(), name: "Computer Yellow", finished: false, place: null }
     ];
   } else if (mode === "local") {
     const configuredNames = getConfiguredLocalNames(localCount);
@@ -266,13 +271,16 @@ function configureGame(mode, localCount = 4) {
       type: "human",
       color: c,
       tokens: newTokens(),
-      name: configuredNames[i]
+      name: configuredNames[i],
+      finished: false,
+      place: null
     }));
   }
   syncAllTokenStates();
 
   modeMenu.classList.add("hidden");
   gameSection.classList.remove("hidden");
+  finalResultsOverlayEl?.classList.add("hidden");
   roomCodeLabel.classList.toggle("hidden", mode !== "online");
   render();
   updateStatus();
@@ -360,15 +368,18 @@ function render() {
     name: p.name,
     color: p.color,
     activeCount: p.tokens.filter((t) => t.onBoard && !t.inHome).length,
-    homeCount: p.tokens.filter((t) => t.inHome).length
+    homeCount: p.tokens.filter((t) => t.inHome).length,
+    finished: Boolean(p.finished),
+    place: p.place
   }));
 
   scoreBoard.innerHTML = progress.map((p) => `
     <li class="score-item ${p.color}">
       <span class="score-label">${p.name}</span>
-      <span class="score-value">Active ${p.activeCount}/4 | Home ${p.homeCount}/4</span>
+      <span class="score-value">${p.finished ? `Finished — ${formatPlaceLabel(p.place)}` : `Active ${p.activeCount}/4 | Home ${p.homeCount}/4`}</span>
     </li>
   `).join("");
+  renderPlacementsPanel();
 }
 
 function updateDifficultyInfo() {
@@ -395,9 +406,9 @@ function canEnterBoard(rollValue) {
   return rollValue === ENTRY_ROLL;
 }
 
-// extra-turn rule is centralized here: only a 6 grants an extra turn.
-function shouldGrantExtraTurn(rollValue) {
-  return rollValue === ENTRY_ROLL;
+// extra-turn rule is centralized here: a turn repeats only on DOUBLE-SIX (6 + 6).
+function shouldGrantExtraTurn(rollValues) {
+  return Array.isArray(rollValues) && rollValues[0] === ENTRY_ROLL && rollValues[1] === ENTRY_ROLL;
 }
 
 function getTargetPosition(tokenPos, rollValue) {
@@ -464,7 +475,7 @@ function getTurnMoveOptions(playerIdx) {
 }
 
 function isTokenClickable(playerIdx, tokenId) {
-  if (!appState.turn.movePending || !appState.mustMove || appState.winner) return false;
+  if (!appState.turn.movePending || !appState.mustMove || appState.gameOver) return false;
   const current = appState.players[appState.currentTurn];
   if (!current || current.type !== "human") return false;
   if (appState.mode === "online" && appState.myPlayerIndex !== appState.currentTurn) return false;
@@ -537,8 +548,17 @@ function hasWon(playerIdx) {
 }
 
 function advanceTurn(extraTurn) {
-  // DEBUG: turn switching happens here and respects extra-turn rule.
-  if (!extraTurn) appState.currentTurn = (appState.currentTurn + 1) % appState.players.length;
+  // DEBUG: finished players are skipped in turn order so they never roll/move again.
+  if (!appState.players.length) return;
+  const currentActive = !appState.players[appState.currentTurn]?.finished;
+  const start = (extraTurn && currentActive) ? appState.currentTurn : (appState.currentTurn + 1) % appState.players.length;
+  let next = start;
+  let guard = 0;
+  while (appState.players[next]?.finished && guard < appState.players.length) {
+    next = (next + 1) % appState.players.length;
+    guard += 1;
+  }
+  appState.currentTurn = next;
 }
 
 function resetDiceDisplay() {
@@ -605,13 +625,21 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false, dieI
   const hasMoreAssignments = [...remainingOptions.values()].some((list) => list.length > 0);
   // DEBUG: order step 6 - either keep turn or switch turn.
   if (hasWon(playerIdx)) {
-    appState.winner = playerIdx;
-    statusText.textContent = `Winner: ${player.name} (${COLOR_LABEL[player.color]})!`;
-    sfx("win");
+    // DEBUG: finished players are detected and locked as soon as all 4 tokens are home.
+    assignPlacementForPlayer(playerIdx);
     appState.mustMove = false;
     appState.turn.movePending = false;
     appState.turn.diceLocked = true;
     appState.turn.canRoll = false;
+    const results = maybeCompletePlacements();
+    if (results.gameEnded) {
+      updateStatus(`Game complete! 1st: ${results.firstName}.`);
+      sfx("win");
+    } else {
+      updateStatus(`${player.name} finished — ${formatPlaceLabel(player.place)}!`);
+      advanceTurn(false);
+      resetTurnStateForActivePlayer();
+    }
   } else {
     if (hasMoreAssignments) {
       appState.mustMove = true;
@@ -628,7 +656,7 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false, dieI
       advanceTurn(extraTurn);
       resetTurnStateForActivePlayer();
       if (captured) updateStatus(`${player.name} captured a token!`);
-      else if (extraTurn) updateStatus("Extra turn!");
+      else if (extraTurn) updateStatus("Double six! Extra turn.");
       else updateStatus("Turn changed.");
     }
   }
@@ -643,7 +671,7 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false, dieI
 
 function rollDicePair() {
   const values = [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
-  return { values, rolledSix: values.some((v) => shouldGrantExtraTurn(v)) };
+  return { values, rolledSix: shouldGrantExtraTurn(values) };
 }
 
 function startDiceAnimation() {
@@ -686,7 +714,7 @@ function handleNoValidMove(player, rollValues) {
 
 function rollDice() {
   if (!canCurrentPlayerRoll()) return;
-  if (appState.winner) return;
+  if (appState.gameOver) return;
   const p = appState.players[appState.currentTurn];
   if (!p) return;
   if (appState.mode !== "online" && p.type !== "human" && p.type !== "ai") return;
@@ -729,7 +757,7 @@ function rollDice() {
 
 function maybeAITurn() {
   const p = appState.players[appState.currentTurn];
-  if (!p || appState.winner) return;
+  if (!p || appState.gameOver || p.finished) return;
   if (appState.mode === "online") return;
   if (p.type !== "ai") return;
 
@@ -770,7 +798,7 @@ function runAITurnAssignments() {
 
 function canCurrentPlayerRoll() {
   const p = appState.players[appState.currentTurn];
-  if (!p || appState.winner || appState.mustMove || appState.isRolling) return false;
+  if (!p || appState.gameOver || p.finished || appState.mustMove || appState.isRolling) return false;
   if (!appState.turn.canRoll || appState.turn.diceLocked || appState.turn.movePending || appState.turn.hasRolled) return false;
   if (appState.mode === "online") return appState.myPlayerIndex === appState.currentTurn;
   return p.type === "human" || p.type === "ai";
@@ -783,6 +811,67 @@ function updateStatus(message) {
   }
   const p = appState.players[appState.currentTurn];
   statusText.textContent = p ? `${p.name}'s turn. Tap center dice to roll.` : "Ready.";
+}
+
+function formatPlaceLabel(place) {
+  if (place === 1) return "1st Place";
+  if (place === 2) return "2nd Place";
+  if (place === 3) return "3rd Place";
+  return "4th Place";
+}
+
+function assignPlacementForPlayer(playerIdx) {
+  const player = appState.players[playerIdx];
+  if (!player || player.finished) return;
+  // DEBUG: placements are assigned in strict finish order.
+  player.finished = true;
+  player.place = appState.placements.length + 1;
+  appState.placements.push({ playerIndex: playerIdx, place: player.place });
+}
+
+function maybeCompletePlacements() {
+  const unfinished = appState.players
+    .map((player, index) => ({ player, index }))
+    .filter((entry) => !entry.player.finished);
+  // DEBUG: game end condition uses top-3 winners; last unfinished player becomes 4th automatically.
+  if (appState.players.length === 4 && appState.placements.length >= 3 && unfinished.length === 1) {
+    const last = unfinished[0];
+    last.player.finished = true;
+    last.player.place = 4;
+    appState.placements.push({ playerIndex: last.index, place: 4 });
+    appState.gameOver = true;
+  }
+  if (appState.players.length < 4 && unfinished.length <= 1) {
+    if (unfinished.length === 1) {
+      const last = unfinished[0];
+      last.player.finished = true;
+      last.player.place = appState.players.length;
+      appState.placements.push({ playerIndex: last.index, place: appState.players.length });
+    }
+    appState.gameOver = true;
+  }
+  const firstName = appState.placements.length ? appState.players[appState.placements[0].playerIndex].name : "N/A";
+  return { gameEnded: appState.gameOver, firstName };
+}
+
+function renderPlacementsPanel() {
+  if (!placementsPanelEl) return;
+  const byPlace = [...appState.players]
+    .filter((p) => Number.isInteger(p.place))
+    .sort((a, b) => a.place - b.place);
+  const expected = Math.max(appState.players.length, 4);
+  placementsPanelEl.innerHTML = Array.from({ length: Math.min(expected, 4) }, (_, i) => {
+    const place = i + 1;
+    const player = byPlace.find((p) => p.place === place);
+    if (!player) return `<div class="placement-card place-${place}"><div class="placement-title">${formatPlaceLabel(place)}</div><div class="placement-subtle">Waiting...</div></div>`;
+    return `<div class="placement-card place-${place}"><div class="placement-title">${formatPlaceLabel(place)}</div><div class="placement-player">${player.name} (${COLOR_LABEL[player.color]})</div></div>`;
+  }).join("");
+  if (finalPlacementsEl && appState.gameOver) {
+    finalPlacementsEl.innerHTML = placementsPanelEl.innerHTML;
+    finalResultsOverlayEl?.classList.remove("hidden");
+  } else {
+    finalResultsOverlayEl?.classList.add("hidden");
+  }
 }
 
 function renderLocalNameFields(localCount) {
@@ -858,6 +947,8 @@ function hydrateOnlineState(state) {
   appState.mode = "online";
   appState.players = (state.players || []).map((player) => ({
     ...player,
+    finished: Boolean(player.finished),
+    place: Number.isInteger(player.place) ? player.place : null,
     tokens: (player.tokens || []).map((token, index) => ({
       id: Number.isInteger(token.id) ? token.id : index,
       owner: player.color,
@@ -877,7 +968,7 @@ function hydrateOnlineState(state) {
   appState.dice = {
     values: [syncedValues[0] || null, syncedValues[1] || null],
     used: Array.isArray(state.diceUsed) ? state.diceUsed : [false, false],
-    rolledSix: syncedValues.some((v) => Number(v) === ENTRY_ROLL),
+    rolledSix: shouldGrantExtraTurn(syncedValues),
     selectedDie: null,
     combineMode: false
   };
@@ -891,7 +982,8 @@ function hydrateOnlineState(state) {
     canRoll: !state.mustMove && !appState.dice.values.some(Boolean)
   };
   appState.isRolling = false;
-  appState.winner = state.winner;
+  appState.placements = Array.isArray(state.placements) ? state.placements : [];
+  appState.gameOver = Boolean(state.gameOver);
   appState.myPlayerIndex = Number.isInteger(state.myPlayerIndex) ? state.myPlayerIndex : appState.myPlayerIndex;
   syncAllTokenStates();
   gameSection.classList.remove("hidden");
