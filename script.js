@@ -46,17 +46,12 @@ const victoryContainerEl = document.getElementById("victoryContainer");
 const victoryTokenStackEl = document.getElementById("victoryTokenStack");
 const difficultyInfoEl = document.getElementById("difficultyInfo");
 const difficultySelectEl = document.getElementById("difficultySelect");
-const baseHolderEls = {
-  red: document.getElementById("baseHolder-red"),
-  blue: document.getElementById("baseHolder-blue"),
-  yellow: document.getElementById("baseHolder-yellow"),
-  green: document.getElementById("baseHolder-green")
-};
-const baseHolderLabelEls = {
-  red: document.getElementById("baseHolderLabel-red"),
-  blue: document.getElementById("baseHolderLabel-blue"),
-  yellow: document.getElementById("baseHolderLabel-yellow"),
-  green: document.getElementById("baseHolderLabel-green")
+// Normal board base positions restored: each color has four in-board base slots for token IDs 0-3.
+const BASE_SLOTS = {
+  red: [[2, 2], [2, 4], [4, 2], [4, 4]],
+  blue: [[2, 10], [2, 12], [4, 10], [4, 12]],
+  green: [[10, 2], [10, 4], [12, 2], [12, 4]],
+  yellow: [[10, 10], [10, 12], [12, 10], [12, 12]]
 };
 
 function getRequiredEl(id) {
@@ -449,29 +444,12 @@ function setSelectedMode(mode) {
 }
 
 function render() {
-  document.querySelectorAll(".board-token, .base-token").forEach((t) => t.remove());
+  document.querySelectorAll(".board-token").forEach((t) => t.remove());
   const occupancy = buildTileOccupancy();
-  // External base holder labels are synced to player names so each color tray is identifiable.
-  appState.players.forEach((player) => {
-    const labelEl = baseHolderLabelEls[player.color];
-    if (labelEl) labelEl.textContent = `${player.name} (${COLOR_LABEL[player.color]})`;
-  });
+  // Wrong external base trays removed: base tokens are now always rendered in board base quadrants.
 
   appState.players.forEach((player, pIndex) => {
-    const holderEl = baseHolderEls[player.color];
     player.tokens.forEach((token) => {
-      if (token.inBase && holderEl) {
-        // Base tokens are rendered in external holders instead of inside board quadrants.
-        const baseTokenEl = document.createElement("div");
-        baseTokenEl.className = `token base-token ${player.color}`;
-        baseTokenEl.title = `${player.name} Token ${token.id + 1}`;
-        if (isTokenClickable(pIndex, token.id)) {
-          baseTokenEl.classList.add("clickable");
-          baseTokenEl.addEventListener("click", () => chooseTokenMove(pIndex, token.id));
-        }
-        holderEl.appendChild(baseTokenEl);
-        return;
-      }
       const spot = token.coord;
       if (!spot) return;
       const tile = getTile(spot[0], spot[1]);
@@ -533,7 +511,7 @@ function updateDifficultyInfo() {
 }
 
 function getTokenCoordinates(color, pos, tokenId) {
-  if (pos === -1) return null;
+  if (pos === -1) return BASE_SLOTS[color]?.[tokenId] || null;
   if (pos <= 51) return boardPath[(START_INDEX[color] + pos) % PATH_LEN];
   if (pos >= 52 && pos <= 57) return homePaths[color][pos - 52];
   if (pos === FINAL_HOME_POSITION) return null;
@@ -685,7 +663,7 @@ function handleCapture(moverIdx, tokenId) {
     if (idx === moverIdx) return; // same-color tokens can never capture each other.
     op.tokens.forEach((t) => {
       if (t.tileKey === tileId) {
-        // DEBUG: capture returns token to base; render() then places it back in the external base holder.
+        // Captured tokens return to normal in-board base slots (not any external tray).
         t.pos = -1;
         syncTokenStateForPlayer(op);
         capturedAny = true;

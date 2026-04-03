@@ -99,56 +99,6 @@ select, input {
   aspect-ratio: 1 / 1;
   position: relative;
 }
-.external-bases {
-  /* External token containers are anchored around the board corners. */
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 6;
-}
-.base-holder {
-  --holder-tint: rgba(255, 255, 255, 0.9);
-  position: absolute;
-  width: clamp(84px, 11.5vw, 116px);
-  padding: 8px;
-  border-radius: 14px;
-  border: 1px solid rgba(0, 0, 0, .16);
-  background: linear-gradient(165deg, rgba(255,255,255,.9), var(--holder-tint));
-  box-shadow: 0 8px 16px rgba(0, 0, 0, .24), inset 0 1px 0 rgba(255,255,255,.76);
-  pointer-events: auto;
-}
-.base-holder-lid {
-  /* Subtle lid overlay for the premium board-game compartment look. */
-  position: absolute;
-  left: 6px;
-  right: 6px;
-  top: 6px;
-  height: 34%;
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.09));
-  border: 1px solid rgba(255,255,255,.45);
-  pointer-events: none;
-}
-.base-holder-label {
-  position: relative;
-  z-index: 1;
-  font-size: .68rem;
-  font-weight: 800;
-  color: #4d0000;
-  margin-bottom: 6px;
-}
-.base-holder-grid {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  justify-items: center;
-}
-.base-holder-red { --holder-tint: rgba(255, 205, 205, .86); top: -14px; left: -116px; }
-.base-holder-blue { --holder-tint: rgba(208, 223, 255, .86); top: -14px; right: -116px; }
-.base-holder-yellow { --holder-tint: rgba(255, 245, 198, .9); bottom: -14px; right: -116px; }
-.base-holder-green { --holder-tint: rgba(210, 250, 224, .88); bottom: -14px; left: -116px; }
 .board-dice-zone {
   /* Two dice are rendered side-by-side in one centered lane to avoid overlap. */
   --dice-size: clamp(26px, 3.9vw, 34px); /* Dice size is controlled from this single variable. */
@@ -266,22 +216,6 @@ select, input {
   z-index: 2;
 }
 .token.clickable { outline: 3px solid #ffffff; animation: pulse .8s infinite alternate; }
-.base-holder .token {
-  position: relative;
-  width: clamp(24px, 3.4vw, 31px);
-  height: clamp(24px, 3.4vw, 31px);
-  transform: none !important;
-  box-shadow: inset 0 6px 8px rgba(255,255,255,.45), inset 0 -6px 10px rgba(0,0,0,.28), 0 3px 7px rgba(0,0,0,.24);
-}
-.base-holder .token.clickable {
-  /* Only the selectable token pulses/glows, not the full holder. */
-  outline: 2px solid rgba(255,255,255,.95);
-  box-shadow: 0 0 0 3px rgba(255,255,255,.45), 0 0 10px rgba(255,255,255,.35), inset 0 6px 8px rgba(255,255,255,.45), inset 0 -6px 10px rgba(0,0,0,.28), 0 3px 7px rgba(0,0,0,.24);
-}
-.base-holder .token:hover {
-  transform: scale(1.06) !important;
-  filter: brightness(1.08);
-}
 @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.08); } }
 .token.red{background:radial-gradient(circle at 30% 30%, #ff8e8e, #b30000 65%)}
 .token.blue{background:radial-gradient(circle at 30% 30%, #9bc2ff, #2a5ec9 65%)}
@@ -629,10 +563,6 @@ select, input {
   .board-3d { order: 2; }
   .side-panel { order: 3; }
   .side-panel { display: grid; grid-template-columns: minmax(220px, 360px) 1fr; gap: 10px; align-items: start; }
-  .base-holder-red { top: -10px; left: -94px; }
-  .base-holder-blue { top: -10px; right: -94px; }
-  .base-holder-yellow { bottom: -10px; right: -94px; }
-  .base-holder-green { bottom: -10px; left: -94px; }
   .board-dice-zone {
     --dice-size: clamp(24px, 4.6vw, 32px);
     width: min(210px, 40%);
@@ -652,17 +582,6 @@ select, input {
   .left-panel { padding: 8px; max-width: 100%; }
   .side-panel { grid-template-columns: 1fr; }
   .side-panel { padding: 8px; }
-  .base-holder {
-    width: clamp(72px, 26vw, 92px);
-    padding: 6px;
-    border-radius: 12px;
-  }
-  .base-holder-label { font-size: .62rem; margin-bottom: 5px; }
-  .base-holder-grid { gap: 4px; }
-  .base-holder-red { top: -4px; left: -58px; }
-  .base-holder-blue { top: -4px; right: -58px; }
-  .base-holder-yellow { bottom: -4px; right: -58px; }
-  .base-holder-green { bottom: -4px; left: -58px; }
   .dice-wrap { gap: 6px; margin-bottom: 8px; }
   .dice-summary { font-size: .82rem; padding: 6px; }
   .turn-info { font-size: .88rem; }
