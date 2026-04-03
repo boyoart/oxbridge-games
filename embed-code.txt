@@ -1,0 +1,11 @@
+Title:
+Flags of the World Quiz
+
+Excerpt:
+Test your geography knowledge by identifying flags from around the world in this fun interactive quiz.
+
+Description:
+Flags of the World Quiz is an Oxbridge-branded educational geography game that challenges students to identify national flags correctly. It uses randomized questions each session to keep gameplay fresh while building memory, global awareness, and pattern recognition.
+
+Embed code:
+<iframe src="/games/flags-world/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>
