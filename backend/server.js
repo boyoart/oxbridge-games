@@ -36,9 +36,9 @@ function canEnterBoard(roll) {
   return roll === ENTRY_ROLL;
 }
 
-// extra-turn rule is centralized: only 6 grants another turn.
-function shouldGrantExtraTurn(roll) {
-  return roll === ENTRY_ROLL;
+// extra-turn rule is centralized: only DOUBLE-SIX (6 + 6) grants another turn.
+function shouldGrantExtraTurn(rolls) {
+  return Array.isArray(rolls) && rolls[0] === ENTRY_ROLL && rolls[1] === ENTRY_ROLL;
 }
 
 function getTargetPosition(tokenPos, roll) {
@@ -127,8 +127,47 @@ function hasWon(room, playerIdx) {
 }
 
 function advanceTurn(room, extraTurn) {
-  // turn switching happens here and respects extra-turn rule.
-  if (!extraTurn) room.currentTurn = (room.currentTurn + 1) % room.players.length;
+  // finished players are skipped in turn order so they cannot roll or move.
+  const currentActive = !room.players[room.currentTurn]?.finished;
+  const start = (extraTurn && currentActive) ? room.currentTurn : (room.currentTurn + 1) % room.players.length;
+  let next = start;
+  let guard = 0;
+  while (room.players[next]?.finished && guard < room.players.length) {
+    next = (next + 1) % room.players.length;
+    guard += 1;
+  }
+  room.currentTurn = next;
+}
+
+function assignPlacement(room, playerIdx) {
+  const player = room.players[playerIdx];
+  if (!player || player.finished) return;
+  // placements are assigned in exact order that players finish all 4 tokens.
+  player.finished = true;
+  player.place = room.placements.length + 1;
+  room.placements.push({ playerIndex: playerIdx, place: player.place });
+}
+
+function maybeCompleteGame(room) {
+  const unfinished = room.players
+    .map((player, index) => ({ player, index }))
+    .filter((entry) => !entry.player.finished);
+  // game end condition for 3 winners: assign last remaining player as 4th and stop.
+  if (room.players.length === 4 && room.placements.length >= 3 && unfinished.length === 1) {
+    const last = unfinished[0];
+    last.player.finished = true;
+    last.player.place = 4;
+    room.placements.push({ playerIndex: last.index, place: 4 });
+    room.gameOver = true;
+  } else if (room.players.length < 4 && unfinished.length <= 1) {
+    if (unfinished.length === 1) {
+      const last = unfinished[0];
+      last.player.finished = true;
+      last.player.place = room.players.length;
+      room.placements.push({ playerIndex: last.index, place: room.players.length });
+    }
+    room.gameOver = true;
+  }
 }
 
 function createRoom(hostId) {
@@ -137,12 +176,13 @@ function createRoom(hostId) {
   const room = {
     code,
     hostId,
-    players: [{ socketId: hostId, color: COLORS[0], name: "Player 1", type: "human", tokens: newTokens() }],
+    players: [{ socketId: hostId, color: COLORS[0], name: "Player 1", type: "human", tokens: newTokens(), finished: false, place: null }],
     currentTurn: 0,
     diceValues: [null, null],
     diceUsed: [false, false],
     mustMove: false,
-    winner: null,
+    placements: [],
+    gameOver: false,
     status: "Waiting for players",
     difficulty: "easy"
   };
@@ -159,7 +199,8 @@ function broadcastRoom(room) {
     diceValues: room.diceValues,
     diceUsed: room.diceUsed,
     mustMove: room.mustMove,
-    winner: room.winner,
+    placements: room.placements,
+    gameOver: room.gameOver,
     status: room.status,
     difficulty: room.difficulty
   };
@@ -192,10 +233,10 @@ wss.on("connection", (ws) => {
       const room = rooms.get(msg.roomCode);
       if (!room) return send(ws, { type: "error", message: "Room not found." });
       if (room.players.length >= 4) return send(ws, { type: "error", message: "Room is full." });
-      if (room.winner !== null) return send(ws, { type: "error", message: "Game already finished." });
+      if (room.gameOver) return send(ws, { type: "error", message: "Game already finished." });
 
       const color = COLORS[room.players.length];
-      room.players.push({ socketId, color, name: `Player ${room.players.length + 1}`, type: "human", tokens: newTokens() });
+      room.players.push({ socketId, color, name: `Player ${room.players.length + 1}`, type: "human", tokens: newTokens(), finished: false, place: null });
       ws.meta.roomCode = room.code;
       send(ws, { type: "room-joined", roomCode: room.code });
       room.status = "Player joined. Host can start game.";
@@ -213,15 +254,20 @@ wss.on("connection", (ws) => {
       room.diceValues = [null, null];
       room.diceUsed = [false, false];
       room.mustMove = false;
-      room.winner = null;
+      room.placements = [];
+      room.gameOver = false;
       room.difficulty = msg.difficulty === "hard" ? "hard" : "easy";
-      room.players.forEach((p) => { p.tokens = newTokens(); });
+      room.players.forEach((p) => {
+        p.tokens = newTokens();
+        p.finished = false;
+        p.place = null;
+      });
       room.status = `Game started (${room.difficulty === "hard" ? "Hard" : "Easy"}). Player 1 turn.`;
       return broadcastRoom(room);
     }
 
     const pIdx = room.players.findIndex((p) => p.socketId === socketId);
-    if (pIdx !== room.currentTurn || room.winner !== null) return;
+    if (pIdx !== room.currentTurn || room.gameOver || room.players[pIdx]?.finished) return;
 
     if (msg.type === "roll-request") {
       if (room.mustMove) return;
@@ -238,7 +284,7 @@ wss.on("connection", (ws) => {
         room.diceValues = [null, null];
         room.diceUsed = [false, false];
         room.mustMove = false;
-        advanceTurn(room, roll.some((v) => shouldGrantExtraTurn(v)));
+        advanceTurn(room, shouldGrantExtraTurn(roll));
       }
       return broadcastRoom(room);
     }
@@ -266,8 +312,17 @@ wss.on("connection", (ws) => {
       else if (Number.isInteger(msg.dieIndex)) room.diceUsed[msg.dieIndex] = true;
 
       if (hasWon(room, pIdx)) {
-        room.winner = pIdx;
-        room.status = `${room.players[pIdx].name} wins!`;
+        // finished players are detected and assigned placement as soon as all tokens are home.
+        assignPlacement(room, pIdx);
+        room.mustMove = false;
+        room.diceValues = [null, null];
+        room.diceUsed = [false, false];
+        maybeCompleteGame(room);
+        if (room.gameOver) room.status = "Game complete. Final rankings are ready.";
+        else {
+          room.status = `${room.players[pIdx].name} finished — ${room.players[pIdx].place}${room.players[pIdx].place === 1 ? "st" : room.players[pIdx].place === 2 ? "nd" : "rd"} place.`;
+          advanceTurn(room, false);
+        }
       } else {
         const remaining = getTurnMoveOptions(room, pIdx);
         const hasMoreAssignments = [...remaining.values()].some((list) => list.length > 0);
@@ -275,13 +330,13 @@ wss.on("connection", (ws) => {
           room.mustMove = true;
           room.status = `${room.players[pIdx].name} used one die. Use remaining die.`;
         } else {
-          const extra = room.diceValues.some((v) => shouldGrantExtraTurn(v));
+          const extra = shouldGrantExtraTurn(room.diceValues);
           room.mustMove = false;
           room.diceValues = [null, null];
           room.diceUsed = [false, false];
           advanceTurn(room, extra);
           if (didCapture) room.status = `${room.players[pIdx].name} captured a token!`;
-          else if (extra) room.status = `${room.players[pIdx].name} gets an extra turn.`;
+          else if (extra) room.status = `${room.players[pIdx].name} rolled double six and gets an extra turn.`;
           else room.status = "Turn changed.";
         }
       }
@@ -294,7 +349,12 @@ wss.on("connection", (ws) => {
       room.diceValues = [null, null];
       room.diceUsed = [false, false];
       room.mustMove = false;
-      room.winner = null;
+      room.placements = [];
+      room.gameOver = false;
+      room.players.forEach((p) => {
+        p.finished = false;
+        p.place = null;
+      });
       room.status = `Game restarted (${room.difficulty === "hard" ? "Hard" : "Easy"}).`;
       return broadcastRoom(room);
     }
