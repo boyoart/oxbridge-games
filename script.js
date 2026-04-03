@@ -12,6 +12,7 @@ const HOME_ENTRY_START_POS = 52;
 const BOARD_BASE_SIZE = 720;
 const ROLL_ANIMATION_MS = 760;
 const ROLL_RESULT_SETTLE_MS = 1080;
+const OUTER_TRACK_LAST_POS = HOME_ENTRY_TURN_POS;
 
 const boardEl = document.getElementById("board");
 const statusText = document.getElementById("statusText");
@@ -42,6 +43,18 @@ const board3dEl = document.getElementById("board3d");
 const boardScalerEl = document.getElementById("boardScaler");
 const difficultyInfoEl = document.getElementById("difficultyInfo");
 const difficultySelectEl = document.getElementById("difficultySelect");
+const baseHolderEls = {
+  red: document.getElementById("baseHolder-red"),
+  blue: document.getElementById("baseHolder-blue"),
+  yellow: document.getElementById("baseHolder-yellow"),
+  green: document.getElementById("baseHolder-green")
+};
+const baseHolderLabelEls = {
+  red: document.getElementById("baseHolderLabel-red"),
+  blue: document.getElementById("baseHolderLabel-blue"),
+  yellow: document.getElementById("baseHolderLabel-yellow"),
+  green: document.getElementById("baseHolderLabel-green")
+};
 
 function getRequiredEl(id) {
   const el = document.getElementById(id);
@@ -172,19 +185,12 @@ function paintCenterFinish() {
 }
 
 function makeBase(startR, startC, color) {
-  const slots = [];
   for (let r = startR; r < startR + 4; r++) {
     for (let c = startC; c < startC + 4; c++) {
       const tile = getTile(r, c);
       tile.classList.add("base-zone", `base-${color}`);
-      if ((r === startR + 1 || r === startR + 2) && (c === startC + 1 || c === startC + 2)) slots.push(tile);
     }
   }
-  slots.forEach((tile) => {
-    const slot = document.createElement("div");
-    slot.className = `base-slot ${color}`;
-    tile.appendChild(slot);
-  });
 }
 
 function getTile(r, c) {
@@ -218,6 +224,7 @@ function syncTokenStateForPlayer(player) {
   if (!player) return;
   player.tokens.forEach((token) => {
     // DEBUG: authoritative token state is stored/updated here for every token.
+    token.pos = normalizeTokenPosForHomeLane(token.pos);
     token.owner = player.color;
     token.inBase = token.pos === -1;
     token.inHome = token.pos === FINAL_HOME_POSITION;
@@ -328,9 +335,27 @@ function setSelectedMode(mode) {
 function render() {
   document.querySelectorAll(".token").forEach((t) => t.remove());
   const occupancy = buildTileOccupancy();
+  // External base holder labels are synced to player names so each color tray is identifiable.
+  appState.players.forEach((player) => {
+    const labelEl = baseHolderLabelEls[player.color];
+    if (labelEl) labelEl.textContent = `${player.name} (${COLOR_LABEL[player.color]})`;
+  });
 
   appState.players.forEach((player, pIndex) => {
+    const holderEl = baseHolderEls[player.color];
     player.tokens.forEach((token) => {
+      if (token.inBase && holderEl) {
+        // Base tokens are rendered in external holders instead of inside board quadrants.
+        const baseTokenEl = document.createElement("div");
+        baseTokenEl.className = `token ${player.color}`;
+        baseTokenEl.title = `${player.name} Token ${token.id + 1}`;
+        if (isTokenClickable(pIndex, token.id)) {
+          baseTokenEl.classList.add("clickable");
+          baseTokenEl.addEventListener("click", () => chooseTokenMove(pIndex, token.id));
+        }
+        holderEl.appendChild(baseTokenEl);
+        return;
+      }
       const spot = token.coord;
       if (!spot) return;
       const tile = getTile(spot[0], spot[1]);
@@ -391,17 +416,19 @@ function updateDifficultyInfo() {
 }
 
 function getTokenCoordinates(color, pos, tokenId) {
-  const baseMap = {
-    red: [[2, 2], [2, 3], [3, 2], [3, 3]],
-    blue: [[2, 11], [2, 12], [3, 11], [3, 12]],
-    green: [[11, 2], [11, 3], [12, 2], [12, 3]],
-    yellow: [[11, 11], [11, 12], [12, 11], [12, 12]]
-  };
-  if (pos === -1) return baseMap[color][tokenId];
+  if (pos === -1) return null;
   if (pos <= 51) return boardPath[(START_INDEX[color] + pos) % PATH_LEN];
   if (pos >= 52 && pos <= 57) return homePaths[color][pos - 52];
   if (pos === FINAL_HOME_POSITION) return [7, 7];
   return null;
+}
+
+function normalizeTokenPosForHomeLane(tokenPos) {
+  // Prevent legacy/out-of-sequence positions from looping into another full lap.
+  if (tokenPos > OUTER_TRACK_LAST_POS && tokenPos <= 51) {
+    return HOME_ENTRY_START_POS + (tokenPos - OUTER_TRACK_LAST_POS - 1);
+  }
+  return tokenPos;
 }
 
 // entry rule is centralized here: token leaves base only on a 6.
@@ -415,11 +442,13 @@ function shouldGrantExtraTurn(rollValues) {
 }
 
 function getTargetPosition(tokenPos, rollValue) {
-  if (tokenPos === FINAL_HOME_POSITION) return null;
-  if (tokenPos === -1) return canEnterBoard(rollValue) ? 0 : null;
+  const normalizedPos = normalizeTokenPosForHomeLane(tokenPos);
+  if (normalizedPos === FINAL_HOME_POSITION) return null;
+  if (normalizedPos === -1) return canEnterBoard(rollValue) ? 0 : null;
   // home-entry turning logic is checked here.
-  if (tokenPos >= 0 && tokenPos <= HOME_ENTRY_TURN_POS) {
-    const stepsUntilHomeTurn = HOME_ENTRY_TURN_POS - tokenPos;
+  if (normalizedPos >= 0 && normalizedPos <= HOME_ENTRY_TURN_POS) {
+    // Home-entry turn point is calculated from each token's local track progress.
+    const stepsUntilHomeTurn = HOME_ENTRY_TURN_POS - normalizedPos;
     if (rollValue > stepsUntilHomeTurn) {
       // home-entry override is applied here: move into own home lane instead of shared tile.
       const stepsInsideHome = rollValue - (stepsUntilHomeTurn + 1);
@@ -428,7 +457,7 @@ function getTargetPosition(tokenPos, rollValue) {
       return homeTarget <= FINAL_HOME_POSITION ? homeTarget : null;
     }
   }
-  const target = tokenPos + rollValue;
+  const target = normalizedPos + rollValue;
   // exact home rule is enforced here: overshoot beyond final home is illegal.
   if (target > FINAL_HOME_POSITION) return null;
   return target;
@@ -539,7 +568,7 @@ function handleCapture(moverIdx, tokenId) {
     if (idx === moverIdx) return; // same-color tokens can never capture each other.
     op.tokens.forEach((t) => {
       if (t.tileKey === tileId) {
-        // DEBUG: capture is resolved immediately and token is sent to base.
+        // DEBUG: capture returns token to base; render() then places it back in the external base holder.
         t.pos = -1;
         syncTokenStateForPlayer(op);
         capturedAny = true;
@@ -578,6 +607,70 @@ function advanceTurn(extraTurn) {
     guard += 1;
   }
   appState.currentTurn = next;
+}
+
+function resolveTurnStateAfterAction(playerIdx, options = {}) {
+  const {
+    extraTurn = false,
+    captured = false,
+    noValidMove = false,
+    rollValues = null
+  } = options;
+  const player = appState.players[playerIdx];
+  if (!player) return;
+
+  // Central stuck-state resolver: all turn flags are finalized here after roll/move assignment.
+  const remainingOptions = getTurnMoveOptions(playerIdx);
+  const hasMoreAssignments = [...remainingOptions.values()].some((list) => list.length > 0);
+
+  if (hasWon(playerIdx)) {
+    assignPlacementForPlayer(playerIdx);
+    appState.mustMove = false;
+    appState.turn.movePending = false;
+    appState.turn.selectedToken = null;
+    appState.turn.diceLocked = true;
+    appState.turn.canRoll = false;
+    const results = maybeCompletePlacements();
+    if (results.gameEnded) {
+      updateStatus(`Game complete! 1st: ${results.firstName}.`);
+      sfx("win");
+      render();
+      return;
+    }
+    updateStatus(`${player.name} finished — ${formatPlaceLabel(player.place)}!`);
+    // Next unfinished player selection happens here immediately after finishing.
+    advanceTurn(false);
+    resetTurnStateForActivePlayer();
+    render();
+    maybeAITurn();
+    return;
+  }
+
+  if (hasMoreAssignments) {
+    appState.mustMove = true;
+    appState.turn.movePending = true;
+    appState.turn.selectedToken = null;
+    appState.turn.diceLocked = true;
+    appState.turn.canRoll = false;
+    updateStatus(`${player.name} used one die. Use remaining die.`);
+    render();
+    if (player.type === "ai") runAITurnAssignments();
+    return;
+  }
+
+  appState.mustMove = false;
+  appState.turn.movePending = false;
+  appState.turn.selectedToken = null;
+  appState.turn.diceLocked = false;
+  appState.turn.canRoll = false;
+  advanceTurn(extraTurn);
+  resetTurnStateForActivePlayer();
+  if (noValidMove && rollValues) updateStatus(`${player.name} rolled ${rollValues[0]} and ${rollValues[1]}. No valid move.`);
+  else if (captured) updateStatus(`${player.name} captured a token!`);
+  else if (extraTurn) updateStatus("Double six! Extra turn.");
+  else updateStatus("Turn changed.");
+  render();
+  maybeAITurn();
 }
 
 function resetDiceDisplay() {
@@ -641,48 +734,7 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false, dieI
   appState.dice.selectedDie = null;
   // extra-turn rule is applied here: either die showing 6 grants another turn.
   const extraTurn = appState.dice.rolledSix;
-  const remainingOptions = getTurnMoveOptions(playerIdx);
-  const hasMoreAssignments = [...remainingOptions.values()].some((list) => list.length > 0);
-  // DEBUG: order step 6 - either keep turn or switch turn.
-  if (hasWon(playerIdx)) {
-    // DEBUG: finished players are detected and locked as soon as all 4 tokens are home.
-    assignPlacementForPlayer(playerIdx);
-    appState.mustMove = false;
-    appState.turn.movePending = false;
-    appState.turn.diceLocked = true;
-    appState.turn.canRoll = false;
-    const results = maybeCompletePlacements();
-    if (results.gameEnded) {
-      updateStatus(`Game complete! 1st: ${results.firstName}.`);
-      sfx("win");
-    } else {
-      updateStatus(`${player.name} finished — ${formatPlaceLabel(player.place)}!`);
-      advanceTurn(false);
-      resetTurnStateForActivePlayer();
-    }
-  } else {
-    if (hasMoreAssignments) {
-      appState.mustMove = true;
-      appState.turn.movePending = true;
-      appState.turn.selectedToken = null;
-      appState.turn.diceLocked = true;
-      appState.turn.canRoll = false;
-      updateStatus(`${player.name} used one die. Use remaining die.`);
-    } else {
-      appState.mustMove = false;
-      appState.turn.movePending = false;
-      appState.turn.selectedToken = null;
-      appState.turn.diceLocked = false;
-      advanceTurn(extraTurn);
-      resetTurnStateForActivePlayer();
-      if (captured) updateStatus(`${player.name} captured a token!`);
-      else if (extraTurn) updateStatus("Double six! Extra turn.");
-      else updateStatus("Turn changed.");
-    }
-  }
-
-  render();
-  maybeAITurn();
+  resolveTurnStateAfterAction(playerIdx, { extraTurn, captured });
 
   if (allowNetworkEmit && appState.mode === "online") {
     sendOnline({ type: "move", tokenId, player: playerIdx, difficulty: appState.difficulty, dieIndex, usedCombined });
@@ -717,21 +769,13 @@ function stopDiceAnimation() {
 }
 
 function handleNoValidMove(player, rollValues) {
-  // DEBUG: no-valid-move turns are resolved here.
-  updateStatus(`${player.name} rolled ${rollValues[0]} and ${rollValues[1]}. No valid move.`);
-  appState.mustMove = false;
-  appState.turn.movePending = false;
-  appState.turn.selectedToken = null;
-  appState.turn.diceLocked = false;
-  appState.turn.canRoll = false;
-  advanceTurn(appState.dice.rolledSix);
-  // DEBUG: reset flags for whichever player is now active (same player on 6, next otherwise).
-  resetTurnStateForActivePlayer();
-  // DEBUG: active/home counters are recalculated here for no-move turns.
+  // DEBUG: no-valid-move turns are resolved via the same centralized state machine.
   syncAllTokenStates();
-  // DEBUG: board rerender happens here after the no-move recalculation flow.
-  render();
-  maybeAITurn();
+  resolveTurnStateAfterAction(appState.currentTurn, {
+    extraTurn: appState.dice.rolledSix,
+    noValidMove: true,
+    rollValues
+  });
 }
 
 function rollDice() {

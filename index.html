@@ -82,9 +82,36 @@
       </div>
 
       <div class="play-area">
+        <aside class="left-panel card">
+          <h3 class="score-title">Placements</h3>
+          <div id="placementsPanel" class="placements-panel" aria-live="polite"></div>
+        </aside>
+
         <div id="board3d" class="board-3d card">
           <div class="board-stage">
             <div id="boardScaler" class="board-scaler">
+              <div class="external-bases" aria-live="polite">
+                <div class="base-holder base-holder-red" data-base-holder="red">
+                  <div class="base-holder-label" id="baseHolderLabel-red">Red Base</div>
+                  <div class="base-holder-lid" aria-hidden="true"></div>
+                  <div class="base-holder-grid" id="baseHolder-red"></div>
+                </div>
+                <div class="base-holder base-holder-blue" data-base-holder="blue">
+                  <div class="base-holder-label" id="baseHolderLabel-blue">Blue Base</div>
+                  <div class="base-holder-lid" aria-hidden="true"></div>
+                  <div class="base-holder-grid" id="baseHolder-blue"></div>
+                </div>
+                <div class="base-holder base-holder-yellow" data-base-holder="yellow">
+                  <div class="base-holder-label" id="baseHolderLabel-yellow">Yellow Base</div>
+                  <div class="base-holder-lid" aria-hidden="true"></div>
+                  <div class="base-holder-grid" id="baseHolder-yellow"></div>
+                </div>
+                <div class="base-holder base-holder-green" data-base-holder="green">
+                  <div class="base-holder-label" id="baseHolderLabel-green">Green Base</div>
+                  <div class="base-holder-lid" aria-hidden="true"></div>
+                  <div class="base-holder-grid" id="baseHolder-green"></div>
+                </div>
+              </div>
               <div id="board" class="board"></div>
               <div class="board-dice-zone" aria-live="polite">
                 <div class="die-slot" data-slot-index="0">
@@ -143,8 +170,6 @@
           <div id="turnInfo" class="turn-info"></div>
           <h3 class="score-title">Token Status</h3>
           <ul id="scoreBoard" class="score-board"></ul>
-          <h3 class="score-title">Placements</h3>
-          <div id="placementsPanel" class="placements-panel" aria-live="polite"></div>
         </div>
       </div>
     </section>
