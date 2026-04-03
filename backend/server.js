@@ -60,6 +60,36 @@ function getValidMoves(player, roll) {
   return player.tokens.map((_, i) => i).filter((tokenId) => canMoveToken(player, tokenId, roll));
 }
 
+function getTurnMoveOptions(room, playerIdx) {
+  const player = room.players[playerIdx];
+  const options = new Map();
+  const activeTokens = player.tokens.map((t, idx) => ({ ...t, idx })).filter((t) => t.pos >= 0 && t.pos < FINAL_HOME_POSITION);
+  const unusedDice = room.diceValues.map((v, i) => ({ value: v, idx: i })).filter((d) => d.value && !room.diceUsed[d.idx]);
+
+  if (activeTokens.length === 1 && unusedDice.length === 2) {
+    const total = unusedDice[0].value + unusedDice[1].value;
+    if (canMoveToken(player, activeTokens[0].idx, total)) options.set(activeTokens[0].idx, [{ type: "combined", value: total }]);
+  }
+  unusedDice.forEach((die) => {
+    if (!canEnterBoard(die.value)) return;
+    player.tokens.forEach((token, tokenId) => {
+      if (token.pos !== -1) return;
+      if (!options.has(tokenId)) options.set(tokenId, []);
+      options.get(tokenId).push({ type: "single", dieIndex: die.idx, value: die.value });
+    });
+  });
+  if (activeTokens.length !== 1 || unusedDice.length < 2) {
+    unusedDice.forEach((die) => {
+      player.tokens.forEach((_, tokenId) => {
+        if (!canMoveToken(player, tokenId, die.value)) return;
+        if (!options.has(tokenId)) options.set(tokenId, []);
+        options.get(tokenId).push({ type: "single", dieIndex: die.idx, value: die.value });
+      });
+    });
+  }
+  return options;
+}
+
 function canCapture(room, moverIdx, targetPos) {
   const mover = room.players[moverIdx];
   if (!mover || targetPos < 0 || targetPos > 51) return false;
@@ -109,7 +139,8 @@ function createRoom(hostId) {
     hostId,
     players: [{ socketId: hostId, color: COLORS[0], name: "Player 1", type: "human", tokens: newTokens() }],
     currentTurn: 0,
-    diceValue: null,
+    diceValues: [null, null],
+    diceUsed: [false, false],
     mustMove: false,
     winner: null,
     status: "Waiting for players",
@@ -125,7 +156,8 @@ function broadcastRoom(room) {
   const state = {
     players: room.players.map((p) => ({ ...p, socketId: undefined })),
     currentTurn: room.currentTurn,
-    diceValue: room.diceValue,
+    diceValues: room.diceValues,
+    diceUsed: room.diceUsed,
     mustMove: room.mustMove,
     winner: room.winner,
     status: room.status,
@@ -178,7 +210,8 @@ wss.on("connection", (ws) => {
       if (room.hostId !== socketId) return;
       if (room.players.length < 2) return send(ws, { type: "error", message: "Need at least 2 players." });
       room.currentTurn = 0;
-      room.diceValue = null;
+      room.diceValues = [null, null];
+      room.diceUsed = [false, false];
       room.mustMove = false;
       room.winner = null;
       room.difficulty = msg.difficulty === "hard" ? "hard" : "easy";
@@ -192,31 +225,34 @@ wss.on("connection", (ws) => {
 
     if (msg.type === "roll-request") {
       if (room.mustMove) return;
-      // one-die rule logic is enforced server-side for authoritative online play.
-      const roll = Math.floor(Math.random() * 6) + 1;
-      room.diceValue = roll;
-      const moves = getValidMoves(room.players[pIdx], roll);
-
-      if (moves.length) {
+      const roll = [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
+      room.diceValues = roll;
+      room.diceUsed = [false, false];
+      const options = getTurnMoveOptions(room, pIdx);
+      const moveCount = [...options.values()].reduce((sum, list) => sum + list.length, 0);
+      if (moveCount) {
         room.mustMove = true;
-        room.status = `${room.players[pIdx].name} rolled ${roll}. Move a token.`;
+        room.status = `${room.players[pIdx].name} rolled ${roll[0]} and ${roll[1]}. Assign dice.`;
       } else {
-        // valid move rule: if no legal move exists, turn ends automatically.
-        room.status = `${room.players[pIdx].name} rolled ${roll}. No valid move.`;
-        room.diceValue = null;
+        room.status = `${room.players[pIdx].name} rolled ${roll[0]} and ${roll[1]}. No valid move.`;
+        room.diceValues = [null, null];
+        room.diceUsed = [false, false];
         room.mustMove = false;
-        advanceTurn(room, shouldGrantExtraTurn(roll));
+        advanceTurn(room, roll.some((v) => shouldGrantExtraTurn(v)));
       }
       return broadcastRoom(room);
     }
 
     if (msg.type === "move") {
-      if (!room.mustMove || room.diceValue == null) return;
+      if (!room.mustMove) return;
       const tok = msg.tokenId;
-      if (!canMoveToken(room.players[pIdx], tok, room.diceValue)) return;
-
       const token = room.players[pIdx].tokens[tok];
-      const targetPos = getTargetPosition(token.pos, room.diceValue);
+      const options = getTurnMoveOptions(room, pIdx).get(tok) || [];
+      const selected = msg.usedCombined
+        ? options.find((o) => o.type === "combined")
+        : options.find((o) => o.type === "single" && o.dieIndex === msg.dieIndex);
+      if (!selected) return;
+      const targetPos = getTargetPosition(token.pos, selected.value);
       if (targetPos === null) return;
 
       token.pos = targetPos;
@@ -226,18 +262,28 @@ wss.on("connection", (ws) => {
       if (didCapture && room.difficulty === "easy") {
         token.pos = FINAL_HOME_POSITION;
       }
+      if (msg.usedCombined) room.diceUsed = [true, true];
+      else if (Number.isInteger(msg.dieIndex)) room.diceUsed[msg.dieIndex] = true;
 
       if (hasWon(room, pIdx)) {
         room.winner = pIdx;
         room.status = `${room.players[pIdx].name} wins!`;
       } else {
-        const rolled = room.diceValue;
-        room.mustMove = false;
-        room.diceValue = null;
-        advanceTurn(room, shouldGrantExtraTurn(rolled));
-        if (didCapture) room.status = `${room.players[pIdx].name} captured a token!`;
-        else if (shouldGrantExtraTurn(rolled)) room.status = `${room.players[pIdx].name} gets an extra turn.`;
-        else room.status = "Turn changed.";
+        const remaining = getTurnMoveOptions(room, pIdx);
+        const hasMoreAssignments = [...remaining.values()].some((list) => list.length > 0);
+        if (hasMoreAssignments) {
+          room.mustMove = true;
+          room.status = `${room.players[pIdx].name} used one die. Use remaining die.`;
+        } else {
+          const extra = room.diceValues.some((v) => shouldGrantExtraTurn(v));
+          room.mustMove = false;
+          room.diceValues = [null, null];
+          room.diceUsed = [false, false];
+          advanceTurn(room, extra);
+          if (didCapture) room.status = `${room.players[pIdx].name} captured a token!`;
+          else if (extra) room.status = `${room.players[pIdx].name} gets an extra turn.`;
+          else room.status = "Turn changed.";
+        }
       }
       return broadcastRoom(room);
     }
@@ -245,7 +291,8 @@ wss.on("connection", (ws) => {
     if (msg.type === "restart" && room.hostId === socketId) {
       room.players.forEach((p) => { p.tokens = newTokens(); });
       room.currentTurn = 0;
-      room.diceValue = null;
+      room.diceValues = [null, null];
+      room.diceUsed = [false, false];
       room.mustMove = false;
       room.winner = null;
       room.status = `Game restarted (${room.difficulty === "hard" ? "Hard" : "Easy"}).`;

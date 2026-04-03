@@ -19,8 +19,11 @@ const restartBtn = document.getElementById("restartBtn");
 const fullscreenBtn = document.getElementById("fullscreenBtn");
 const soundToggleBtn = document.getElementById("soundToggleBtn");
 const dice1El = document.getElementById("dice1");
-const dieShadowEl = document.getElementById("dieShadow");
+const dice2El = document.getElementById("dice2");
+const dieShadow1El = document.getElementById("dieShadow1");
+const dieShadow2El = document.getElementById("dieShadow2");
 const diceSummaryEl = document.getElementById("diceSummary");
+const diceAssignmentEl = document.getElementById("diceAssignment");
 const gameSection = document.getElementById("gameSection");
 const modeMenu = document.getElementById("modeMenu");
 const localConfig = document.getElementById("localConfig");
@@ -42,7 +45,7 @@ const appState = {
   difficulty: "easy",
   players: [],
   currentTurn: 0,
-  dice: { value: null, rolledSix: false },
+  dice: { values: [null, null], used: [false, false], rolledSix: false, selectedDie: null, combineMode: false },
   mustMove: false,
   turn: { hasRolled: false, movePending: false, selectedToken: null, diceLocked: false, canRoll: true },
   isRolling: false,
@@ -240,7 +243,7 @@ function buildTileOccupancy() {
 function configureGame(mode, localCount = 4) {
   appState.mode = mode;
   appState.currentTurn = 0;
-  appState.dice = { value: null, rolledSix: false };
+  appState.dice = { values: [null, null], used: [false, false], rolledSix: false, selectedDie: null, combineMode: false };
   appState.mustMove = false;
   appState.turn = { hasRolled: false, movePending: false, selectedToken: null, diceLocked: false, canRoll: true };
   appState.isRolling = false;
@@ -328,9 +331,12 @@ function render() {
     });
   });
 
-  syncDieFace(appState.dice.value || 1);
-  dice1El?.setAttribute("aria-label", `Die showing ${appState.dice.value ?? "-"}`);
-  diceSummaryEl.textContent = `Die: ${appState.dice.value ?? "-"}`;
+  syncDieFaces();
+  const [d1, d2] = appState.dice.values;
+  dice1El?.setAttribute("aria-label", `Die 1 showing ${d1 ?? "-"}`);
+  dice2El?.setAttribute("aria-label", `Die 2 showing ${d2 ?? "-"}`);
+  diceSummaryEl.textContent = `Dice: ${d1 ?? "-"} , ${d2 ?? "-"}`;
+  renderDieAssignment();
 
   const cp = appState.players[appState.currentTurn];
   turnInfo.textContent = cp ? `Turn: ${cp.name} (${COLOR_LABEL[cp.color]})` : "";
@@ -398,13 +404,52 @@ function canMoveToken(playerIdx, tokenId, rollValue) {
   return getTargetPosition(token.pos, rollValue) !== null;
 }
 
-function getValidMoves(playerIdx, rollValue) {
+function getValidMoves(playerIdx, rollValue, includeBase = true) {
   const player = appState.players[playerIdx];
   if (!player) return [];
-  // DEBUG: movable token calculation happens from real token model (not UI position).
-  return player.tokens
-    .map((_, i) => i)
-    .filter((tokenId) => canMoveToken(playerIdx, tokenId, rollValue));
+  return player.tokens.map((_, i) => i).filter((tokenId) => {
+    if (!includeBase && player.tokens[tokenId].pos === -1) return false;
+    return canMoveToken(playerIdx, tokenId, rollValue);
+  });
+}
+
+function getTurnMoveOptions(playerIdx) {
+  const player = appState.players[playerIdx];
+  if (!player) return new Map();
+  const options = new Map();
+  const activeTokens = player.tokens.map((t, i) => ({ ...t, idx: i })).filter((t) => t.pos >= 0 && t.pos < FINAL_HOME_POSITION);
+  const unusedDice = appState.dice.values.map((v, i) => ({ value: v, idx: i })).filter((d) => d.value && !appState.dice.used[d.idx]);
+
+  // one-token total-dice rule is applied here for custom two-dice movement.
+  if (activeTokens.length === 1 && unusedDice.length === 2) {
+    const onlyToken = activeTokens[0];
+    const total = unusedDice[0].value + unusedDice[1].value;
+    if (canMoveToken(playerIdx, onlyToken.idx, total)) {
+      options.set(onlyToken.idx, [{ type: "combined", value: total }]);
+    }
+  }
+  // entry-from-base rule is checked here for two dice: either die with 6 may launch a token.
+  unusedDice.forEach((die) => {
+    if (!canEnterBoard(die.value)) return;
+    player.tokens.forEach((token, tokenId) => {
+      if (token.pos !== -1) return;
+      if (!options.has(tokenId)) options.set(tokenId, []);
+      options.get(tokenId).push({ type: "single", dieIndex: die.idx, value: die.value });
+    });
+  });
+
+  // multi-token split-dice rule is applied here for assigning each die separately.
+  if (activeTokens.length !== 1 || unusedDice.length < 2) {
+    unusedDice.forEach((die) => {
+      player.tokens.forEach((_, tokenId) => {
+        if (canMoveToken(playerIdx, tokenId, die.value)) {
+          if (!options.has(tokenId)) options.set(tokenId, []);
+          options.get(tokenId).push({ type: "single", dieIndex: die.idx, value: die.value });
+        }
+      });
+    });
+  }
+  return options;
 }
 
 function isTokenClickable(playerIdx, tokenId) {
@@ -413,13 +458,25 @@ function isTokenClickable(playerIdx, tokenId) {
   if (!current || current.type !== "human") return false;
   if (appState.mode === "online" && appState.myPlayerIndex !== appState.currentTurn) return false;
   if (playerIdx !== appState.currentTurn) return false;
-  return canMoveToken(playerIdx, tokenId, appState.dice.value);
+  return getTurnMoveOptions(playerIdx).has(tokenId);
 }
 
 function chooseTokenMove(playerIdx, tokenId) {
   if (!isTokenClickable(playerIdx, tokenId)) return;
   appState.turn.selectedToken = tokenId;
-  applyMove(playerIdx, tokenId, appState.dice.value, true);
+  const options = getTurnMoveOptions(playerIdx).get(tokenId) || [];
+  const selected = appState.dice.selectedDie;
+  const picked = selected !== null
+    ? options.find((o) => o.type === "single" && o.dieIndex === selected)
+    : (options.length === 1 ? options[0] : null);
+  // die assignment UI logic is handled here by requiring die pick when needed.
+  if (!picked) {
+    updateStatus("Select one die, then tap a highlighted token.");
+    render();
+    return;
+  }
+  if (picked.type === "combined") applyMove(playerIdx, tokenId, picked.value, true, null, true);
+  else applyMove(playerIdx, tokenId, picked.value, true, picked.dieIndex, false);
 }
 
 // capture rule helper: opponents can be captured anywhere on the normal path.
@@ -474,16 +531,40 @@ function advanceTurn(extraTurn) {
 }
 
 function resetDiceDisplay() {
-  appState.dice = { value: null, rolledSix: false };
+  appState.dice = { values: [null, null], used: [false, false], rolledSix: false, selectedDie: null, combineMode: false };
 }
 
-function syncDieFace(faceValue) {
-  if (!dice1El) return;
-  const face = Math.max(1, Math.min(6, Number(faceValue) || 1));
-  dice1El.className = `board-die face-${face}${appState.isRolling ? " rolling" : ""}`;
+function syncDieFaces() {
+  const updateDie = (dieEl, value, idx) => {
+    if (!dieEl) return;
+    const face = Math.max(1, Math.min(6, Number(value) || 1));
+    dieEl.className = `board-die face-${face}${appState.isRolling ? " rolling" : ""}${appState.dice.used[idx] ? " used" : ""}${appState.dice.selectedDie === idx ? " selected" : ""}`;
+    dieEl.dataset.dieIndex = idx;
+  };
+  updateDie(dice1El, appState.dice.values[0], 0);
+  updateDie(dice2El, appState.dice.values[1], 1);
 }
 
-function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false) {
+function renderDieAssignment() {
+  if (!diceAssignmentEl) return;
+  const [d1, d2] = appState.dice.values;
+  if (!d1 && !d2) {
+    diceAssignmentEl.innerHTML = "";
+    return;
+  }
+  diceAssignmentEl.innerHTML = [0, 1].map((i) => `<button class="die-pill ${appState.dice.used[i] ? "used" : ""}" data-die-pill="${i}">Die ${i + 1}: ${appState.dice.values[i] ?? "-"}</button>`).join("");
+  diceAssignmentEl.querySelectorAll("[data-die-pill]").forEach((pill) => {
+    pill.addEventListener("click", () => selectDieForMove(Number(pill.dataset.diePill)));
+  });
+}
+
+function selectDieForMove(dieIndex) {
+  if (!appState.turn.movePending || appState.dice.used[dieIndex]) return;
+  appState.dice.selectedDie = dieIndex;
+  render();
+}
+
+function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false, dieIndex = null, usedCombined = false) {
   const player = appState.players[playerIdx];
   const token = player.tokens[tokenId];
   const targetPos = getTargetPosition(token.pos, rollValue);
@@ -503,11 +584,14 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false) {
   applyDifficultyCaptureRule(playerIdx, tokenId, captured);
   // DEBUG: order step 3 - recalculate all authoritative token states/counters from latest positions.
   syncAllTokenStates();
-  // DEBUG: order step 4 - recompute valid moves from true state (prevents stuck-turn desyncs).
-  getValidMoves(playerIdx, rollValue);
   sfx("move");
-  // DEBUG: order step 5 - extra-turn rule check happens immediately after counters/state updates.
-  const extraTurn = shouldGrantExtraTurn(rollValue);
+  if (usedCombined) appState.dice.used = [true, true];
+  else if (dieIndex !== null) appState.dice.used[dieIndex] = true;
+  appState.dice.selectedDie = null;
+  // extra-turn rule is applied here: either die showing 6 grants another turn.
+  const extraTurn = appState.dice.rolledSix;
+  const remainingOptions = getTurnMoveOptions(playerIdx);
+  const hasMoreAssignments = [...remainingOptions.values()].some((list) => list.length > 0);
   // DEBUG: order step 6 - either keep turn or switch turn.
   if (hasWon(playerIdx)) {
     appState.winner = playerIdx;
@@ -518,54 +602,68 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false) {
     appState.turn.diceLocked = true;
     appState.turn.canRoll = false;
   } else {
-    appState.mustMove = false;
-    appState.turn.movePending = false;
-    appState.turn.selectedToken = null;
-    appState.turn.diceLocked = false;
-    advanceTurn(extraTurn);
-    // DEBUG: order step 7 - reset turn flags for the active player and re-enable roll access.
-    resetTurnStateForActivePlayer();
-
-    if (captured) updateStatus(`${player.name} captured a token!`);
-    else if (extraTurn) updateStatus("Extra turn!");
-    else updateStatus("Turn changed.");
+    if (hasMoreAssignments) {
+      appState.mustMove = true;
+      appState.turn.movePending = true;
+      appState.turn.selectedToken = null;
+      appState.turn.diceLocked = true;
+      appState.turn.canRoll = false;
+      updateStatus(`${player.name} used one die. Use remaining die.`);
+    } else {
+      appState.mustMove = false;
+      appState.turn.movePending = false;
+      appState.turn.selectedToken = null;
+      appState.turn.diceLocked = false;
+      advanceTurn(extraTurn);
+      resetTurnStateForActivePlayer();
+      if (captured) updateStatus(`${player.name} captured a token!`);
+      else if (extraTurn) updateStatus("Extra turn!");
+      else updateStatus("Turn changed.");
+    }
   }
 
   render();
   maybeAITurn();
 
   if (allowNetworkEmit && appState.mode === "online") {
-    sendOnline({ type: "move", tokenId, player: playerIdx, difficulty: appState.difficulty });
+    sendOnline({ type: "move", tokenId, player: playerIdx, difficulty: appState.difficulty, dieIndex, usedCombined });
   }
 }
 
-function rollDie() {
-  // one-die rule logic is enforced here: exactly one standard six-sided die is rolled.
-  const value = Math.floor(Math.random() * 6) + 1;
-  return { value, rolledSix: shouldGrantExtraTurn(value) };
+function rollDicePair() {
+  const values = [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
+  return { values, rolledSix: values.some((v) => shouldGrantExtraTurn(v)) };
 }
 
 function startDiceAnimation() {
-  // die roll animation starts here with tumble + bounce styling.
+  // dice animation starts here (outward tumble from center on roll trigger).
   appState.isRolling = true;
-  dice1El?.classList.add("rolling");
-  dieShadowEl?.classList.add("rolling");
+  [dice1El, dice2El].forEach((dieEl, idx) => {
+    if (!dieEl) return;
+    dieEl.style.setProperty("--roll-x", `${idx === 0 ? -20 : 20}px`);
+    dieEl.style.setProperty("--roll-y", `${idx === 0 ? -12 : -14}px`);
+    dieEl.style.setProperty("--roll-r", `${idx === 0 ? -18 : 18}deg`);
+    dieEl.classList.add("rolling", "roll-out");
+  });
+  dieShadow1El?.classList.add("rolling");
+  dieShadow2El?.classList.add("rolling");
 }
 
 function stopDiceAnimation() {
-  dice1El?.classList.remove("rolling");
-  dieShadowEl?.classList.remove("rolling");
+  // dice return-to-center animation happens here after roll result display delay.
+  [dice1El, dice2El].forEach((dieEl) => dieEl?.classList.remove("rolling", "roll-out"));
+  dieShadow1El?.classList.remove("rolling");
+  dieShadow2El?.classList.remove("rolling");
   appState.isRolling = false;
 }
 
-function handleNoValidMove(player, rollValue) {
+function handleNoValidMove(player, rollValues) {
   // DEBUG: no-valid-move turns are resolved here.
-  updateStatus(`${player.name} rolled ${rollValue}. No valid move.`);
+  updateStatus(`${player.name} rolled ${rollValues[0]} and ${rollValues[1]}. No valid move.`);
   appState.mustMove = false;
   appState.turn.movePending = false;
   appState.turn.selectedToken = null;
-  // DEBUG: extra-turn logic for no-valid-move still uses the rolled value.
-  advanceTurn(shouldGrantExtraTurn(rollValue));
+  advanceTurn(appState.dice.rolledSix);
   // DEBUG: reset flags for whichever player is now active (same player on 6, next otherwise).
   resetTurnStateForActivePlayer();
   // DEBUG: active/home counters are recalculated here for no-move turns.
@@ -590,31 +688,31 @@ function rollDice() {
   sfx("dice");
 
   setTimeout(() => {
-    stopDiceAnimation();
-
-    const roll = rollDie();
-    // final rolled value is assigned here and is the exact value used by game logic.
+    const roll = rollDicePair();
     appState.dice = roll;
+    appState.dice.used = [false, false];
+    appState.dice.selectedDie = null;
     appState.turn.hasRolled = true;
-    syncDieFace(roll.value);
-    const moves = getValidMoves(appState.currentTurn, roll.value);
-
-    if (!moves.length) {
-      // valid move rule: no legal move ends the turn automatically.
-      handleNoValidMove(p, roll.value);
-      return;
-    }
-
-    appState.mustMove = true;
-    appState.turn.movePending = true;
-    updateStatus(`${p.name} rolled ${roll.value}. Move a piece.`);
+    syncDieFaces();
     render();
+    setTimeout(() => {
+      stopDiceAnimation();
+      const moves = getTurnMoveOptions(appState.currentTurn);
+      const moveCount = [...moves.values()].reduce((acc, entries) => acc + entries.length, 0);
 
-    if (p.type === "ai") {
-      const tokenId = pickAIMove(appState.currentTurn, moves, roll.value);
-      applyMove(appState.currentTurn, tokenId, roll.value);
-    }
-  }, 450);
+      if (!moveCount) {
+        handleNoValidMove(p, roll.values);
+        return;
+      }
+
+      appState.mustMove = true;
+      appState.turn.movePending = true;
+      updateStatus(`${p.name} rolled ${roll.values[0]} and ${roll.values[1]}. Assign dice to move.`);
+      render();
+
+      if (p.type === "ai") runAITurnAssignments();
+    }, 700);
+  }, 500);
 }
 
 function maybeAITurn() {
@@ -630,15 +728,31 @@ function maybeAITurn() {
   }, thinkDelay);
 }
 
-function pickAIMove(playerIndex, moves, rollValue) {
+function pickBestAIMoveOption(playerIndex, options) {
   const currentPlayer = appState.players[playerIndex];
-  let tokenId = moves.find((i) => {
-    const targetPos = getTargetPosition(currentPlayer.tokens[i].pos, rollValue);
+  const expanded = [];
+  options.forEach((entryList, tokenId) => {
+    entryList.forEach((entry) => expanded.push({ tokenId, ...entry }));
+  });
+  let pick = expanded.find((m) => {
+    const targetPos = getTargetPosition(currentPlayer.tokens[m.tokenId].pos, m.value);
     return targetPos !== null && canCapture(playerIndex, targetPos);
   });
-  if (tokenId === undefined) tokenId = moves.find((i) => currentPlayer.tokens[i].pos === -1);
-  if (tokenId === undefined) tokenId = moves[0];
-  return tokenId;
+  if (!pick) pick = expanded.find((m) => currentPlayer.tokens[m.tokenId].pos === -1);
+  return pick || expanded[0] || null;
+}
+
+function runAITurnAssignments() {
+  const aiIdx = appState.currentTurn;
+  const step = () => {
+    const options = getTurnMoveOptions(aiIdx);
+    const chosen = pickBestAIMoveOption(aiIdx, options);
+    if (!chosen) return;
+    if (chosen.type === "combined") applyMove(aiIdx, chosen.tokenId, chosen.value, false, null, true);
+    else applyMove(aiIdx, chosen.tokenId, chosen.value, false, chosen.dieIndex, false);
+    if (appState.currentTurn === aiIdx && appState.turn.movePending) setTimeout(step, 260);
+  };
+  setTimeout(step, 240);
 }
 
 function canCurrentPlayerRoll() {
@@ -655,7 +769,7 @@ function updateStatus(message) {
     return;
   }
   const p = appState.players[appState.currentTurn];
-  statusText.textContent = p ? `${p.name}'s turn. Roll the die.` : "Ready.";
+  statusText.textContent = p ? `${p.name}'s turn. Tap center dice to roll.` : "Ready.";
 }
 
 function connectOnline() {
@@ -727,18 +841,22 @@ function hydrateOnlineState(state) {
   appState.currentTurn = state.currentTurn;
   appState.difficulty = state.difficulty === "hard" ? "hard" : "easy";
 
-  const synced = Number(state.diceValue || 0);
-  appState.dice = synced > 0
-    ? { value: synced, rolledSix: shouldGrantExtraTurn(synced) }
-    : { value: null, rolledSix: false };
+  const syncedValues = Array.isArray(state.diceValues) ? state.diceValues : [null, null];
+  appState.dice = {
+    values: [syncedValues[0] || null, syncedValues[1] || null],
+    used: Array.isArray(state.diceUsed) ? state.diceUsed : [false, false],
+    rolledSix: syncedValues.some((v) => Number(v) === ENTRY_ROLL),
+    selectedDie: null,
+    combineMode: false
+  };
 
   appState.mustMove = state.mustMove;
   appState.turn = {
-    hasRolled: Boolean(state.diceValue),
+    hasRolled: appState.dice.values.some(Boolean),
     movePending: Boolean(state.mustMove),
     selectedToken: null,
     diceLocked: Boolean(state.mustMove),
-    canRoll: !state.mustMove && !state.diceValue
+    canRoll: !state.mustMove && !appState.dice.values.some(Boolean)
   };
   appState.isRolling = false;
   appState.winner = state.winner;
@@ -825,6 +943,15 @@ function bindUI() {
   rollBtn?.addEventListener("click", () => {
     if (appState.mode === "online") sendOnline({ type: "roll-request" });
     else rollDice();
+  });
+  // center dice click/tap triggers roll and die assignment interactions.
+  [dice1El, dice2El].forEach((dieEl) => {
+    dieEl?.addEventListener("click", () => {
+      const dieIndex = Number(dieEl.dataset.dieIndex || 0);
+      if (appState.turn.movePending) selectDieForMove(dieIndex);
+      else if (appState.mode === "online") sendOnline({ type: "roll-request" });
+      else rollDice();
+    });
   });
 
   restartBtn?.addEventListener("click", () => {
