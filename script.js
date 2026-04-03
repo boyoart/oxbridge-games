@@ -2,13 +2,13 @@ const COLORS = ["red", "blue", "green", "yellow"];
 const COLOR_LABEL = { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" };
 const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
 const PATH_LEN = 52;
-const AI_MIN_DELAY_MS = 200;
-const AI_MAX_DELAY_MS = 500;
+const AI_MIN_DELAY_MS = 420;
+const AI_MAX_DELAY_MS = 900;
 const FINAL_HOME_POSITION = 58;
 const ENTRY_ROLL = 6;
 const BOARD_BASE_SIZE = 720;
-const ROLL_ANIMATION_MS = 520;
-const ROLL_RESULT_SETTLE_MS = 850;
+const ROLL_ANIMATION_MS = 760;
+const ROLL_RESULT_SETTLE_MS = 1080;
 
 const boardEl = document.getElementById("board");
 const statusText = document.getElementById("statusText");
@@ -29,6 +29,7 @@ const diceAssignmentEl = document.getElementById("diceAssignment");
 const gameSection = document.getElementById("gameSection");
 const modeMenu = document.getElementById("modeMenu");
 const localConfig = document.getElementById("localConfig");
+const localNameFieldsEl = document.getElementById("localNameFields");
 const onlineConfig = document.getElementById("onlineConfig");
 const connectionStatus = document.getElementById("connectionStatus");
 const board3dEl = document.getElementById("board3d");
@@ -260,7 +261,13 @@ function configureGame(mode, localCount = 4) {
       { type: "ai", color: "yellow", tokens: newTokens(), name: "Computer Yellow" }
     ];
   } else if (mode === "local") {
-    appState.players = COLORS.slice(0, localCount).map((c, i) => ({ type: "human", color: c, tokens: newTokens(), name: `Player ${i + 1}` }));
+    const configuredNames = getConfiguredLocalNames(localCount);
+    appState.players = COLORS.slice(0, localCount).map((c, i) => ({
+      type: "human",
+      color: c,
+      tokens: newTokens(),
+      name: configuredNames[i]
+    }));
   }
   syncAllTokenStates();
 
@@ -296,6 +303,7 @@ function setSelectedMode(mode) {
   if (mode === "local") {
     localConfig?.classList.remove("hidden");
     onlineConfig?.classList.add("hidden");
+    renderLocalNameFields(Number(document.getElementById("localPlayers")?.value || 4));
     updateStatus("Local Multiplayer selected. Choose players and start.");
     return;
   }
@@ -321,8 +329,9 @@ function render() {
       // DEBUG: board render uses token state + occupancy with offsets for stacked tokens.
       const stack = occupancy.get(token.tileKey) || [];
       const stackIndex = stack.findIndex((entry) => entry.playerIndex === pIndex && entry.tokenId === token.id);
-      const stackOffsetX = ((stackIndex % 2) - 0.5) * 24;
-      const stackOffsetY = (Math.floor(stackIndex / 2) - 0.5) * 24;
+      const centeredOnHomeOrBase = token.tileKey?.startsWith("base:") || token.tileKey?.startsWith("home:");
+      const stackOffsetX = centeredOnHomeOrBase ? 0 : ((stackIndex % 2) - 0.5) * 24;
+      const stackOffsetY = centeredOnHomeOrBase ? 0 : (Math.floor(stackIndex / 2) - 0.5) * 24;
       el.style.transform = `translate(${stackOffsetX}%, ${stackOffsetY}%)`;
       el.style.zIndex = String(3 + Math.max(0, stackIndex));
       if (isTokenClickable(pIndex, token.id)) {
@@ -754,9 +763,9 @@ function runAITurnAssignments() {
     if (!chosen) return;
     if (chosen.type === "combined") applyMove(aiIdx, chosen.tokenId, chosen.value, false, null, true);
     else applyMove(aiIdx, chosen.tokenId, chosen.value, false, chosen.dieIndex, false);
-    if (appState.currentTurn === aiIdx && appState.turn.movePending) setTimeout(step, 260);
+    if (appState.currentTurn === aiIdx && appState.turn.movePending) setTimeout(step, 420);
   };
-  setTimeout(step, 240);
+  setTimeout(step, 420);
 }
 
 function canCurrentPlayerRoll() {
@@ -774,6 +783,25 @@ function updateStatus(message) {
   }
   const p = appState.players[appState.currentTurn];
   statusText.textContent = p ? `${p.name}'s turn. Tap center dice to roll.` : "Ready.";
+}
+
+function renderLocalNameFields(localCount) {
+  if (!localNameFieldsEl) return;
+  const count = Math.min(4, Math.max(2, Number(localCount) || 4));
+  localNameFieldsEl.innerHTML = COLORS.slice(0, count).map((color, index) => `
+    <input id="playerName${index}" class="player-name-input" type="text" maxlength="20"
+      data-player-name-index="${index}" data-player-color="${color}"
+      placeholder="${COLOR_LABEL[color]} player name (optional)" value="Player ${index + 1}"
+      aria-label="${COLOR_LABEL[color]} player name" />
+  `).join("");
+}
+
+function getConfiguredLocalNames(localCount) {
+  return COLORS.slice(0, localCount).map((_, index) => {
+    const rawName = localNameFieldsEl?.querySelector(`[data-player-name-index="${index}"]`)?.value || "";
+    const clean = rawName.trim().replace(/\s+/g, " ").slice(0, 20);
+    return clean || `Player ${index + 1}`;
+  });
 }
 
 function connectOnline() {
@@ -931,6 +959,9 @@ function bindUI() {
     const c = Number(localPlayersSelect?.value || 4);
     configureGame("local", c);
   });
+  localPlayersSelect?.addEventListener("change", () => {
+    renderLocalNameFields(Number(localPlayersSelect.value || 4));
+  });
 
   createRoomBtn?.addEventListener("click", () => sendOnline({ type: "create-room" }));
   joinRoomBtn?.addEventListener("click", () => {
@@ -987,6 +1018,7 @@ function bindUI() {
 
 setupBoard();
 initLogoFallbacks();
+renderLocalNameFields(4);
 bindUI();
 updateBoardScale();
 updateStatus("Choose a mode, then press Start Game.");
