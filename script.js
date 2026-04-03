@@ -1,11 +1,14 @@
-const COLORS = ["red", "blue", "green", "yellow"];
-const COLOR_LABEL = { red: "Red", blue: "Blue", green: "Green", yellow: "Yellow" };
+// Fixed player turn/color order: Red -> Blue -> Yellow -> Green.
+const COLORS = ["red", "blue", "yellow", "green"];
+const COLOR_LABEL = { red: "Red", blue: "Blue", yellow: "Yellow", green: "Green" };
 const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
 const PATH_LEN = 52;
 const AI_MIN_DELAY_MS = 420;
 const AI_MAX_DELAY_MS = 900;
 const FINAL_HOME_POSITION = 58;
 const ENTRY_ROLL = 6;
+const HOME_ENTRY_TURN_POS = 48;
+const HOME_ENTRY_START_POS = 52;
 const BOARD_BASE_SIZE = 720;
 const ROLL_ANIMATION_MS = 760;
 const ROLL_RESULT_SETTLE_MS = 1080;
@@ -262,8 +265,8 @@ function configureGame(mode, localCount = 4) {
     appState.players = [
       { type: "human", color: "red", tokens: newTokens(), name: "You", finished: false, place: null },
       { type: "ai", color: "blue", tokens: newTokens(), name: "Computer Blue", finished: false, place: null },
-      { type: "ai", color: "green", tokens: newTokens(), name: "Computer Green", finished: false, place: null },
-      { type: "ai", color: "yellow", tokens: newTokens(), name: "Computer Yellow", finished: false, place: null }
+      { type: "ai", color: "yellow", tokens: newTokens(), name: "Computer Yellow", finished: false, place: null },
+      { type: "ai", color: "green", tokens: newTokens(), name: "Computer Green", finished: false, place: null }
     ];
   } else if (mode === "local") {
     const configuredNames = getConfiguredLocalNames(localCount);
@@ -290,7 +293,7 @@ function configureGame(mode, localCount = 4) {
 }
 
 function resetTurnStateForActivePlayer() {
-  // DEBUG: dice/turn state reset point for every new active turn.
+  // DEBUG: stuck-turn reset happens here so the active player can always roll.
   resetDiceDisplay();
   appState.mustMove = false;
   appState.turn.hasRolled = false;
@@ -414,6 +417,17 @@ function shouldGrantExtraTurn(rollValues) {
 function getTargetPosition(tokenPos, rollValue) {
   if (tokenPos === FINAL_HOME_POSITION) return null;
   if (tokenPos === -1) return canEnterBoard(rollValue) ? 0 : null;
+  // home-entry turning logic is checked here.
+  if (tokenPos >= 0 && tokenPos <= HOME_ENTRY_TURN_POS) {
+    const stepsUntilHomeTurn = HOME_ENTRY_TURN_POS - tokenPos;
+    if (rollValue > stepsUntilHomeTurn) {
+      // home-entry override is applied here: move into own home lane instead of shared tile.
+      const stepsInsideHome = rollValue - (stepsUntilHomeTurn + 1);
+      const homeTarget = HOME_ENTRY_START_POS + stepsInsideHome;
+      // exact-count-to-home rule still applies while moving inside the home lane.
+      return homeTarget <= FINAL_HOME_POSITION ? homeTarget : null;
+    }
+  }
   const target = tokenPos + rollValue;
   // exact home rule is enforced here: overshoot beyond final home is illegal.
   if (target > FINAL_HOME_POSITION) return null;
@@ -514,6 +528,10 @@ function handleCapture(moverIdx, tokenId) {
   const mover = appState.players[moverIdx];
   const moved = mover.tokens[tokenId];
   if (moved.pos < 0 || moved.pos > 51) return false;
+  if (moved.pos >= HOME_ENTRY_TURN_POS + 1) {
+    // capture is skipped because home-entry takes priority before these shared tiles.
+    return false;
+  }
 
   const tileId = tokenBoardKey(mover.color, moved.pos);
   let capturedAny = false;
@@ -548,6 +566,7 @@ function hasWon(playerIdx) {
 }
 
 function advanceTurn(extraTurn) {
+  // DEBUG: next active player is selected using the fixed Red->Blue->Yellow->Green order.
   // DEBUG: finished players are skipped in turn order so they never roll/move again.
   if (!appState.players.length) return;
   const currentActive = !appState.players[appState.currentTurn]?.finished;
@@ -562,6 +581,7 @@ function advanceTurn(extraTurn) {
 }
 
 function resetDiceDisplay() {
+  // DEBUG: dice/turn state resets for next roll, including usedDieValues (dice.used).
   appState.dice = { values: [null, null], used: [false, false], rolledSix: false, selectedDie: null, combineMode: false };
 }
 
@@ -702,6 +722,8 @@ function handleNoValidMove(player, rollValues) {
   appState.mustMove = false;
   appState.turn.movePending = false;
   appState.turn.selectedToken = null;
+  appState.turn.diceLocked = false;
+  appState.turn.canRoll = false;
   advanceTurn(appState.dice.rolledSix);
   // DEBUG: reset flags for whichever player is now active (same player on 6, next otherwise).
   resetTurnStateForActivePlayer();

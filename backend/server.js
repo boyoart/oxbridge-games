@@ -10,11 +10,14 @@ const { WebSocketServer } = require("ws");
 const PORT = Number(process.env.PORT || 8080);
 const rooms = new Map();
 const sockets = new Map();
-const COLORS = ["red", "blue", "green", "yellow"];
+// Fixed player turn/color order: Red -> Blue -> Yellow -> Green.
+const COLORS = ["red", "blue", "yellow", "green"];
 const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
 const PATH_LEN = 52;
 const FINAL_HOME_POSITION = 58;
 const ENTRY_ROLL = 6;
+const HOME_ENTRY_TURN_POS = 48;
+const HOME_ENTRY_START_POS = 52;
 
 const server = http.createServer((_, res) => {
   res.writeHead(200, { "Content-Type": "text/plain" });
@@ -44,6 +47,16 @@ function shouldGrantExtraTurn(rolls) {
 function getTargetPosition(tokenPos, roll) {
   if (tokenPos === FINAL_HOME_POSITION) return null;
   if (tokenPos === -1) return canEnterBoard(roll) ? 0 : null;
+  // home-entry turning logic is checked here.
+  if (tokenPos >= 0 && tokenPos <= HOME_ENTRY_TURN_POS) {
+    const stepsUntilHomeTurn = HOME_ENTRY_TURN_POS - tokenPos;
+    if (roll > stepsUntilHomeTurn) {
+      // home-entry override is applied here (skip shared-tile capture opportunity).
+      const stepsInsideHome = roll - (stepsUntilHomeTurn + 1);
+      const homeTarget = HOME_ENTRY_START_POS + stepsInsideHome;
+      return homeTarget <= FINAL_HOME_POSITION ? homeTarget : null;
+    }
+  }
   const target = tokenPos + roll;
   // exact home rule: cannot overshoot final home.
   if (target > FINAL_HOME_POSITION) return null;
@@ -104,6 +117,10 @@ function capture(room, pIdx, tokenId) {
   const p = room.players[pIdx];
   const t = p.tokens[tokenId];
   if (t.pos < 0 || t.pos > 51) return false;
+  if (t.pos >= HOME_ENTRY_TURN_POS + 1) {
+    // capture is skipped because home-entry takes priority before this path segment.
+    return false;
+  }
   const abs = (START_INDEX[p.color] + t.pos) % PATH_LEN;
 
   let cap = false;
@@ -127,6 +144,7 @@ function hasWon(room, playerIdx) {
 }
 
 function advanceTurn(room, extraTurn) {
+  // next active player is selected using fixed Red->Blue->Yellow->Green order.
   // finished players are skipped in turn order so they cannot roll or move.
   const currentActive = !room.players[room.currentTurn]?.finished;
   const start = (extraTurn && currentActive) ? room.currentTurn : (room.currentTurn + 1) % room.players.length;
@@ -280,6 +298,7 @@ wss.on("connection", (ws) => {
         room.mustMove = true;
         room.status = `${room.players[pIdx].name} rolled ${roll[0]} and ${roll[1]}. Assign dice.`;
       } else {
+        // stuck-turn reset happens here when no legal assignment exists after rolling.
         room.status = `${room.players[pIdx].name} rolled ${roll[0]} and ${roll[1]}. No valid move.`;
         room.diceValues = [null, null];
         room.diceUsed = [false, false];
@@ -331,6 +350,7 @@ wss.on("connection", (ws) => {
           room.status = `${room.players[pIdx].name} used one die. Use remaining die.`;
         } else {
           const extra = shouldGrantExtraTurn(room.diceValues);
+          // dice/turn state resets for next roll.
           room.mustMove = false;
           room.diceValues = [null, null];
           room.diceUsed = [false, false];
