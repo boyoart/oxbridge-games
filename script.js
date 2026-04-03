@@ -121,10 +121,29 @@
 
     cardBtn.innerHTML = `
       <span class="card-inner">
-        <span class="card-face card-front" aria-hidden="true"></span>
+        <span class="card-face card-front" aria-hidden="true">
+          <span class="card-front-badge">
+            <img
+              src="assets/logo/logo.png"
+              alt=""
+              class="card-front-logo"
+              loading="lazy"
+            />
+            <span class="card-front-fallback">Oxbridge Tutorial College</span>
+          </span>
+        </span>
         <span class="card-face card-back" aria-hidden="true">${symbol}</span>
       </span>
     `;
+
+    const frontLogo = cardBtn.querySelector(".card-front-logo");
+    const frontFallback = cardBtn.querySelector(".card-front-fallback");
+    if (frontLogo && frontFallback) {
+      frontLogo.addEventListener("error", () => {
+        frontLogo.style.display = "none";
+        frontFallback.style.display = "block";
+      });
+    }
 
     cardBtn.addEventListener("click", () => flipCard(cardBtn));
     return cardBtn;
