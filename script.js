@@ -41,6 +41,9 @@ const onlineConfig = document.getElementById("onlineConfig");
 const connectionStatus = document.getElementById("connectionStatus");
 const board3dEl = document.getElementById("board3d");
 const boardScalerEl = document.getElementById("boardScaler");
+// Shared container element (single global "Victory Container" for all colors).
+const victoryContainerEl = document.getElementById("victoryContainer");
+const victoryTokenStackEl = document.getElementById("victoryTokenStack");
 const difficultyInfoEl = document.getElementById("difficultyInfo");
 const difficultySelectEl = document.getElementById("difficultySelect");
 const baseHolderEls = {
@@ -79,6 +82,9 @@ const appState = {
   myPlayerIndex: null,
   online: { ws: null, connected: false, isHost: false, myColor: null, players: [] }
 };
+
+// Shared Victory Container state: all completed tokens from every color are appended here.
+appState.victory = { completed: [], sequence: 0 };
 
 let boardCells = [];
 let boardPath = [];
@@ -232,7 +238,8 @@ function syncTokenStateForPlayer(player) {
     token.pathIndex = token.pos >= 0 && token.pos <= 51 ? token.pos : null;
 
     if (token.inBase) token.tileKey = `base:${player.color}:${token.id}`;
-    else if (token.inHome) token.tileKey = "final-home";
+    // Token-removed-from-board logic: completed tokens no longer occupy board tiles.
+    else if (token.inHome) token.tileKey = `victory:${player.color}:${token.id}`;
     else if (token.pos >= 52 && token.pos <= 57) token.tileKey = tokenHomeKey(player.color, token.pos);
     else if (token.pathIndex !== null) token.tileKey = tokenBoardKey(player.color, token.pathIndex);
     else token.tileKey = null;
@@ -257,6 +264,113 @@ function buildTileOccupancy() {
   return occupancy;
 }
 
+function tokenVictoryKey(playerIdx, tokenId) {
+  return `${playerIdx}:${tokenId}`;
+}
+
+function getVictoryStackPosition(orderIndex) {
+  const perRow = 6;
+  const row = Math.floor(orderIndex / perRow);
+  const col = orderIndex % perRow;
+  return {
+    x: 16 + (col * 14) + ((row % 2) * 3),
+    y: 34 - (row * 9)
+  };
+}
+
+function renderVictoryContainer() {
+  if (!victoryTokenStackEl) return;
+  victoryTokenStackEl.innerHTML = "";
+  appState.victory.completed.forEach((entry, orderIndex) => {
+    // Stacking logic: completed tokens remain colorized and are drawn in completion order.
+    const tokenEl = document.createElement("div");
+    tokenEl.className = `victory-token ${entry.color}${entry.justLanded ? " just-landed" : ""}`;
+    const pos = getVictoryStackPosition(orderIndex);
+    tokenEl.style.setProperty("--stack-x", `${pos.x}%`);
+    tokenEl.style.setProperty("--stack-y", `${pos.y}%`);
+    tokenEl.style.transform = `translate(${pos.x}%, ${pos.y}%)`;
+    tokenEl.style.zIndex = String(2 + orderIndex);
+    tokenEl.title = `${entry.playerName} Token ${entry.tokenId + 1} · ${orderIndex + 1}${orderIndex === 0 ? "st" : orderIndex === 1 ? "nd" : orderIndex === 2 ? "rd" : "th"} completed`;
+    victoryTokenStackEl.appendChild(tokenEl);
+  });
+  appState.victory.completed.forEach((entry) => { entry.justLanded = false; });
+}
+
+function animateTokenToVictoryContainer(color, fromRect, tokenSize = 24) {
+  if (!victoryContainerEl || !fromRect) return Promise.resolve();
+  const flyEl = document.createElement("div");
+  flyEl.className = `token-flight ${color}`;
+  flyEl.style.left = `${fromRect.left + (fromRect.width / 2) - (tokenSize / 2)}px`;
+  flyEl.style.top = `${fromRect.top + (fromRect.height / 2) - (tokenSize / 2)}px`;
+  document.body.appendChild(flyEl);
+
+  const targetRect = victoryContainerEl.getBoundingClientRect();
+  const targetX = targetRect.left + (targetRect.width * 0.5) - (tokenSize / 2);
+  const targetY = targetRect.top + (targetRect.height * 0.42) - (tokenSize / 2);
+  const deltaX = targetX - parseFloat(flyEl.style.left);
+  const deltaY = targetY - parseFloat(flyEl.style.top);
+
+  return flyEl.animate(
+    [
+      { transform: "translate(0px, 0px) scale(1)", offset: 0 },
+      { transform: `translate(${deltaX * 0.55}px, ${deltaY * 0.55 - 28}px) scale(1.02)`, offset: 0.62 },
+      { transform: `translate(${deltaX}px, ${deltaY}px) scale(.93)`, offset: 1 }
+    ],
+    { duration: 520, easing: "cubic-bezier(.2,.75,.18,1)", fill: "forwards" }
+  ).finished
+    .catch(() => {})
+    .finally(() => flyEl.remove());
+}
+
+async function registerCompletedToken(playerIdx, tokenId, fromRect) {
+  const player = appState.players[playerIdx];
+  if (!player) return;
+  const key = tokenVictoryKey(playerIdx, tokenId);
+  if (appState.victory.completed.some((entry) => entry.key === key)) return;
+  // Token-entry logic: when a token reaches final home, animate into the shared victory container.
+  await animateTokenToVictoryContainer(player.color, fromRect);
+  appState.victory.sequence += 1;
+  appState.victory.completed.push({
+    key,
+    playerIdx,
+    playerName: player.name,
+    tokenId,
+    color: player.color,
+    order: appState.victory.sequence,
+    justLanded: true
+  });
+  victoryContainerEl?.classList.add("shake");
+  setTimeout(() => victoryContainerEl?.classList.remove("shake"), 300);
+  sfx("move");
+  renderVictoryContainer();
+}
+
+function syncVictoryStateFromTokens() {
+  const existingByKey = new Map(appState.victory.completed.map((entry) => [entry.key, entry]));
+  const next = [];
+  appState.players.forEach((player, playerIdx) => {
+    player.tokens.forEach((token) => {
+      if (!token.inHome) return;
+      const key = tokenVictoryKey(playerIdx, token.id);
+      next.push(existingByKey.get(key) || {
+        key,
+        playerIdx,
+        playerName: player.name,
+        tokenId: token.id,
+        color: player.color,
+        order: Number.MAX_SAFE_INTEGER,
+        justLanded: false
+      });
+    });
+  });
+  next.sort((a, b) => a.order - b.order || a.playerIdx - b.playerIdx || a.tokenId - b.tokenId);
+  appState.victory.completed = next;
+  appState.victory.sequence = next.reduce((max, entry, idx) => {
+    if (entry.order === Number.MAX_SAFE_INTEGER) entry.order = idx + 1;
+    return Math.max(max, entry.order);
+  }, 0);
+}
+
 function configureGame(mode, localCount = 4) {
   appState.mode = mode;
   appState.currentTurn = 0;
@@ -266,6 +380,7 @@ function configureGame(mode, localCount = 4) {
   appState.isRolling = false;
   appState.placements = [];
   appState.gameOver = false;
+  appState.victory = { completed: [], sequence: 0 };
   appState.difficulty = (difficultySelectEl?.value === "hard") ? "hard" : "easy";
 
   if (mode === "single") {
@@ -287,6 +402,7 @@ function configureGame(mode, localCount = 4) {
     }));
   }
   syncAllTokenStates();
+  syncVictoryStateFromTokens();
 
   modeMenu.classList.add("hidden");
   gameSection.classList.remove("hidden");
@@ -333,7 +449,7 @@ function setSelectedMode(mode) {
 }
 
 function render() {
-  document.querySelectorAll(".token").forEach((t) => t.remove());
+  document.querySelectorAll(".board-token, .base-token").forEach((t) => t.remove());
   const occupancy = buildTileOccupancy();
   // External base holder labels are synced to player names so each color tray is identifiable.
   appState.players.forEach((player) => {
@@ -347,7 +463,7 @@ function render() {
       if (token.inBase && holderEl) {
         // Base tokens are rendered in external holders instead of inside board quadrants.
         const baseTokenEl = document.createElement("div");
-        baseTokenEl.className = `token ${player.color}`;
+        baseTokenEl.className = `token base-token ${player.color}`;
         baseTokenEl.title = `${player.name} Token ${token.id + 1}`;
         if (isTokenClickable(pIndex, token.id)) {
           baseTokenEl.classList.add("clickable");
@@ -360,7 +476,7 @@ function render() {
       if (!spot) return;
       const tile = getTile(spot[0], spot[1]);
       const el = document.createElement("div");
-      el.className = `token ${player.color}`;
+      el.className = `token board-token ${player.color}`;
       el.title = `${player.name} Token ${token.id + 1}`;
       // DEBUG: board render uses token state + occupancy with offsets for stacked tokens.
       const stack = occupancy.get(token.tileKey) || [];
@@ -408,6 +524,7 @@ function render() {
     </li>
   `).join("");
   renderPlacementsPanel();
+  renderVictoryContainer();
 }
 
 function updateDifficultyInfo() {
@@ -419,7 +536,7 @@ function getTokenCoordinates(color, pos, tokenId) {
   if (pos === -1) return null;
   if (pos <= 51) return boardPath[(START_INDEX[color] + pos) % PATH_LEN];
   if (pos >= 52 && pos <= 57) return homePaths[color][pos - 52];
-  if (pos === FINAL_HOME_POSITION) return [7, 7];
+  if (pos === FINAL_HOME_POSITION) return null;
   return null;
 }
 
@@ -711,6 +828,9 @@ function selectDieForMove(dieIndex) {
 function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false, dieIndex = null, usedCombined = false) {
   const player = appState.players[playerIdx];
   const token = player.tokens[tokenId];
+  const wasHome = token.pos === FINAL_HOME_POSITION;
+  const startCoord = getTokenCoordinates(player.color, token.pos, tokenId);
+  const fromRect = startCoord ? getTile(startCoord[0], startCoord[1])?.getBoundingClientRect() : null;
   const targetPos = getTargetPosition(token.pos, rollValue);
 
   // every move is validated before state mutation.
@@ -728,7 +848,10 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false, dieI
   applyDifficultyCaptureRule(playerIdx, tokenId, captured);
   // DEBUG: order step 3 - recalculate all authoritative token states/counters from latest positions.
   syncAllTokenStates();
-  sfx("move");
+  const isNowHome = player.tokens[tokenId].pos === FINAL_HOME_POSITION;
+  if (!isNowHome) sfx("move");
+  // Placement/ranking trigger path: home count increments via token state, then victory container is updated.
+  if (!wasHome && isNowHome) registerCompletedToken(playerIdx, tokenId, fromRect);
   if (usedCombined) appState.dice.used = [true, true];
   else if (dieIndex !== null) appState.dice.used[dieIndex] = true;
   appState.dice.selectedDie = null;
@@ -1052,6 +1175,7 @@ function hydrateOnlineState(state) {
   appState.gameOver = Boolean(state.gameOver);
   appState.myPlayerIndex = Number.isInteger(state.myPlayerIndex) ? state.myPlayerIndex : appState.myPlayerIndex;
   syncAllTokenStates();
+  syncVictoryStateFromTokens();
   gameSection.classList.remove("hidden");
   modeMenu.classList.add("hidden");
 
@@ -1076,7 +1200,8 @@ function updateBoardScale() {
   const maxSquare = Math.min(availableWidth, availableHeight);
   const boardSize = Math.min(BOARD_BASE_SIZE, maxSquare);
   board3dEl.style.setProperty("--board-size", `${Math.round(boardSize)}px`);
-  board3dEl.style.minHeight = `${Math.max(230, Math.round(boardSize + verticalPadding + 10))}px`;
+  const victoryAreaHeight = 120;
+  board3dEl.style.minHeight = `${Math.max(260, Math.round(boardSize + verticalPadding + victoryAreaHeight))}px`;
 }
 
 function bindUI() {
