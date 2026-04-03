@@ -95,14 +95,38 @@ select, input {
   position: relative;
 }
 .board-dice-zone {
+  /* Two dice are rendered side-by-side in one centered lane to avoid overlap. */
+  --dice-size: clamp(34px, 5.1vw, 46px); /* Dice size is controlled from this single variable. */
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: clamp(110px, 18vw, 150px);
-  height: clamp(78px, 12vw, 104px);
+  width: min(220px, 36%);
+  min-width: 140px;
+  height: clamp(74px, 13vw, 98px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: clamp(10px, 2.2vw, 18px);
   z-index: 4;
   pointer-events: auto;
+}
+.die-slot {
+  display: grid;
+  justify-items: center;
+  align-items: end;
+  gap: 4px;
+  min-width: var(--dice-size);
+}
+.die-slot-label {
+  font-size: .64rem;
+  font-weight: 700;
+  color: #650000;
+  background: rgba(255, 255, 255, .92);
+  border: 1px solid rgba(179, 0, 0, .32);
+  border-radius: 999px;
+  padding: 2px 7px;
+  line-height: 1.15;
 }
 .board {
   display:grid;
@@ -213,16 +237,14 @@ select, input {
 .side-panel { padding: 10px; }
 .dice-wrap { display:grid; gap: 8px; margin-bottom:10px; }
 .board-die {
-  position: absolute;
-  width: clamp(42px, 7vw, 58px);
-  height: clamp(42px, 7vw, 58px);
+  position: relative;
+  width: var(--dice-size);
+  height: var(--dice-size);
   perspective: 700px;
   transform-style: preserve-3d;
   cursor: pointer;
   transition: transform .35s ease;
 }
-.board-die[data-die-index="0"] { left: 22%; top: 24%; }
-.board-die[data-die-index="1"] { right: 22%; top: 24%; }
 .board-die.selected { outline: 2px solid #fff; border-radius: 12px; box-shadow: 0 0 0 3px rgba(179, 0, 0, .35); }
 .board-die.used { opacity: .42; filter: grayscale(.35); }
 .board-die.roll-out {
@@ -237,17 +259,17 @@ select, input {
 .die-face {
   position: absolute;
   inset: 0;
-  border-radius: 16px;
+  border-radius: 12px;
   border: 1px solid rgba(0,0,0,.2);
   background: linear-gradient(145deg, #ffffff 0%, #f6f6f6 55%, #e1e1e1 100%);
   box-shadow: inset 0 3px 6px rgba(255,255,255,.95), inset 0 -10px 14px rgba(0,0,0,.16);
 }
-.die-face.face-1 { transform: rotateY(0deg) translateZ(calc(clamp(42px, 7vw, 58px) / 2)); }
-.die-face.face-2 { transform: rotateY(90deg) translateZ(calc(clamp(42px, 7vw, 58px) / 2)); }
-.die-face.face-3 { transform: rotateX(90deg) translateZ(calc(clamp(42px, 7vw, 58px) / 2)); }
-.die-face.face-4 { transform: rotateX(-90deg) translateZ(calc(clamp(42px, 7vw, 58px) / 2)); }
-.die-face.face-5 { transform: rotateY(-90deg) translateZ(calc(clamp(42px, 7vw, 58px) / 2)); }
-.die-face.face-6 { transform: rotateY(180deg) translateZ(calc(clamp(42px, 7vw, 58px) / 2)); }
+.die-face.face-1 { transform: rotateY(0deg) translateZ(calc(var(--dice-size) / 2)); }
+.die-face.face-2 { transform: rotateY(90deg) translateZ(calc(var(--dice-size) / 2)); }
+.die-face.face-3 { transform: rotateX(90deg) translateZ(calc(var(--dice-size) / 2)); }
+.die-face.face-4 { transform: rotateX(-90deg) translateZ(calc(var(--dice-size) / 2)); }
+.die-face.face-5 { transform: rotateY(-90deg) translateZ(calc(var(--dice-size) / 2)); }
+.die-face.face-6 { transform: rotateY(180deg) translateZ(calc(var(--dice-size) / 2)); }
 
 .pip {
   position: absolute;
@@ -275,20 +297,17 @@ select, input {
 .board-die.rolling .die-cube { animation: die-tumble 560ms cubic-bezier(.15,.75,.2,1) infinite; }
 
 .die-shadow {
-  position: absolute;
-  width: 34px;
-  height: 18%;
+  width: calc(var(--dice-size) * .86);
+  height: 10px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(0,0,0,.34), rgba(0,0,0,0) 70%);
   filter: blur(2px);
 }
-.shadow-1 { left: 24%; bottom: 6%; }
-.shadow-2 { right: 24%; bottom: 6%; }
 .die-shadow.rolling { animation: die-shadow-bounce 560ms ease-in-out infinite; }
 .dice-assignment {
   position: absolute;
   left: 50%;
-  top: -22%;
+  bottom: -28px;
   transform: translateX(-50%);
   display: flex;
   gap: 6px;
@@ -365,7 +384,11 @@ select, input {
   .app-shell { width: min(1000px, 98vw); }
   .play-area { grid-template-columns: 1fr; }
   .side-panel { display: grid; grid-template-columns: minmax(220px, 360px) 1fr; gap: 10px; align-items: start; }
-  .board-dice-zone { width: clamp(102px, 21vw, 138px); height: clamp(74px, 14vw, 96px); }
+  .board-dice-zone {
+    --dice-size: clamp(32px, 5.6vw, 42px);
+    width: min(210px, 40%);
+    gap: clamp(8px, 2vw, 14px);
+  }
 }
 
 @media (max-width: 640px) {
@@ -388,5 +411,12 @@ select, input {
   }
   .score-label { font-size: .82rem; }
   .score-value { min-width: 138px; font-size: .76rem; }
-  .board-dice-zone { width: clamp(95px, 30vw, 128px); height: clamp(72px, 24vw, 92px); }
+  .board-dice-zone {
+    --dice-size: clamp(30px, 7.2vw, 38px);
+    width: min(180px, 48%);
+    height: clamp(68px, 26vw, 90px);
+    gap: clamp(8px, 3vw, 12px);
+  }
+  .die-slot-label { font-size: .58rem; padding: 2px 6px; }
+  .dice-assignment { bottom: -26px; gap: 4px; }
 }

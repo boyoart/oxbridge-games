@@ -7,6 +7,8 @@ const AI_MAX_DELAY_MS = 500;
 const FINAL_HOME_POSITION = 58;
 const ENTRY_ROLL = 6;
 const BOARD_BASE_SIZE = 720;
+const ROLL_ANIMATION_MS = 520;
+const ROLL_RESULT_SETTLE_MS = 850;
 
 const boardEl = document.getElementById("board");
 const statusText = document.getElementById("statusText");
@@ -689,6 +691,7 @@ function rollDice() {
 
   setTimeout(() => {
     const roll = rollDicePair();
+    // Final die values are displayed here before movement assignment begins.
     appState.dice = roll;
     appState.dice.used = [false, false];
     appState.dice.selectedDie = null;
@@ -711,8 +714,8 @@ function rollDice() {
       render();
 
       if (p.type === "ai") runAITurnAssignments();
-    }, 700);
-  }, 500);
+    }, ROLL_RESULT_SETTLE_MS);
+  }, ROLL_ANIMATION_MS);
 }
 
 function maybeAITurn() {
@@ -724,6 +727,7 @@ function maybeAITurn() {
   statusText.textContent = "Computer thinking...";
   const thinkDelay = AI_MIN_DELAY_MS + Math.floor(Math.random() * (AI_MAX_DELAY_MS - AI_MIN_DELAY_MS + 1));
   setTimeout(() => {
+    // Computer dice roll animation starts through the same rollDice flow used by human turns.
     rollDice();
   }, thinkDelay);
 }
