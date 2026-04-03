@@ -89,6 +89,7 @@ select, input {
   width: 100%;
   display: grid;
   place-items: center;
+  gap: 12px;
 }
 .board-scaler {
   width: var(--board-size);
@@ -303,6 +304,99 @@ select, input {
   filter: saturate(.85) contrast(1.02);
 }
 .center-logo-watermark span { display:none; opacity:.25; font-weight:800; text-align:center; color:#6c0000; }
+
+.victory-container-wrap {
+  width: min(280px, 92%);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.victory-container {
+  position: relative;
+  width: 100%;
+  min-height: 90px;
+  border-radius: 16px 16px 22px 22px;
+  border: 1px solid rgba(67, 67, 67, .4);
+  background: linear-gradient(180deg, #f2f2f2 0%, #d5d5d5 44%, #b6b6b6 100%);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(255, 255, 255, .82), inset 0 -6px 10px rgba(0, 0, 0, .12);
+  padding: 14px 12px 10px;
+  overflow: hidden;
+}
+.victory-container::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 6%;
+  width: 88%;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(69, 69, 69, .5);
+  background: linear-gradient(180deg, #fdfdfd, #dadada);
+  box-shadow: inset 0 2px 2px rgba(255, 255, 255, .7);
+}
+.victory-container-gloss {
+  position: absolute;
+  inset: 20px 7% auto;
+  height: 24px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .52), rgba(255, 255, 255, 0));
+}
+.victory-container-brand {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  font-size: .56rem;
+  letter-spacing: .06em;
+  font-weight: 800;
+  color: rgba(87, 87, 87, .68);
+  text-transform: uppercase;
+}
+.victory-token-stack {
+  position: relative;
+  z-index: 1;
+  min-height: 58px;
+}
+.victory-token {
+  position: absolute;
+  width: clamp(19px, 2.9vw, 24px);
+  height: clamp(19px, 2.9vw, 24px);
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .7);
+  box-shadow: inset 0 5px 8px rgba(255,255,255,.45), inset 0 -6px 8px rgba(0,0,0,.25), 0 3px 6px rgba(0,0,0,.28);
+}
+
+@keyframes victory-drop-bounce {
+  0% { transform: translate(var(--stack-x, 0), calc(var(--stack-y, 0) - 10px)) scale(.92); }
+  70% { transform: translate(var(--stack-x, 0), calc(var(--stack-y, 0) + 4px)) scale(1.03); }
+  100% { transform: translate(var(--stack-x, 0), var(--stack-y, 0)) scale(1); }
+}
+
+.victory-token.just-landed {
+  animation: victory-drop-bounce 380ms ease-out;
+}
+
+.victory-container.shake {
+  animation: victory-container-shake 280ms ease-out;
+}
+
+@keyframes victory-container-shake {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-1.5%); }
+  50% { transform: translateX(1.5%); }
+  75% { transform: translateX(-1%); }
+  100% { transform: translateX(0); }
+}
+
+.token-flight {
+  position: fixed;
+  width: clamp(21px, 3.1vw, 26px);
+  height: clamp(21px, 3.1vw, 26px);
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.75);
+  box-shadow: inset 0 6px 9px rgba(255,255,255,.45), inset 0 -7px 10px rgba(0,0,0,.26), 0 5px 10px rgba(0,0,0,.28);
+  z-index: 25;
+  pointer-events: none;
+}
 
 .dice-wrap { display:grid; gap: 8px; margin-bottom:10px; }
 .board-die {
@@ -588,4 +682,10 @@ select, input {
   }
   .die-slot-label { font-size: .58rem; padding: 2px 6px; }
   .dice-assignment { bottom: -26px; gap: 4px; }
+  .victory-container-wrap { width: min(220px, 94%); }
+  .victory-container {
+    min-height: 82px;
+    padding: 12px 10px 8px;
+  }
+  .victory-token-stack { min-height: 50px; }
 }
