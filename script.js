@@ -1,5 +1,6 @@
 const COLORS = ["red", "blue", "yellow", "green"]; // turn order is explicitly fixed: Red -> Blue -> Yellow -> Green.
-const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
+// Blue/yellow path correction: swap blue and yellow start mapping so each path points to its proper quadrant.
+const START_INDEX = { red: 0, blue: 26, yellow: 13, green: 39 };
 const PATH_LEN = 52;
 const FINAL_HOME = 58;
 const HOME_TURN = 48;
@@ -132,9 +133,9 @@ function setupBoard() {
     }
   }
   for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("q-red");
-  for (let r = 0; r < 6; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("q-yellow");
+  for (let r = 0; r < 6; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("q-blue");
   for (let r = 9; r < 15; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("q-green");
-  for (let r = 9; r < 15; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("q-blue");
+  for (let r = 9; r < 15; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("q-yellow");
 
   boardPath = [
     [6, 1], [6, 2], [6, 3], [6, 4], [6, 5], [5, 6], [4, 6], [3, 6], [2, 6], [1, 6], [0, 6], [0, 7], [0, 8],
@@ -151,8 +152,8 @@ function setupBoard() {
   });
 
   homePaths.red = [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5], [7, 6]];
-  homePaths.blue = [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7], [6, 7]];
-  homePaths.yellow = [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9], [7, 8]];
+  homePaths.blue = [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9], [7, 8]];
+  homePaths.yellow = [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7], [6, 7]];
   homePaths.green = [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7], [8, 7]];
   Object.entries(homePaths).forEach(([color, arr]) => arr.forEach(([r, c]) => tile(r, c).classList.add("track", `home-${color}`)));
   tile(7, 7).classList.add("center");
@@ -161,11 +162,11 @@ function setupBoard() {
 }
 
 function placeArrows() {
-  const arrows = [[6, 3, "➜"], [3, 6, "▲"], [6, 11, "➜"], [3, 8, "▼"], [8, 11, "⬅"], [11, 8, "▼"], [8, 3, "⬅"], [11, 6, "▲"]];
-  arrows.forEach(([r, c, a]) => {
+  const arrows = [[6, 3, "right"], [3, 6, "up"], [6, 11, "right"], [3, 8, "down"], [8, 11, "left"], [11, 8, "down"], [8, 3, "left"], [11, 6, "up"]];
+  arrows.forEach(([r, c, dir]) => {
     const span = document.createElement("span");
-    span.className = "arrow";
-    span.textContent = a;
+    span.className = `arrow arrow-${dir}`;
+    span.setAttribute("aria-hidden", "true");
     tile(r, c).appendChild(span);
   });
 }
@@ -177,8 +178,8 @@ function tile(r, c) {
 function tokenCoord(color, pos, id) {
   const baseSlots = {
     red: [[2, 2], [2, 4], [4, 2], [4, 4]],
-    yellow: [[2, 10], [2, 12], [4, 10], [4, 12]],
-    blue: [[10, 10], [10, 12], [12, 10], [12, 12]],
+    blue: [[2, 10], [2, 12], [4, 10], [4, 12]],
+    yellow: [[10, 10], [10, 12], [12, 10], [12, 12]],
     green: [[10, 2], [10, 4], [12, 2], [12, 4]]
   };
   if (pos === -1) return baseSlots[color][id];
@@ -195,7 +196,8 @@ function rollDice() {
   // Computer and player both use this visible center-board roll animation.
   state.animating = true;
   clearInterval(diceRollTimer);
-  el.diceCenter.classList.add("rolling");
+  el.diceCenter.classList.remove("rolling-return");
+  el.diceCenter.classList.add("rolling", "rolling-left");
   sfx("dice-roll");
   diceRollTimer = setInterval(() => {
     setDiceFace(el.dieA, rand(1, 6));
@@ -212,7 +214,9 @@ function rollDice() {
     state.dice.rolled = true;
     state.dice.selectedBall = null;
     state.validMoves = [];
-    el.diceCenter.classList.remove("rolling");
+    // Dice left-roll animation completes first, then final values are revealed before return-to-center glide.
+    el.diceCenter.classList.remove("rolling-left");
+    el.diceCenter.classList.add("rolling-return");
     state.animating = false;
     updateBallValues();
     render();
@@ -220,6 +224,9 @@ function rollDice() {
     const playable = getPlayableBalls(current);
     if (!playable.length) setTimeout(() => endTurn(), 450);
     if (current.type === "ai") aiChooseBallAndToken();
+    setTimeout(() => {
+      el.diceCenter.classList.remove("rolling", "rolling-return");
+    }, 560);
   }, 750);
 }
 

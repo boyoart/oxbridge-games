@@ -81,41 +81,79 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
 .home-yellow { background: color-mix(in oklab, var(--yellow) 82%, white); }
 .home-green { background: color-mix(in oklab, var(--green) 82%, white); }
 .center { background: #ffffff; }
-.arrow { font-size: 14px; font-weight: 900; color: #4f5d6d; text-shadow: 0 1px 0 #fff; }
+/* Arrow style standardization: one shared stem + head system keeps size/thickness/alignment identical board-wide. */
+.arrow {
+  width: 62%;
+  height: 62%;
+  position: relative;
+  display: block;
+  margin: 0 auto;
+}
+.arrow::before {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 28%;
+  top: 50%;
+  height: 2px;
+  background: #4f5d6d;
+  transform: translateY(-50%);
+}
+.arrow::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 10%;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #4f5d6d;
+  transform: translateY(-50%);
+}
+.arrow.arrow-up { transform: rotate(-90deg); }
+.arrow.arrow-right { transform: rotate(0deg); }
+.arrow.arrow-down { transform: rotate(90deg); }
+.arrow.arrow-left { transform: rotate(180deg); }
 
-/* Center-home school logo constrained to the center diamond with full opacity. */
+/* Center logo clipping: enforce the center-home diamond mask so the logo never bleeds outside playable tiles. */
 .center-home-logo {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 22%;
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%) rotate(45deg);
-  border-radius: 14%;
+  width: 20%;
+  height: 20%;
+  transform: translate(-50%, -50%);
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
   overflow: hidden;
   background: #fff;
-  border: 2px solid rgba(255,255,255,.75);
+  border: 2px solid rgba(255,255,255,.72);
   z-index: 2;
+  pointer-events: none;
 }
 .center-home-logo img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: rotate(-45deg) scale(1.08);
+  transform: scale(1.06);
   opacity: 1;
-  /* Logo should never block token or board interactions. */
-  pointer-events: none;
 }
 
-/* Token visuals with 3D/pseudo-3D depth for realistic board-piece look. */
+/* Token circular enforcement: fixed 1:1 aspect ratio + equal dimensions prevents oval distortion on all breakpoints. */
 .token {
   width: 76%;
-  height: 76%;
+  aspect-ratio: 1 / 1;
+  height: auto;
   border-radius: 50%;
   border: 2px solid rgba(255,255,255,.96);
   z-index: 6;
   box-shadow: inset 0 10px 10px rgba(255,255,255,.42), inset 0 -8px 10px rgba(0,0,0,.22), 0 4px 8px rgba(0,0,0,.36);
   position: relative;
+  place-self: center;
+  align-self: center;
+  justify-self: center;
+  flex: 0 0 auto;
+  transform: none;
 }
 .token::after {
   content: "";
@@ -131,8 +169,8 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
 .token.blue { background: radial-gradient(circle at 32% 28%, #9dc1ff, #1751d0 65%, #083492 100%); }
 .token.yellow { background: radial-gradient(circle at 32% 28%, #fff0a4, #d8af00 65%, #967700 100%); }
 .token.green { background: radial-gradient(circle at 32% 28%, #9ff6bb, #13953f 65%, #0d5d29 100%); }
-.token.valid { outline: 3px solid #fff; animation: pulse .8s infinite alternate; cursor: pointer; }
-@keyframes pulse { from { transform: scale(1);} to { transform: scale(1.08);} }
+.token.valid { outline: 3px solid #fff; animation: tokenGlow .8s infinite alternate; cursor: pointer; }
+@keyframes tokenGlow { from { filter: drop-shadow(0 1px 1px rgba(255,255,255,.2)); } to { filter: drop-shadow(0 0 6px rgba(255,255,255,.9)); } }
 
 /* Realistic dice visuals with rounded edges, depth, highlights, and pips. */
 .dice-center {
@@ -167,7 +205,28 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
   filter: brightness(1.04);
 }
 .dice-center.rolling { animation: shake .14s linear infinite; }
+/* Dice left-roll animation: dice physically travel left while rolling, then return to center after showing result. */
+.dice-center.rolling-left {
+  animation:
+    shake .14s linear infinite,
+    rollLeft 0.55s ease-in-out forwards;
+}
+/* Dice return animation: keeps dice visible and side-by-side while gliding back to center home. */
+.dice-center.rolling-return {
+  animation:
+    settle 0.45s ease-out forwards,
+    rollReturn 0.55s ease-in-out forwards;
+}
 @keyframes shake { 0%{transform:translate(-50%,-50%) rotate(-3deg)} 100%{transform:translate(-50%,-50%) rotate(3deg)} }
+@keyframes settle { 0%{filter:brightness(1.06)} 100%{filter:brightness(1)} }
+@keyframes rollLeft {
+  from { transform: translate(-50%, -50%); }
+  to { transform: translate(-132%, -50%); }
+}
+@keyframes rollReturn {
+  from { transform: translate(-132%, -50%); }
+  to { transform: translate(-50%, -50%); }
+}
 
 .guide-hand {
   position: absolute; top: 18%; left: 50%; transform: translateX(-50%); font-size: 2.4rem; z-index: 5;
