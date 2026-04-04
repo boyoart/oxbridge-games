@@ -482,7 +482,9 @@ function render() {
   const [d1, d2] = appState.dice.values;
   dice1El?.setAttribute("aria-label", `Die 1 showing ${d1 ?? "-"}`);
   dice2El?.setAttribute("aria-label", `Die 2 showing ${d2 ?? "-"}`);
-  diceSummaryEl.textContent = `Balls: ${d1 ?? "-"} | ${d2 ?? "-"} | ${(d1 && d2) ? d1 + d2 : "-"}`;
+  const ballA = d1 ?? 0;
+  const ballB = d2 ?? 0;
+  diceSummaryEl.textContent = `Balls: ${ballA} | ${ballB} | ${ballA + ballB}`;
   renderDieAssignment();
 
   const cp = appState.players[appState.currentTurn];
@@ -587,7 +589,10 @@ function sleep(ms) {
 }
 
 function hideGuideHand() {
-  guideHandEl?.classList.add("hidden");
+  if (!guideHandEl) return;
+  window.clearInterval(pointGuideHandToTokenOptions._intervalId);
+  guideHandEl.classList.add("hidden");
+  guideHandEl.classList.remove("visible");
 }
 
 function pointGuideHandToElement(targetEl) {
@@ -596,12 +601,36 @@ function pointGuideHandToElement(targetEl) {
   guideHandEl.style.left = `${rect.left + (rect.width * 0.5)}px`;
   guideHandEl.style.top = `${rect.top - 8}px`;
   guideHandEl.classList.remove("hidden");
+  requestAnimationFrame(() => guideHandEl.classList.add("visible"));
 }
 
+function pointGuideHandToTokenOptions() {
+  const tokens = Array.from(document.querySelectorAll(".board-token.clickable"));
+  if (!tokens.length) {
+    hideGuideHand();
+    return;
+  }
+  if (tokens.length === 1) {
+    pointGuideHandToElement(tokens[0]);
+    return;
+  }
+  let idx = 0;
+  pointGuideHandToElement(tokens[idx]);
+  window.clearInterval(pointGuideHandToTokenOptions._intervalId);
+  pointGuideHandToTokenOptions._intervalId = window.setInterval(() => {
+    if (!appState.turn.movePending || !appState.dice.selectedBall) {
+      window.clearInterval(pointGuideHandToTokenOptions._intervalId);
+      return;
+    }
+    idx = (idx + 1) % tokens.length;
+    pointGuideHandToElement(tokens[idx]);
+  }, 760);
+}
+pointGuideHandToTokenOptions._intervalId = null;
+
 function triggerBallGuide() {
-  // Animated hand logic is triggered here after roll completion to guide ball selection.
-  const firstBall = diceAssignmentEl?.querySelector(".move-ball:not(.disabled)");
-  if (firstBall) pointGuideHandToElement(firstBall);
+  // Hand must not appear during ball-selection phase.
+  hideGuideHand();
 }
 
 function getTurnMoveOptions(playerIdx) {
@@ -614,11 +643,13 @@ function getSelectableBalls(playerIdx) {
   const player = appState.players[playerIdx];
   if (!player) return [];
   const [dieA, dieB] = appState.dice.values;
-  const sumAvailable = !appState.dice.used[0] && !appState.dice.used[1];
+  const shownA = dieA ?? 0;
+  const shownB = dieB ?? 0;
+  const sumAvailable = !appState.dice.used[0] && !appState.dice.used[1] && dieA && dieB;
   return [
-    { id: "a", label: "A", color: "red", value: dieA, disabled: appState.dice.used[0] || !dieA },
-    { id: "b", label: "B", color: "blue", value: dieB, disabled: appState.dice.used[1] || !dieB },
-    { id: "sum", label: "A+B", color: "green", value: (dieA || 0) + (dieB || 0), disabled: !sumAvailable || !dieA || !dieB }
+    { id: "a", label: "A", color: "cyan", value: shownA, disabled: appState.dice.used[0] || !dieA },
+    { id: "b", label: "B", color: "red", value: shownB, disabled: appState.dice.used[1] || !dieB },
+    { id: "sum", label: "A+B", color: "green", value: shownA + shownB, disabled: !sumAvailable }
   ];
 }
 
@@ -812,11 +843,6 @@ function syncDieFaces() {
 
 function renderDieAssignment() {
   if (!diceAssignmentEl) return;
-  const [d1, d2] = appState.dice.values;
-  if (!d1 && !d2) {
-    diceAssignmentEl.innerHTML = "";
-    return;
-  }
   // 3-ball system is created here: Ball A, Ball B, and Sum (A+B) are the only selectable move sources.
   const balls = getSelectableBalls(appState.currentTurn);
   diceAssignmentEl.innerHTML = balls.map((ball) => `
@@ -830,6 +856,30 @@ function renderDieAssignment() {
   });
 }
 
+function consumeBallWithoutMove(ballId) {
+  if (ballId === "sum") appState.dice.used = [true, true];
+  else if (ballId === "a") appState.dice.used[0] = true;
+  else if (ballId === "b") appState.dice.used[1] = true;
+  appState.dice.selectedBall = null;
+}
+
+function triggerNoValidMoveForSelectedBall(ballId) {
+  const playerIdx = appState.currentTurn;
+  consumeBallWithoutMove(ballId);
+  hideGuideHand();
+  appState.mustMove = false;
+  appState.turn.movePending = false;
+  render();
+  updateStatus("No valid move");
+  setTimeout(() => {
+    resolveTurnStateAfterAction(playerIdx, {
+      extraTurn: appState.dice.rolledSix,
+      noValidMove: true,
+      rollValues: [...appState.dice.values]
+    });
+  }, 240);
+}
+
 function selectBallForMove(ballId) {
   // Ball selection logic is handled here before any token can be selected.
   if (!appState.turn.movePending) return;
@@ -837,11 +887,14 @@ function selectBallForMove(ballId) {
   if (!ball || ball.disabled) return;
   appState.dice.selectedBall = ballId;
   hideGuideHand();
+  if (!getTurnMoveOptions(appState.currentTurn).size) {
+    triggerNoValidMoveForSelectedBall(ballId);
+    return;
+  }
   setTimeout(() => {
-    // Animated hand logic is triggered again here to guide token selection after a ball is chosen.
+    // Hand appears only after a move value is confirmed by ball selection.
     render();
-    const tokenEl = document.querySelector(".board-token.clickable");
-    if (tokenEl) pointGuideHandToElement(tokenEl);
+    pointGuideHandToTokenOptions();
   }, BALL_TO_TOKEN_HINT_DELAY_MS);
   render();
 }
@@ -1257,22 +1310,11 @@ function hydrateOnlineState(state) {
 
 function updateBoardScale() {
   if (!board3dEl || !boardScalerEl) return;
-
-  const styles = window.getComputedStyle(board3dEl);
-  const horizontalPadding = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
-  const verticalPadding = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
-  const availableWidth = Math.max(220, board3dEl.clientWidth - horizontalPadding);
-
-  const viewportHeight = window.innerHeight;
-  const boardTop = board3dEl.getBoundingClientRect().top;
-  const viewportGap = window.innerWidth <= 640 ? 6 : 14;
-  const availableHeight = Math.max(220, viewportHeight - boardTop - viewportGap - verticalPadding);
-
-  const maxSquare = Math.min(availableWidth, availableHeight);
-  const boardSize = Math.min(BOARD_BASE_SIZE, maxSquare);
+  const byWidth = window.innerWidth * 0.9;
+  const byHeight = window.innerHeight * 0.9;
+  const boardSize = Math.max(220, Math.min(BOARD_BASE_SIZE, byWidth, byHeight));
   board3dEl.style.setProperty("--board-size", `${Math.round(boardSize)}px`);
-  const victoryAreaHeight = 120;
-  board3dEl.style.minHeight = `${Math.max(260, Math.round(boardSize + verticalPadding + victoryAreaHeight))}px`;
+  board3dEl.style.minHeight = `${Math.round(boardSize + 130)}px`;
 }
 
 function bindUI() {
