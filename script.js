@@ -340,7 +340,27 @@ function getAvailableBalls() {
   return balls;
 }
 
+function getForcedCombinedMove(side) {
+  if (!side || !state.dice.rolled) return null;
+  const moveValue = state.dice.a + state.dice.b;
+  const activeMovable = sidePlayers(side).flatMap((player) => player.tokens
+    .map((token) => ({ color: player.color, tokenId: token.id, token }))
+    // One-active-token rule scope: count only tokens currently active on the board for the active side.
+    .filter(({ token }) => token.pos >= 0 && token.pos < FINAL_HOME)
+    .filter(({ color, token }) => {
+      // Combined-total move is the only legal move candidate when exactly one active token exists.
+      const target = getTargetPos(token.pos, moveValue, "sum");
+      return target !== null && isLandingLegalForSide(color, target);
+    }));
+  return activeMovable.length === 1 ? { color: activeMovable[0].color, tokenId: activeMovable[0].tokenId } : null;
+}
+
 function getPlayableBalls(side) {
+  const forcedCombined = getForcedCombinedMove(side);
+  if (forcedCombined) {
+    // One-active-token rule: bypass split/single-die options and force the combined-total ball.
+    return state.dice.sumAvailable && getValidMovesForBall(side, "sum").length > 0 ? ["sum"] : [];
+  }
   return getAvailableBalls().filter((b) => getValidMovesForBall(side, b).length > 0);
 }
 
@@ -364,6 +384,7 @@ function onBallSelect(ball) {
   if (!state.dice.rolled || state.animating || isSideFinished(state.currentSide)) return;
   if (state.mode !== "online" && activeSideType() !== "human") return;
   if (!getPlayableBalls(state.currentSide).includes(ball)) return;
+  if (getForcedCombinedMove(state.currentSide) && ball !== "sum") return;
 
   // User-side token choice is enabled by ball-first flow:
   // once a ball is selected, every valid token for that exact ball remains selectable (no auto-forced token).
@@ -399,8 +420,10 @@ function hideGuideHand() {
 }
 
 function getValidMovesForBall(side, ball) {
+  const forcedCombined = getForcedCombinedMove(side);
+  if (forcedCombined && ball !== "sum") return [];
   const value = selectedBallValue(ball);
-  return sidePlayers(side).flatMap((player) => player.tokens
+  const validMoves = sidePlayers(side).flatMap((player) => player.tokens
     .map((t, tokenId) => ({ playerColor: player.color, t, tokenId }))
     .filter(({ t }) => !player.finished && getTargetPos(t.pos, value, ball) !== null)
     .filter(({ t }) => {
@@ -409,6 +432,9 @@ function getValidMovesForBall(side, ball) {
     })
     .filter(({ t }) => (t.pos !== -1 || canEnterFromBase(ball)))
     .map(({ playerColor, tokenId }) => ({ color: playerColor, tokenId })));
+  if (!forcedCombined) return validMoves;
+  // When one-active-token rule applies, only that single token remains valid for selection.
+  return validMoves.filter((m) => m.color === forcedCombined.color && m.tokenId === forcedCombined.tokenId);
 }
 
 function getTargetPos(pos, move, ball) {
@@ -459,6 +485,12 @@ function moveToken(color, tokenId) {
 async function doMoveToken(move) {
   const p = state.players.find((player) => player.color === move.color);
   if (!p || !state.dice.selectedBall) return;
+  const forcedCombined = getForcedCombinedMove(state.currentSide);
+  if (forcedCombined && state.dice.selectedBall !== "sum") {
+    // One-active-token rule: force the combined-total resolution even if an individual die was previously selected.
+    state.dice.selectedBall = "sum";
+    state.validMoves = getValidMovesForBall(state.currentSide, "sum");
+  }
   const isValid = state.validMoves.some((m) => m.color === move.color && m.tokenId === move.tokenId);
   if (!isValid) return;
   if (state.animating) return;
@@ -476,6 +508,7 @@ async function doMoveToken(move) {
   // Token state updates after movement: once the hand places the token, commit destination into game state.
   token.pos = target;
   sfx("token-move");
+  // Final landing tile is already computed in `target`; capture check must happen only after this full move resolves.
   handleCapture(move.color, move.tokenId);
   if (token.pos === FINAL_HOME) pushToVictory(p.color);
 
@@ -515,6 +548,7 @@ function handleCapture(color, tokenId) {
   const p = state.players.find((player) => player.color === color);
   const token = p.tokens[tokenId];
   if (token.pos < 0 || token.pos > 51) return;
+  // Intermediate tiles are traversal-only; capture evaluates only on the token's final landing tile.
   const abs = (START_INDEX[p.color] + token.pos) % PATH_LEN;
 
   state.players.forEach((op) => {
@@ -587,6 +621,14 @@ function maybeAiTurn() {
 function aiChooseBallAndToken() {
   if (activeSideType() !== "ai") return;
   // Computer chooses move across both of its colors (Blue+Green) within one COMPUTER side turn.
+  const forcedCombined = getForcedCombinedMove(state.currentSide);
+  if (forcedCombined) {
+    // AI one-active-token rule: always resolve with combined total and skip single-die choice.
+    state.dice.selectedBall = "sum";
+    state.validMoves = getValidMovesForBall(state.currentSide, "sum");
+    render();
+    return setTimeout(() => aiMoveToken(), 550);
+  }
   const choices = getPlayableBalls(state.currentSide);
   if (!choices.length) return endTurn();
   const best = pickAiChoice(state.currentSide, choices);
@@ -715,6 +757,15 @@ function recomputeDiceAvailability(side) {
     state.dice.hasLegalB = false;
     state.dice.hasLegalSum = false;
     state.dice.hasRemainingLegalMove = false;
+    return;
+  }
+  const forcedCombined = getForcedCombinedMove(side);
+  if (forcedCombined) {
+    // One-active-token rule: individual dice are disabled; only combined-total legality is exposed.
+    state.dice.hasLegalA = false;
+    state.dice.hasLegalB = false;
+    state.dice.hasLegalSum = state.dice.sumAvailable && getValidMovesForBall(side, "sum").length > 0;
+    state.dice.hasRemainingLegalMove = state.dice.hasLegalSum;
     return;
   }
   state.dice.hasLegalA = !state.dice.usedA && getValidMovesForBall(side, "a").length > 0;
