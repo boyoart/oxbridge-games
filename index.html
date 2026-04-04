@@ -3,172 +3,76 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Ludo Classic | Oxbridge Tutorial College</title>
+  <title>Oxbridge Ludo</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="bg-shape bg-shape-1"></div>
-  <div class="bg-shape bg-shape-2"></div>
-
-  <main id="app" class="app-shell">
-    <header class="brand-header">
-      <div class="logo-wrap">
-        <img id="schoolLogo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
-        <span id="logoFallback" class="logo-fallback">Oxbridge Tutorial College</span>
+  <main class="screen" id="screen">
+    <section id="setupScreen" class="setup-card">
+      <h1>Oxbridge Ludo</h1>
+      <p class="setup-copy">Easy: capturing sends enemy to base and your token directly home. Hard: capturing sends enemy to base but your token stays on board.</p>
+      <div class="setup-row">
+        <label for="playerName">Your Name</label>
+        <input id="playerName" maxlength="20" placeholder="Enter name" />
       </div>
-      <div>
-        <h1>Ludo Classic</h1>
-        <p>Oxbridge Tutorial College Interactive Board Game</p>
-      </div>
-    </header>
-
-    <section class="menu-panel card" id="modeMenu">
-      <h2>Choose Game Mode</h2>
-      <div class="sub-panel">
-        <label for="difficultySelect">Difficulty:</label>
-        <select id="difficultySelect">
-          <option value="easy" selected>Easy Mode</option>
-          <option value="hard">Hard Mode</option>
+      <div class="setup-row">
+        <label for="difficulty">Difficulty</label>
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="hard">Hard</option>
         </select>
-        <div class="difficulty-rules">
-          <p><strong>Easy Mode:</strong> Capture sends opponent home AND sends your token directly home.</p>
-          <p><strong>Hard Mode:</strong> Capture sends opponent home. Your token stays on the board.</p>
-        </div>
       </div>
-      <div class="btn-grid">
-        <button class="brand-btn" id="singleBtn">Single Player</button>
-        <button class="brand-btn" id="localBtn">Local Multiplayer</button>
-        <button class="brand-btn" id="onlineBtn">Online Multiplayer</button>
+      <div class="setup-actions">
+        <button id="singleBtn">Single Player</button>
+        <button id="localBtn">Local Multiplayer</button>
+        <button id="createRoomBtn">Create Online Room</button>
       </div>
-
-      <div id="localConfig" class="sub-panel hidden">
-        <label for="localPlayers">Local Players (2-4):</label>
-        <select id="localPlayers">
-          <option value="2">2</option>
-          <option value="3">3</option>
-          <option value="4" selected>4</option>
-        </select>
-        <div id="localNameFields" class="name-fields" aria-live="polite"></div>
-        <button class="brand-btn" id="startLocalBtn">Start Game</button>
+      <div class="setup-row inline">
+        <input id="roomCodeInput" maxlength="6" placeholder="Room code" />
+        <button id="joinRoomBtn">Join Room</button>
       </div>
-
-      <div id="onlineConfig" class="sub-panel hidden">
-        <div class="online-actions">
-          <button class="brand-btn" id="createRoomBtn">Create Room</button>
-          <input type="text" id="roomCodeInput" placeholder="Enter Room Code" maxlength="6" />
-          <button class="brand-btn" id="joinRoomBtn">Join Room</button>
-        </div>
-        <button class="brand-btn hidden" id="startOnlineBtn">Start Game</button>
-        <p id="connectionStatus">Connection: Offline</p>
-      </div>
+      <button id="startOnlineBtn" class="hidden">Start Online Match</button>
+      <p id="connectionStatus">Connection: Offline</p>
     </section>
 
-    <section id="gameSection" class="hidden">
-      <div class="hud card">
-        <div class="status-row">
-          <span id="statusText">Pick a mode to begin.</span>
-          <span id="roomCodeLabel" class="hidden">Room Code: <strong id="roomCodeValue"></strong></span>
-        </div>
-        <div class="status-row">
-          <span id="difficultyInfo">Difficulty: Easy</span>
-        </div>
+    <section id="gameScreen" class="hidden">
+      <header class="top-bar">
+        <div id="turnBanner">Waiting...</div>
         <div class="controls">
-          <button class="brand-btn secondary-btn" id="rollBtn">Roll (Secondary)</button>
-          <button class="brand-btn" id="restartBtn">Restart Game</button>
-          <button class="brand-btn" id="fullscreenBtn">Fullscreen</button>
-          <button class="brand-btn" id="soundToggleBtn">Sound: On</button>
-          <a class="brand-btn return-link" href="/games">Return to Games</a>
+          <button id="restartBtn">Restart</button>
+          <button id="fullscreenBtn">Fullscreen</button>
+          <button id="soundToggleBtn">Sound On</button>
+          <a href="/games">Return to Games</a>
         </div>
+      </header>
+
+      <div class="layout">
+        <aside class="panel" id="placementsPanel"></aside>
+
+        <section class="board-shell">
+          <div id="board" class="board"></div>
+          <button id="diceCenter" class="dice-center" aria-label="Roll dice">
+            <div id="dieA" class="die">1</div>
+            <div id="dieB" class="die">1</div>
+          </button>
+          <div id="guideHand" class="guide-hand hidden">👇</div>
+        </section>
+
+        <aside class="panel" id="statusPanel"></aside>
       </div>
 
-      <div class="play-area">
-        <aside class="left-panel card">
-          <h3 class="score-title">Placements</h3>
-          <div id="placementsPanel" class="placements-panel" aria-live="polite"></div>
-        </aside>
+      <div class="bottom-balls" id="ballTray">
+        <button data-ball="a" class="ball disabled">0</button>
+        <button data-ball="b" class="ball disabled">0</button>
+        <button data-ball="sum" class="ball disabled">0</button>
+      </div>
 
-        <div id="board3d" class="board-3d card">
-          <div class="board-stage">
-            <div id="boardScaler" class="board-scaler">
-              <div id="board" class="board"></div>
-              <div class="board-dice-zone" aria-live="polite">
-                <div class="die-slot" data-slot-index="0">
-                  <span class="die-slot-label">Die 1</span>
-                  <div id="dice1" class="board-die face-1" data-die-index="0" aria-label="Die 1 showing 1">
-                    <div class="die-cube">
-                      <div class="die-face face-1"><span class="pip p-center"></span></div>
-                      <div class="die-face face-2"><span class="pip p-tl"></span><span class="pip p-br"></span></div>
-                      <div class="die-face face-3"><span class="pip p-tl"></span><span class="pip p-center"></span><span class="pip p-br"></span></div>
-                      <div class="die-face face-4"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
-                      <div class="die-face face-5"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-center"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
-                      <div class="die-face face-6">
-                        <span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-ml"></span>
-                        <span class="pip p-mr"></span><span class="pip p-bl"></span><span class="pip p-br"></span>
-                      </div>
-                    </div>
-                  </div>
-                  <div id="dieShadow1" class="die-shadow" aria-hidden="true"></div>
-                </div>
-                <div class="die-slot" data-slot-index="1">
-                  <span class="die-slot-label">Die 2</span>
-                  <div id="dice2" class="board-die face-1" data-die-index="1" aria-label="Die 2 showing 1">
-                    <div class="die-cube">
-                      <div class="die-face face-1"><span class="pip p-center"></span></div>
-                      <div class="die-face face-2"><span class="pip p-tl"></span><span class="pip p-br"></span></div>
-                      <div class="die-face face-3"><span class="pip p-tl"></span><span class="pip p-center"></span><span class="pip p-br"></span></div>
-                      <div class="die-face face-4"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
-                      <div class="die-face face-5"><span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-center"></span><span class="pip p-bl"></span><span class="pip p-br"></span></div>
-                      <div class="die-face face-6">
-                        <span class="pip p-tl"></span><span class="pip p-tr"></span><span class="pip p-ml"></span>
-                        <span class="pip p-mr"></span><span class="pip p-bl"></span><span class="pip p-br"></span>
-                      </div>
-                    </div>
-                  </div>
-                  <div id="dieShadow2" class="die-shadow" aria-hidden="true"></div>
-                </div>
-                <div id="diceAssignment" class="dice-assignment"></div>
-                <div id="guideHand" class="guide-hand hidden" aria-hidden="true">👆</div>
-              </div>
-              <div class="center-logo-watermark" aria-hidden="true">
-                <img id="boardLogo" src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" />
-                <span id="boardLogoFallback">Oxbridge Tutorial College</span>
-              </div>
-            </div>
-            <!-- Shared completed-token container: all colors collect here after final home. -->
-            <div id="victoryContainerWrap" class="victory-container-wrap" aria-live="polite">
-              <div id="victoryContainer" class="victory-container" role="status" aria-label="Shared victory container for completed tokens">
-                <div class="victory-container-gloss" aria-hidden="true"></div>
-                <div class="victory-container-brand" aria-hidden="true">Oxbridge</div>
-                <div id="victoryTokenStack" class="victory-token-stack"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="side-panel card">
-          <div class="dice-wrap">
-            <div id="diceSummary" class="dice-summary">Dice: - , -</div>
-            <div class="rules-note">
-              Tap center dice to roll, then choose a colored move ball (Die A, Die B, or A+B).
-              Entry from base still needs a 6, and extra turn happens only on double six (6 + 6).
-              Play continues after the first finisher until 1st, 2nd, and 3rd are decided; last player is 4th.
-            </div>
-          </div>
-          <div id="turnInfo" class="turn-info"></div>
-          <h3 class="score-title">Token Status</h3>
-          <ul id="scoreBoard" class="score-board"></ul>
-        </div>
+      <div id="victoryWrap" class="victory-wrap">
+        <h3>Shared Victory Container</h3>
+        <div id="victoryContainer" class="victory-container"></div>
       </div>
     </section>
   </main>
-
-  <div id="finalResultsOverlay" class="results-overlay hidden" aria-live="polite" aria-modal="true" role="dialog">
-    <div class="results-card">
-      <h2>🏆 Final Rankings</h2>
-      <p>Top 3 are decided by finish order. Last remaining player is 4th automatically.</p>
-      <div id="finalPlacements" class="placements-panel placements-panel-final"></div>
-    </div>
-  </div>
 
   <script src="script.js"></script>
 </body>
