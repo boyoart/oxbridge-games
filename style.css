@@ -71,7 +71,7 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
   position: absolute;
   width: 34%;
   height: 34%;
-  z-index: 1;
+  z-index: 2;
   display: grid;
   place-items: center;
   pointer-events: none; /* Watermark logos must stay decorative/non-interactive and must not block token taps. */
@@ -262,12 +262,29 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
 }
 
 .guide-hand {
-  position: absolute; top: 18%; left: 50%; transform: translateX(-50%); font-size: 2.4rem; z-index: 4;
-  animation: handBob .55s infinite alternate;
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2.4rem;
+  z-index: 6;
   transition: opacity .25s ease;
+  pointer-events: none;
 }
 .guide-hand.fade-out { opacity: 0; }
+/* Hand pick-up cue: scales slightly while "grabbing" token during movement animation. */
+.guide-hand.grab {
+  transform: translate(-50%, -50%) scale(1.14);
+}
 @keyframes handBob { from { transform: translateX(-50%) translateY(0); } to { transform: translateX(-50%) translateY(8px);} }
+
+/* Floating token used only while the hand physically carries a piece between tiles. */
+.token.animating {
+  position: absolute;
+  width: 5.2%;
+  z-index: 5;
+  pointer-events: none;
+}
 
 .bottom-balls { display: flex; justify-content: center; gap: 14px; margin-top: 12px; flex-wrap: wrap; }
 .ball {

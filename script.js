@@ -57,6 +57,7 @@ const state = {
   validMoves: [],
   placements: [], // placement assignment is tracked in this ordered array.
   victory: [], // completed tokens are moved into one shared victory container.
+  movingToken: null,
   animating: false,
   soundOn: true,
   online: { ws: null, roomCode: "", host: false, myIndex: -1 }
@@ -333,12 +334,11 @@ function onBallSelect(ball) {
 
   // Ball selection handling: user must confirm one move-ball before token highlight and movement.
   state.dice.selectedBall = ball;
+  // Selected ball value is applied from the 3-ball system (Ball 1=Die A, Ball 2=Die B, Ball 3=Sum).
   state.validMoves = getValidTokensForBall(p, ball);
 
-  // Hand activation AFTER selection only: never before ball selection and never auto-click.
-  // Hand guidance appears only after ball selection confirms move value.
-  if (state.validMoves.length > 0) showGuideHand(p.color, state.validMoves[0]);
-  else el.guideHand.classList.add("hidden");
+  // Hand must not auto-trigger before token selection; only valid token highlighting happens here.
+  el.guideHand.classList.add("hidden");
 
   render();
   if (p.type === "ai") setTimeout(() => aiMoveToken(), 550);
@@ -399,14 +399,22 @@ function moveToken(tokenId) {
   doMoveToken(tokenId);
 }
 
-function doMoveToken(tokenId) {
+async function doMoveToken(tokenId) {
   const p = state.players[state.currentTurn];
   if (!p || !state.dice.selectedBall || !state.validMoves.includes(tokenId)) return;
+  if (state.animating) return;
   const token = p.tokens[tokenId];
   const value = selectedBallValue(state.dice.selectedBall);
   const target = getTargetPos(token.pos, value, state.dice.selectedBall);
   if (target === null) return;
 
+  state.animating = true;
+  state.movingToken = { playerIndex: state.currentTurn, tokenId };
+  const startPos = token.pos;
+  render();
+  await animateHandTokenMove(p.color, token.id, startPos, target);
+
+  // Token state updates after movement: once the hand places the token, commit destination into game state.
   token.pos = target;
   sfx("token-move");
   handleCapture(state.currentTurn, tokenId);
@@ -418,6 +426,8 @@ function doMoveToken(tokenId) {
 
   state.dice.selectedBall = null;
   state.validMoves = [];
+  state.movingToken = null;
+  state.animating = false;
   hideGuideHand();
 
   assignPlacements();
@@ -589,6 +599,7 @@ function renderBoardTokens() {
   state.players.forEach((p, pIdx) => {
     p.tokens.forEach((t) => {
       if (t.pos === FINAL_HOME) return;
+      if (state.movingToken && state.movingToken.playerIndex === pIdx && state.movingToken.tokenId === t.id) return;
       const [r, c] = tokenCoord(p.color, t.pos, t.id);
       const tok = document.createElement("button");
       tok.className = `token ${p.color}`;
@@ -597,6 +608,79 @@ function renderBoardTokens() {
       tile(r, c).appendChild(tok);
     });
   });
+}
+
+function getPathCoordsForMove(color, tokenId, startPos, targetPos) {
+  if (startPos === -1) return [tokenCoord(color, 0, tokenId)];
+  const coords = [];
+  for (let pos = startPos + 1; pos <= targetPos; pos++) {
+    coords.push(tokenCoord(color, pos, tokenId));
+  }
+  return coords;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function moveOverlay(node, left, top, duration) {
+  node.style.transition = `left ${duration}ms linear, top ${duration}ms linear`;
+  node.style.left = `${left}%`;
+  node.style.top = `${top}%`;
+}
+
+function moveHand(left, top, duration) {
+  el.guideHand.style.transition = `left ${duration}ms ease, top ${duration}ms ease, opacity 220ms ease`;
+  el.guideHand.style.left = `${left}%`;
+  el.guideHand.style.top = `${top}%`;
+}
+
+async function animateHandTokenMove(color, tokenId, startPos, targetPos) {
+  const pathCoords = getPathCoordsForMove(color, tokenId, startPos, targetPos);
+  const startCoord = tokenCoord(color, startPos, tokenId);
+  const [startRow, startCol] = startCoord;
+  const pickupLeft = ((startCol + 0.5) / 15) * 100;
+  const pickupTop = ((startRow + 0.5) / 15) * 100;
+
+  const floating = document.createElement("div");
+  floating.className = `token ${color} animating`;
+  floating.style.left = `${pickupLeft}%`;
+  floating.style.top = `${pickupTop}%`;
+  floating.style.transform = "translate(-50%, -50%)";
+  el.board.appendChild(floating);
+
+  // Hand enters from outside the board bounds before interacting with any token.
+  el.guideHand.classList.remove("fade-out", "hidden", "grab");
+  el.guideHand.style.opacity = "1";
+  el.guideHand.style.left = "112%";
+  el.guideHand.style.top = "108%";
+  await wait(40);
+
+  moveHand(pickupLeft, pickupTop, 260);
+  await wait(280);
+
+  // Hand picks up token: apply grab state and keep token bound to the hand position.
+  el.guideHand.classList.add("grab");
+  await wait(120);
+
+  // Hand moves token to destination tile by stepping through the exact counted path.
+  for (const [r, c] of pathCoords) {
+    const left = ((c + 0.5) / 15) * 100;
+    const top = ((r + 0.5) / 15) * 100;
+    moveHand(left, top, 180);
+    moveOverlay(floating, left, top, 180);
+    await wait(200);
+  }
+
+  el.guideHand.classList.remove("grab");
+  await wait(70);
+  floating.remove();
+
+  moveHand(-10, -10, 240);
+  el.guideHand.classList.add("fade-out");
+  await wait(250);
+  el.guideHand.classList.add("hidden");
+  el.guideHand.classList.remove("fade-out");
 }
 
 function suffix(n) { return n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th"; }
