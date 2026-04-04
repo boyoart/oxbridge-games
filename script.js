@@ -19,6 +19,7 @@ const el = {
   connectionStatus: document.getElementById("connectionStatus"),
   turnBanner: document.getElementById("turnBanner"),
   board: document.getElementById("board"),
+  centerHomeLogo: document.getElementById("centerHomeLogo"),
   diceCenter: document.getElementById("diceCenter"),
   dieA: document.getElementById("dieA"),
   dieB: document.getElementById("dieB"),
@@ -58,6 +59,7 @@ const state = {
 let boardCells = [];
 let boardPath = [];
 let homePaths = { red: [], blue: [], yellow: [], green: [] };
+let diceRollTimer = null;
 
 function sfx(name) {
   if (!state.soundOn || !audio[name]) return;
@@ -110,6 +112,10 @@ function setupBranding() {
     el.brandLogo.classList.add("hidden");
     el.brandFallback.classList.remove("hidden");
   };
+  if (el.centerHomeLogo) {
+    const logoImage = el.centerHomeLogo.querySelector("img");
+    logoImage.onerror = () => el.centerHomeLogo.classList.add("hidden");
+  }
 }
 
 function setupBoard() {
@@ -155,7 +161,7 @@ function setupBoard() {
 }
 
 function placeArrows() {
-  const arrows = [[6, 3, "→"], [3, 6, "↑"], [6, 11, "→"], [3, 8, "↓"], [8, 11, "←"], [11, 8, "↓"], [8, 3, "←"], [11, 6, "↑"]];
+  const arrows = [[6, 3, "➜"], [3, 6, "▲"], [6, 11, "➜"], [3, 8, "▼"], [8, 11, "⬅"], [11, 8, "▼"], [8, 3, "⬅"], [11, 6, "▲"]];
   arrows.forEach(([r, c, a]) => {
     const span = document.createElement("span");
     span.className = "arrow";
@@ -184,12 +190,20 @@ function tokenCoord(color, pos, id) {
 function rollDice() {
   if (state.animating || state.online.ws) return;
   const current = state.players[state.currentTurn];
-  if (!current || current.finished || current.type !== "human" || state.dice.rolled) return;
+  if (!current || current.finished || state.dice.rolled) return;
 
+  // Computer and player both use this visible center-board roll animation.
   state.animating = true;
+  clearInterval(diceRollTimer);
   el.diceCenter.classList.add("rolling");
   sfx("dice-roll");
+  diceRollTimer = setInterval(() => {
+    setDiceFace(el.dieA, rand(1, 6));
+    setDiceFace(el.dieB, rand(1, 6));
+  }, 75);
+
   setTimeout(() => {
+    clearInterval(diceRollTimer);
     // Dice generation: this is the strict two-dice source of truth for Die A and Die B.
     state.dice.a = rand(1, 6);
     state.dice.b = rand(1, 6);
@@ -255,6 +269,7 @@ function onBallSelect(ball) {
   state.validMoves = getValidTokensForBall(p, ball);
 
   // Hand activation AFTER selection only: never before ball selection and never auto-click.
+  // Hand guidance appears only after ball selection confirms move value.
   if (state.validMoves.length > 0) showGuideHand(p.color, state.validMoves[0]);
   else el.guideHand.classList.add("hidden");
 
@@ -268,7 +283,16 @@ function showGuideHand(color, tokenId) {
   const [r, c] = tokenCoord(color, token.pos, token.id);
   el.guideHand.style.left = `${((c + 0.5) / 15) * 100}%`;
   el.guideHand.style.top = `${((r + 0.5) / 15) * 100 - 4}%`;
+  el.guideHand.classList.remove("fade-out");
   el.guideHand.classList.remove("hidden");
+}
+
+function hideGuideHand() {
+  el.guideHand.classList.add("fade-out");
+  setTimeout(() => {
+    el.guideHand.classList.add("hidden");
+    el.guideHand.classList.remove("fade-out");
+  }, 220);
 }
 
 function getValidTokensForBall(player, ball) {
@@ -318,7 +342,7 @@ function moveToken(tokenId) {
 
   state.dice.selectedBall = null;
   state.validMoves = [];
-  el.guideHand.classList.add("hidden");
+  hideGuideHand();
 
   assignPlacements();
   const more = getPlayableBalls(p).length > 0;
@@ -379,7 +403,7 @@ function endTurn() {
   }
   state.dice = { a: 0, b: 0, usedA: false, usedB: false, rolled: false, selectedBall: null };
   state.validMoves = [];
-  el.guideHand.classList.add("hidden");
+  hideGuideHand();
   updateBallValues();
   render();
   maybeAiTurn();
@@ -388,6 +412,7 @@ function endTurn() {
 function maybeAiTurn() {
   const p = state.players[state.currentTurn];
   if (!p || p.type !== "ai" || p.finished) return;
+  // Computer dice roll animation trigger after short AI thinking delay.
   setTimeout(() => rollDice(), 700 + Math.random() * 700);
 }
 
@@ -415,8 +440,8 @@ function pushToVictory(color) {
 }
 
 function render() {
-  el.dieA.textContent = state.dice.a || "•";
-  el.dieB.textContent = state.dice.b || "•";
+  setDiceFace(el.dieA, state.dice.a || 1, !state.dice.rolled);
+  setDiceFace(el.dieB, state.dice.b || 1, !state.dice.rolled);
   renderBalls();
   renderPanels();
   renderBoardTokens();
@@ -467,6 +492,25 @@ function renderBoardTokens() {
 
 function suffix(n) { return n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th"; }
 function rand(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+
+function setDiceFace(dieNode, value, dimmed = false) {
+  const map = {
+    1: [4],
+    2: [0, 8],
+    3: [0, 4, 8],
+    4: [0, 2, 6, 8],
+    5: [0, 2, 4, 6, 8],
+    6: [0, 2, 3, 5, 6, 8]
+  };
+  dieNode.innerHTML = "";
+  for (let i = 0; i < 9; i++) {
+    const pip = document.createElement("span");
+    pip.className = "pip";
+    if ((map[value] || []).includes(i)) pip.classList.add("on");
+    dieNode.appendChild(pip);
+  }
+  dieNode.style.opacity = dimmed ? "0.6" : "1";
+}
 
 // --- online mode (kept working with backend protocol) ---
 function openSocket() {
@@ -548,6 +592,7 @@ el.diceCenter.onclick = () => {
     if (onlineCanAct()) onlineRoll();
     return;
   }
+  if (state.players[state.currentTurn]?.type !== "human") return;
   rollDice();
 };
 
