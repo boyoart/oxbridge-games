@@ -1,6 +1,6 @@
 const COLORS = ["red", "blue", "yellow", "green"]; // turn order is explicitly fixed: Red -> Blue -> Yellow -> Green.
-// Blue/yellow path correction: swap blue and yellow start mapping so each path points to its proper quadrant.
-const START_INDEX = { red: 0, blue: 26, yellow: 13, green: 39 };
+// Correct entrance ownership mapping: red/top-left, blue/top-right, yellow/bottom-right, green/bottom-left.
+const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
 const PATH_LEN = 52;
 const FINAL_HOME = 58;
 const HOME_TURN = 48;
@@ -76,6 +76,7 @@ function startSingle() {
   state.mode = "single";
   const name = el.playerName.value.trim() || "Scholar";
   state.difficulty = el.difficulty.value;
+  // User/computer ownership per color is fixed and enforced in turn engine.
   state.players = [
     { color: "red", type: "human", name, tokens: newTokens(), finished: false, place: 0 },
     { color: "blue", type: "ai", name: "Computer Blue", tokens: newTokens(), finished: false, place: 0 },
@@ -151,9 +152,10 @@ function setupBoard() {
     tile(r, c).classList.add(`entrance-${color}`);
   });
 
+  // Correct home-lane mapping by quadrant direction (no blue/yellow swap): red-left, blue-up, yellow-right, green-down.
   homePaths.red = [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5], [7, 6]];
-  homePaths.blue = [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9], [7, 8]];
-  homePaths.yellow = [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7], [6, 7]];
+  homePaths.blue = [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7], [6, 7]];
+  homePaths.yellow = [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9], [7, 8]];
   homePaths.green = [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7], [8, 7]];
   Object.entries(homePaths).forEach(([color, arr]) => arr.forEach(([r, c]) => tile(r, c).classList.add("track", `home-${color}`)));
   tile(7, 7).classList.add("center");
@@ -269,6 +271,7 @@ function canEnterFromBase(ball) {
 function onBallSelect(ball) {
   const p = state.players[state.currentTurn];
   if (!p || p.finished || !state.dice.rolled || state.animating) return;
+  if (state.mode !== "online" && p.type !== "human") return;
   if (!getPlayableBalls(p).includes(ball)) return;
 
   // Ball selection handling: user must confirm one move-ball before token highlight and movement.
@@ -331,6 +334,13 @@ function getTargetPos(pos, move, ball) {
 }
 
 function moveToken(tokenId) {
+  const p = state.players[state.currentTurn];
+  // User control enforcement: manual token movement is only allowed on user-owned turns (Red/Yellow in single mode).
+  if (!p || (state.mode !== "online" && p.type !== "human")) return;
+  doMoveToken(tokenId);
+}
+
+function doMoveToken(tokenId) {
   const p = state.players[state.currentTurn];
   if (!p || !state.dice.selectedBall || !state.validMoves.includes(tokenId)) return;
   const token = p.tokens[tokenId];
@@ -425,17 +435,46 @@ function maybeAiTurn() {
 
 function aiChooseBallAndToken() {
   const p = state.players[state.currentTurn];
+  if (!p || p.type !== "ai") return;
+  // Computer ball/value choice logic: evaluate die A, die B, and sum and pick a valid ball/token without user input.
   const choices = getPlayableBalls(p);
   if (!choices.length) return endTurn();
-  setTimeout(() => onBallSelect(choices[0]), 500);
+  const best = pickAiChoice(p, choices);
+  state.dice.selectedBall = best.ball;
+  state.validMoves = best.tokens;
+  render();
+  setTimeout(() => aiMoveToken(), 550);
 }
 
 function aiMoveToken() {
   const p = state.players[state.currentTurn];
   if (!p || p.type !== "ai") return;
   if (!state.validMoves.length) return endTurn();
-  const tokenId = state.validMoves[0];
-  setTimeout(() => moveToken(tokenId), 500);
+  const choice = pickAiChoice(p, [state.dice.selectedBall]);
+  const tokenId = choice.tokens[0];
+  setTimeout(() => doMoveToken(tokenId), 500);
+}
+
+function pickAiChoice(player, balls) {
+  const scored = [];
+  balls.forEach((ball) => {
+    const tokens = getValidTokensForBall(player, ball);
+    tokens.forEach((tokenId) => {
+      const token = player.tokens[tokenId];
+      const value = selectedBallValue(ball);
+      const target = getTargetPos(token.pos, value, ball);
+      if (target === null) return;
+      const score =
+        (target === FINAL_HOME ? 1000 : 0) +
+        (token.pos === -1 && target === 0 ? 300 : 0) +
+        (target > token.pos ? target : 0) +
+        (ball === "sum" ? 5 : 0);
+      scored.push({ ball, tokenId, score });
+    });
+  });
+  scored.sort((a, b) => b.score - a.score);
+  const bestBall = scored[0]?.ball || balls[0];
+  return { ball: bestBall, tokens: getValidTokensForBall(player, bestBall) };
 }
 
 function pushToVictory(color) {
@@ -453,7 +492,7 @@ function render() {
   renderPanels();
   renderBoardTokens();
   const p = state.players[state.currentTurn];
-  el.turnBanner.textContent = p ? `${p.name} (${p.color.toUpperCase()}) turn` : "Waiting";
+  el.turnBanner.textContent = p ? `${p.type === "human" ? "Your Turn" : "Computer Turn"} (${p.color.charAt(0).toUpperCase() + p.color.slice(1)})` : "Waiting";
 }
 
 function renderBalls() {
@@ -606,6 +645,8 @@ el.diceCenter.onclick = () => {
 el.ballTray.querySelectorAll(".ball").forEach((b) => {
   b.onclick = () => {
     if (state.mode === "online" && !onlineCanAct()) return;
+    // User control is explicitly enabled for Red/Yellow turns and blocked for computer-owned turns.
+    if (state.mode !== "online" && state.players[state.currentTurn]?.type !== "human") return;
     onBallSelect(b.dataset.ball);
   };
 });
