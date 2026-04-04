@@ -342,6 +342,9 @@ function getAvailableBalls() {
 
 function getForcedCombinedMove(side) {
   if (!side || !state.dice.rolled) return null;
+  // Combined-total forcing is valid only while the sum ball is still active.
+  // If one die was already consumed (e.g., a 6 used for base entry), do NOT force sum resolution.
+  if (!state.dice.sumAvailable) return null;
   if (hasBaseEntryOption(side)) return null;
   const moveValue = state.dice.a + state.dice.b;
   const activeMovable = sidePlayers(side).flatMap((player) => player.tokens
@@ -526,9 +529,11 @@ async function doMoveToken(move) {
   // - Sum consumes both A and B together
   // Remaining die logic continues after one die is used: consuming A/B leaves the other die intact.
   if (state.dice.selectedBall === "a") {
+    // Consuming only Die A (including base-entry on a rolled 6) keeps Die B active for follow-up moves.
     state.dice.usedA = true;
     state.dice.sumAvailable = false;
   } else if (state.dice.selectedBall === "b") {
+    // Consuming only Die B keeps Die A active for follow-up moves when legal.
     state.dice.usedB = true;
     state.dice.sumAvailable = false;
   } else {
@@ -544,6 +549,7 @@ async function doMoveToken(move) {
   hideGuideHand();
 
   assignPlacements();
+  // After entry/move resolution, immediately recalculate legal moves so the remaining die stays playable when valid.
   recomputeDiceAvailability(state.currentSide);
   const more = state.dice.hasRemainingLegalMove;
   if (!more || p.finished) endTurn();
@@ -743,16 +749,42 @@ function renderPanels() {
 
 function renderBoardTokens() {
   el.board.querySelectorAll(".token").forEach((n) => n.remove());
+  const stackGroups = new Map();
   state.players.forEach((p) => {
     p.tokens.forEach((t) => {
       if (t.pos === FINAL_HOME) return;
       if (state.movingToken && state.movingToken.color === p.color && state.movingToken.tokenId === t.id) return;
       const [r, c] = tokenCoord(p.color, t.pos, t.id);
+      const key = `${r}:${c}`;
+      if (!stackGroups.has(key)) stackGroups.set(key, []);
+      stackGroups.get(key).push({ color: p.color, tokenId: t.id, r, c });
+    });
+  });
+
+  // Token stacking/grouping: multiple tokens share fixed tile bounds using in-tile offsets.
+  // Tile size is preserved because tokens are absolutely positioned and never participate in tile layout size.
+  const clusterOffsets = [
+    [0, 0],
+    [-22, -22],
+    [22, -22],
+    [-22, 22],
+    [22, 22]
+  ];
+
+  stackGroups.forEach((group) => {
+    group.forEach((entry, idx) => {
+      const { color, tokenId, r, c } = entry;
       const tok = document.createElement("button");
-      tok.className = `token ${p.color}`;
+      tok.className = `token ${color}`;
       // Valid move highlighting spans both colors of the active side after ball selection.
-      if (SIDE_BY_COLOR[p.color] === state.currentSide && state.validMoves.some((m) => m.color === p.color && m.tokenId === t.id)) tok.classList.add("valid");
-      tok.onclick = () => moveToken(p.color, t.id);
+      if (SIDE_BY_COLOR[color] === state.currentSide && state.validMoves.some((m) => m.color === color && m.tokenId === tokenId)) tok.classList.add("valid");
+      tok.onclick = () => moveToken(color, tokenId);
+      const [offsetX, offsetY] = clusterOffsets[idx] || [0, 0];
+      if (group.length > 1) {
+        tok.classList.add("stacked");
+        tok.style.setProperty("--stack-x", `${offsetX}%`);
+        tok.style.setProperty("--stack-y", `${offsetY}%`);
+      }
       tile(r, c).appendChild(tok);
     });
   });
