@@ -36,12 +36,17 @@ const el = {
   brandFallback: document.getElementById("brandFallback")
 };
 
-const audio = ["dice-roll", "token-move", "capture", "win", "click"].reduce((acc, k) => {
+const audio = ["token-move", "capture", "win", "click"].reduce((acc, k) => {
   const a = new Audio(`assets/sounds/${k}.mp3`);
   a.onerror = () => {};
   acc[k] = a;
   return acc;
 }, {});
+const rollSound = new Audio("assets/sounds/dice-roll.mp3");
+rollSound.preload = "auto";
+rollSound.onerror = () => console.warn("Dice roll audio failed to load from assets/sounds/dice-roll.mp3");
+rollSound.load();
+let hasUserInteracted = false;
 
 const state = {
   mode: null,
@@ -66,6 +71,27 @@ function sfx(name) {
   if (!state.soundOn || !audio[name]) return;
   const snd = audio[name].cloneNode();
   snd.play().catch(() => {});
+}
+
+function unlockRollSound() {
+  if (hasUserInteracted) return;
+  hasUserInteracted = true;
+  rollSound.volume = 0;
+  rollSound.play()
+    .then(() => {
+      rollSound.pause();
+      rollSound.currentTime = 0;
+      rollSound.volume = 1;
+    })
+    .catch(() => {
+      rollSound.volume = 1;
+    });
+}
+
+function playRollSound() {
+  if (!state.soundOn) return;
+  rollSound.currentTime = 0;
+  rollSound.play().catch(() => {});
 }
 
 function newTokens() {
@@ -120,19 +146,29 @@ function setupBranding() {
   }
 }
 
+function verifyDiceSoundPath() {
+  fetch("assets/sounds/dice-roll.mp3", { method: "HEAD" })
+    .then((res) => {
+      if (!res.ok) console.warn("Dice sound path check failed:", res.status);
+    })
+    .catch(() => console.warn("Dice sound path check failed: network error"));
+}
+
 function setupBoard() {
   el.board.innerHTML = "";
   boardCells = [];
+  const fragment = document.createDocumentFragment();
   for (let r = 0; r < 15; r++) {
     for (let c = 0; c < 15; c++) {
       const t = document.createElement("div");
       t.className = "tile";
       t.dataset.r = r;
       t.dataset.c = c;
-      el.board.appendChild(t);
+      fragment.appendChild(t);
       boardCells.push(t);
     }
   }
+  el.board.appendChild(fragment);
   for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("q-red");
   for (let r = 0; r < 6; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("q-blue");
   for (let r = 9; r < 15; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("q-green");
@@ -162,6 +198,7 @@ function setupBoard() {
   tile(7, 7).classList.add("center");
 
   placeArrows();
+  console.log("Board initialized");
 }
 
 function addBaseWatermarks() {
@@ -215,7 +252,7 @@ function rollDice() {
   clearInterval(diceRollTimer);
   el.diceCenter.classList.remove("rolling-return");
   el.diceCenter.classList.add("rolling", "rolling-left");
-  sfx("dice-roll");
+  playRollSound();
   diceRollTimer = setInterval(() => {
     setDiceFace(el.dieA, rand(1, 6));
     setDiceFace(el.dieB, rand(1, 6));
@@ -226,6 +263,7 @@ function rollDice() {
     // Dice generation: this is the strict two-dice source of truth for Die A and Die B.
     state.dice.a = rand(1, 6);
     state.dice.b = rand(1, 6);
+    console.log("Dice rolled:", [state.dice.a, state.dice.b]);
     state.dice.usedA = false;
     state.dice.usedB = false;
     state.dice.rolled = true;
@@ -659,6 +697,7 @@ el.startOnlineBtn.onclick = () => {
 };
 
 el.diceCenter.onclick = () => {
+  unlockRollSound();
   if (state.mode === "online") {
     if (onlineCanAct()) onlineRoll();
     return;
@@ -701,7 +740,10 @@ el.soundToggleBtn.onclick = () => {
   el.soundToggleBtn.textContent = state.soundOn ? "Sound On" : "Sound Off";
 };
 
+document.addEventListener("pointerdown", unlockRollSound, { once: true });
+
 setupBranding();
+verifyDiceSoundPath();
 setupBoard();
 updateBallValues();
 render();
