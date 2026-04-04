@@ -3,15 +3,19 @@ const COLORS = ["red", "blue", "yellow", "green"];
 const COLOR_LABEL = { red: "Red", blue: "Blue", yellow: "Yellow", green: "Green" };
 const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
 const PATH_LEN = 52;
-const AI_MIN_DELAY_MS = 420;
-const AI_MAX_DELAY_MS = 900;
+const AI_MIN_DELAY_MS = 500;
+const AI_MAX_DELAY_MS = 1000;
 const FINAL_HOME_POSITION = 58;
 const ENTRY_ROLL = 6;
 const HOME_ENTRY_TURN_POS = 48;
 const HOME_ENTRY_START_POS = 52;
 const BOARD_BASE_SIZE = 720;
 const ROLL_ANIMATION_MS = 760;
-const ROLL_RESULT_SETTLE_MS = 1080;
+const ROLL_RESULT_SETTLE_MS = 420;
+const POST_ROLL_BALL_DELAY_MS = 380;
+const BALL_TO_TOKEN_HINT_DELAY_MS = 240;
+const MOVE_SETTLE_DELAY_MS = 360;
+const TOKEN_STEP_MOVE_MS = 120;
 const OUTER_TRACK_LAST_POS = HOME_ENTRY_TURN_POS;
 
 const boardEl = document.getElementById("board");
@@ -33,6 +37,7 @@ const dieShadow1El = document.getElementById("dieShadow1");
 const dieShadow2El = document.getElementById("dieShadow2");
 const diceSummaryEl = document.getElementById("diceSummary");
 const diceAssignmentEl = document.getElementById("diceAssignment");
+const guideHandEl = document.getElementById("guideHand");
 const gameSection = document.getElementById("gameSection");
 const modeMenu = document.getElementById("modeMenu");
 const localConfig = document.getElementById("localConfig");
@@ -65,7 +70,7 @@ const appState = {
   difficulty: "easy",
   players: [],
   currentTurn: 0,
-  dice: { values: [null, null], used: [false, false], rolledSix: false, selectedDie: null, combineMode: false },
+  dice: { values: [null, null], used: [false, false], rolledSix: false, selectedDie: null, combineMode: false, selectedBall: null },
   mustMove: false,
   turn: { hasRolled: false, movePending: false, selectedToken: null, diceLocked: false, canRoll: true },
   isRolling: false,
@@ -369,7 +374,7 @@ function syncVictoryStateFromTokens() {
 function configureGame(mode, localCount = 4) {
   appState.mode = mode;
   appState.currentTurn = 0;
-  appState.dice = { values: [null, null], used: [false, false], rolledSix: false, selectedDie: null, combineMode: false };
+  appState.dice = { values: [null, null], used: [false, false], rolledSix: false, selectedDie: null, combineMode: false, selectedBall: null };
   appState.mustMove = false;
   appState.turn = { hasRolled: false, movePending: false, selectedToken: null, diceLocked: false, canRoll: true };
   appState.isRolling = false;
@@ -379,10 +384,11 @@ function configureGame(mode, localCount = 4) {
   appState.difficulty = (difficultySelectEl?.value === "hard") ? "hard" : "easy";
 
   if (mode === "single") {
+    // User vs computer color assignment is fixed here: user controls Red + Yellow, computer controls Blue + Green.
     appState.players = [
       { type: "human", color: "red", tokens: newTokens(), name: "You", finished: false, place: null },
       { type: "ai", color: "blue", tokens: newTokens(), name: "Computer Blue", finished: false, place: null },
-      { type: "ai", color: "yellow", tokens: newTokens(), name: "Computer Yellow", finished: false, place: null },
+      { type: "human", color: "yellow", tokens: newTokens(), name: "You", finished: false, place: null },
       { type: "ai", color: "green", tokens: newTokens(), name: "Computer Green", finished: false, place: null }
     ];
   } else if (mode === "local") {
@@ -476,11 +482,14 @@ function render() {
   const [d1, d2] = appState.dice.values;
   dice1El?.setAttribute("aria-label", `Die 1 showing ${d1 ?? "-"}`);
   dice2El?.setAttribute("aria-label", `Die 2 showing ${d2 ?? "-"}`);
-  diceSummaryEl.textContent = `Dice: ${d1 ?? "-"} , ${d2 ?? "-"}`;
+  diceSummaryEl.textContent = `Balls: ${d1 ?? "-"} | ${d2 ?? "-"} | ${(d1 && d2) ? d1 + d2 : "-"}`;
   renderDieAssignment();
 
   const cp = appState.players[appState.currentTurn];
-  turnInfo.textContent = cp ? `Turn: ${cp.name} (${COLOR_LABEL[cp.color]})` : "";
+  if (!cp) turnInfo.textContent = "";
+  else if (appState.mode === "single" && cp.type === "human") turnInfo.textContent = `Your Turn (${COLOR_LABEL[cp.color]})`;
+  else if (appState.mode === "single" && cp.type === "ai") turnInfo.textContent = `Computer Turn (${COLOR_LABEL[cp.color]})`;
+  else turnInfo.textContent = `Turn: ${cp.name} (${COLOR_LABEL[cp.color]})`;
   updateDifficultyInfo();
 
   if (rollBtn) rollBtn.disabled = !canCurrentPlayerRoll();
@@ -573,43 +582,65 @@ function getValidMoves(playerIdx, rollValue, includeBase = true) {
   });
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function hideGuideHand() {
+  guideHandEl?.classList.add("hidden");
+}
+
+function pointGuideHandToElement(targetEl) {
+  if (!guideHandEl || !targetEl) return;
+  const rect = targetEl.getBoundingClientRect();
+  guideHandEl.style.left = `${rect.left + (rect.width * 0.5)}px`;
+  guideHandEl.style.top = `${rect.top - 8}px`;
+  guideHandEl.classList.remove("hidden");
+}
+
+function triggerBallGuide() {
+  // Animated hand logic is triggered here after roll completion to guide ball selection.
+  const firstBall = diceAssignmentEl?.querySelector(".move-ball:not(.disabled)");
+  if (firstBall) pointGuideHandToElement(firstBall);
+}
+
 function getTurnMoveOptions(playerIdx) {
+  const selectedBall = appState.dice.selectedBall;
+  if (!selectedBall) return new Map();
+  return getBallMoveOptions(playerIdx, selectedBall);
+}
+
+function getSelectableBalls(playerIdx) {
+  const player = appState.players[playerIdx];
+  if (!player) return [];
+  const [dieA, dieB] = appState.dice.values;
+  const sumAvailable = !appState.dice.used[0] && !appState.dice.used[1];
+  return [
+    { id: "a", label: "A", color: "red", value: dieA, disabled: appState.dice.used[0] || !dieA },
+    { id: "b", label: "B", color: "blue", value: dieB, disabled: appState.dice.used[1] || !dieB },
+    { id: "sum", label: "A+B", color: "green", value: (dieA || 0) + (dieB || 0), disabled: !sumAvailable || !dieA || !dieB }
+  ];
+}
+
+function getBallMoveOptions(playerIdx, ballId) {
   const player = appState.players[playerIdx];
   if (!player) return new Map();
+  const balls = getSelectableBalls(playerIdx);
+  const ball = balls.find((item) => item.id === ballId && !item.disabled);
+  if (!ball) return new Map();
   const options = new Map();
-  const activeTokens = player.tokens.map((t, i) => ({ ...t, idx: i })).filter((t) => t.pos >= 0 && t.pos < FINAL_HOME_POSITION);
-  const unusedDice = appState.dice.values.map((v, i) => ({ value: v, idx: i })).filter((d) => d.value && !appState.dice.used[d.idx]);
-
-  // one-token total-dice rule is applied here for custom two-dice movement.
-  if (activeTokens.length === 1 && unusedDice.length === 2) {
-    const onlyToken = activeTokens[0];
-    const total = unusedDice[0].value + unusedDice[1].value;
-    if (canMoveToken(playerIdx, onlyToken.idx, total)) {
-      options.set(onlyToken.idx, [{ type: "combined", value: total }]);
+  player.tokens.forEach((_, tokenId) => {
+    if (canMoveToken(playerIdx, tokenId, ball.value)) {
+      options.set(tokenId, [{ type: ball.id === "sum" ? "combined" : "single", value: ball.value, ballId }]);
     }
-  }
-  // entry-from-base rule is checked here for two dice: either die with 6 may launch a token.
-  unusedDice.forEach((die) => {
-    if (!canEnterBoard(die.value)) return;
-    player.tokens.forEach((token, tokenId) => {
-      if (token.pos !== -1) return;
-      if (!options.has(tokenId)) options.set(tokenId, []);
-      options.get(tokenId).push({ type: "single", dieIndex: die.idx, value: die.value });
-    });
   });
-
-  // multi-token split-dice rule is applied here for assigning each die separately.
-  if (activeTokens.length !== 1 || unusedDice.length < 2) {
-    unusedDice.forEach((die) => {
-      player.tokens.forEach((_, tokenId) => {
-        if (canMoveToken(playerIdx, tokenId, die.value)) {
-          if (!options.has(tokenId)) options.set(tokenId, []);
-          options.get(tokenId).push({ type: "single", dieIndex: die.idx, value: die.value });
-        }
-      });
-    });
-  }
   return options;
+}
+
+function hasAnyMoveForAvailableBalls(playerIdx) {
+  return getSelectableBalls(playerIdx)
+    .filter((ball) => !ball.disabled)
+    .some((ball) => getBallMoveOptions(playerIdx, ball.id).size > 0);
 }
 
 function isTokenClickable(playerIdx, tokenId) {
@@ -617,26 +648,22 @@ function isTokenClickable(playerIdx, tokenId) {
   const current = appState.players[appState.currentTurn];
   if (!current || current.type !== "human") return false;
   if (appState.mode === "online" && appState.myPlayerIndex !== appState.currentTurn) return false;
-  if (playerIdx !== appState.currentTurn) return false;
+  if (playerIdx !== appState.currentTurn || !appState.dice.selectedBall) return false;
   return getTurnMoveOptions(playerIdx).has(tokenId);
 }
 
-function chooseTokenMove(playerIdx, tokenId) {
+async function chooseTokenMove(playerIdx, tokenId) {
   if (!isTokenClickable(playerIdx, tokenId)) return;
+  hideGuideHand();
   appState.turn.selectedToken = tokenId;
   const options = getTurnMoveOptions(playerIdx).get(tokenId) || [];
-  const selected = appState.dice.selectedDie;
-  const picked = selected !== null
-    ? options.find((o) => o.type === "single" && o.dieIndex === selected)
-    : (options.length === 1 ? options[0] : null);
-  // die assignment UI logic is handled here by requiring die pick when needed.
+  const picked = options[0] || null;
   if (!picked) {
-    updateStatus("Select one die, then tap a highlighted token.");
+    updateStatus("Select one ball, then tap a highlighted token.");
     render();
     return;
   }
-  if (picked.type === "combined") applyMove(playerIdx, tokenId, picked.value, true, null, true);
-  else applyMove(playerIdx, tokenId, picked.value, true, picked.dieIndex, false);
+  await applyMove(playerIdx, tokenId, picked.value, true, null, picked.type === "combined", picked.ballId);
 }
 
 // capture rule helper: opponents can be captured anywhere on the normal path.
@@ -715,8 +742,7 @@ function resolveTurnStateAfterAction(playerIdx, options = {}) {
   if (!player) return;
 
   // Central stuck-state resolver: all turn flags are finalized here after roll/move assignment.
-  const remainingOptions = getTurnMoveOptions(playerIdx);
-  const hasMoreAssignments = [...remainingOptions.values()].some((list) => list.length > 0);
+  const hasMoreAssignments = hasAnyMoveForAvailableBalls(playerIdx);
 
   if (hasWon(playerIdx)) {
     assignPlacementForPlayer(playerIdx);
@@ -747,7 +773,7 @@ function resolveTurnStateAfterAction(playerIdx, options = {}) {
     appState.turn.selectedToken = null;
     appState.turn.diceLocked = true;
     appState.turn.canRoll = false;
-    updateStatus(`${player.name} used one die. Use remaining die.`);
+    updateStatus(`${player.name} used one ball. Choose another ball.`);
     render();
     if (player.type === "ai") runAITurnAssignments();
     return;
@@ -770,14 +796,14 @@ function resolveTurnStateAfterAction(playerIdx, options = {}) {
 
 function resetDiceDisplay() {
   // DEBUG: dice/turn state resets for next roll, including usedDieValues (dice.used).
-  appState.dice = { values: [null, null], used: [false, false], rolledSix: false, selectedDie: null, combineMode: false };
+  appState.dice = { values: [null, null], used: [false, false], rolledSix: false, selectedDie: null, combineMode: false, selectedBall: null };
 }
 
 function syncDieFaces() {
   const updateDie = (dieEl, value, idx) => {
     if (!dieEl) return;
     const face = Math.max(1, Math.min(6, Number(value) || 1));
-    dieEl.className = `board-die face-${face}${appState.isRolling ? " rolling" : ""}${appState.dice.used[idx] ? " used" : ""}${appState.dice.selectedDie === idx ? " selected" : ""}`;
+    dieEl.className = `board-die face-${face}${appState.isRolling ? " rolling" : ""}${appState.dice.used[idx] ? " used" : ""}`;
     dieEl.dataset.dieIndex = idx;
   };
   updateDie(dice1El, appState.dice.values[0], 0);
@@ -791,19 +817,57 @@ function renderDieAssignment() {
     diceAssignmentEl.innerHTML = "";
     return;
   }
-  diceAssignmentEl.innerHTML = [0, 1].map((i) => `<button class="die-pill ${appState.dice.used[i] ? "used" : ""}" data-die-pill="${i}">Die ${i + 1}: ${appState.dice.values[i] ?? "-"}</button>`).join("");
-  diceAssignmentEl.querySelectorAll("[data-die-pill]").forEach((pill) => {
-    pill.addEventListener("click", () => selectDieForMove(Number(pill.dataset.diePill)));
+  // 3-ball system is created here: Ball A, Ball B, and Sum (A+B) are the only selectable move sources.
+  const balls = getSelectableBalls(appState.currentTurn);
+  diceAssignmentEl.innerHTML = balls.map((ball) => `
+    <button class="move-ball ${ball.color} ${ball.disabled ? "disabled" : ""} ${appState.dice.selectedBall === ball.id ? "selected" : ""}" data-ball-id="${ball.id}">
+      <span class="ball-label">${ball.label}</span>
+      <span class="ball-value">${ball.value}</span>
+    </button>
+  `).join("");
+  diceAssignmentEl.querySelectorAll("[data-ball-id]").forEach((ballBtn) => {
+    ballBtn.addEventListener("click", () => selectBallForMove(String(ballBtn.dataset.ballId)));
   });
 }
 
-function selectDieForMove(dieIndex) {
-  if (!appState.turn.movePending || appState.dice.used[dieIndex]) return;
-  appState.dice.selectedDie = dieIndex;
+function selectBallForMove(ballId) {
+  // Ball selection logic is handled here before any token can be selected.
+  if (!appState.turn.movePending) return;
+  const ball = getSelectableBalls(appState.currentTurn).find((item) => item.id === ballId);
+  if (!ball || ball.disabled) return;
+  appState.dice.selectedBall = ballId;
+  hideGuideHand();
+  setTimeout(() => {
+    // Animated hand logic is triggered again here to guide token selection after a ball is chosen.
+    render();
+    const tokenEl = document.querySelector(".board-token.clickable");
+    if (tokenEl) pointGuideHandToElement(tokenEl);
+  }, BALL_TO_TOKEN_HINT_DELAY_MS);
   render();
 }
 
-function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false, dieIndex = null, usedCombined = false) {
+async function animateTokenMovement(playerIdx, tokenId, targetPos) {
+  const player = appState.players[playerIdx];
+  const token = player.tokens[tokenId];
+  const startPos = token.pos;
+  if (startPos === targetPos) return;
+
+  const steps = [];
+  if (startPos === -1) {
+    steps.push(0);
+  } else {
+    for (let p = startPos + 1; p <= targetPos; p++) steps.push(p);
+  }
+
+  for (const stepPos of steps) {
+    token.pos = stepPos;
+    syncTokenStateForPlayer(player);
+    render();
+    await sleep(TOKEN_STEP_MOVE_MS);
+  }
+}
+
+async function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false, dieIndex = null, usedCombined = false, ballId = null) {
   const player = appState.players[playerIdx];
   const token = player.tokens[tokenId];
   const wasHome = token.pos === FINAL_HOME_POSITION;
@@ -817,7 +881,7 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false, dieI
     return;
   }
 
-  token.pos = targetPos;
+  await animateTokenMovement(playerIdx, tokenId, targetPos);
   // DEBUG: order step 1 - update authoritative token state immediately after moving.
   syncTokenStateForPlayer(playerIdx >= 0 ? appState.players[playerIdx] : null);
   // DEBUG: order step 2 - resolve capture immediately on the landing tile.
@@ -830,11 +894,16 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false, dieI
   if (!isNowHome) sfx("move");
   // Placement/ranking trigger path: home count increments via token state, then victory container is updated.
   if (!wasHome && isNowHome) registerCompletedToken(playerIdx, tokenId, fromRect);
-  if (usedCombined) appState.dice.used = [true, true];
+  // Ball consumption is handled here: A or B consumes one die, Sum consumes both.
+  if (usedCombined || ballId === "sum") appState.dice.used = [true, true];
+  else if (ballId === "a") appState.dice.used[0] = true;
+  else if (ballId === "b") appState.dice.used[1] = true;
   else if (dieIndex !== null) appState.dice.used[dieIndex] = true;
   appState.dice.selectedDie = null;
+  appState.dice.selectedBall = null;
   // extra-turn rule is applied here: either die showing 6 grants another turn.
   const extraTurn = appState.dice.rolledSix;
+  await sleep(MOVE_SETTLE_DELAY_MS);
   resolveTurnStateAfterAction(playerIdx, { extraTurn, captured });
 
   if (allowNetworkEmit && appState.mode === "online") {
@@ -843,6 +912,7 @@ function applyMove(playerIdx, tokenId, rollValue, allowNetworkEmit = false, dieI
 }
 
 function rollDicePair() {
+  // Dice values are generated here as the internal two-dice source for Ball A, Ball B, and Ball Sum.
   const values = [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
   return { values, rolledSix: shouldGrantExtraTurn(values) };
 }
@@ -882,6 +952,7 @@ function handleNoValidMove(player, rollValues) {
 function rollDice() {
   if (!canCurrentPlayerRoll()) return;
   if (appState.gameOver) return;
+  hideGuideHand();
   const p = appState.players[appState.currentTurn];
   if (!p) return;
   if (appState.mode !== "online" && p.type !== "human" && p.type !== "ai") return;
@@ -899,25 +970,28 @@ function rollDice() {
     appState.dice = roll;
     appState.dice.used = [false, false];
     appState.dice.selectedDie = null;
+    appState.dice.selectedBall = null;
     appState.turn.hasRolled = true;
     syncDieFaces();
     render();
     setTimeout(() => {
       stopDiceAnimation();
-      const moves = getTurnMoveOptions(appState.currentTurn);
-      const moveCount = [...moves.values()].reduce((acc, entries) => acc + entries.length, 0);
+      const moveCount = hasAnyMoveForAvailableBalls(appState.currentTurn);
 
       if (!moveCount) {
-        handleNoValidMove(p, roll.values);
+        updateStatus("No valid move");
+        setTimeout(() => handleNoValidMove(p, roll.values), 420);
         return;
       }
 
-      appState.mustMove = true;
-      appState.turn.movePending = true;
-      updateStatus(`${p.name} rolled ${roll.values[0]} and ${roll.values[1]}. Assign dice to move.`);
-      render();
-
-      if (p.type === "ai") runAITurnAssignments();
+      setTimeout(() => {
+        appState.mustMove = true;
+        appState.turn.movePending = true;
+        updateStatus(`${p.name} rolled ${roll.values[0]} and ${roll.values[1]}. Choose a ball.`);
+        render();
+        triggerBallGuide();
+        if (p.type === "ai") runAITurnAssignments();
+      }, POST_ROLL_BALL_DELAY_MS);
     }, ROLL_RESULT_SETTLE_MS);
   }, ROLL_ANIMATION_MS);
 }
@@ -928,7 +1002,7 @@ function maybeAITurn() {
   if (appState.mode === "online") return;
   if (p.type !== "ai") return;
 
-  statusText.textContent = "Computer thinking...";
+  statusText.textContent = `Computer Turn (${COLOR_LABEL[p.color]}) - thinking...`;
   const thinkDelay = AI_MIN_DELAY_MS + Math.floor(Math.random() * (AI_MAX_DELAY_MS - AI_MIN_DELAY_MS + 1));
   setTimeout(() => {
     // Computer dice roll animation starts through the same rollDice flow used by human turns.
@@ -952,15 +1026,25 @@ function pickBestAIMoveOption(playerIndex, options) {
 
 function runAITurnAssignments() {
   const aiIdx = appState.currentTurn;
-  const step = () => {
-    const options = getTurnMoveOptions(aiIdx);
-    const chosen = pickBestAIMoveOption(aiIdx, options);
+  const step = async () => {
+    const selectableBalls = getSelectableBalls(aiIdx).filter((ball) => !ball.disabled);
+    let chosen = null;
+    for (const ball of selectableBalls) {
+      const options = getBallMoveOptions(aiIdx, ball.id);
+      const pick = pickBestAIMoveOption(aiIdx, options);
+      if (pick) {
+        chosen = { ...pick, ballId: ball.id };
+        break;
+      }
+    }
     if (!chosen) return;
-    if (chosen.type === "combined") applyMove(aiIdx, chosen.tokenId, chosen.value, false, null, true);
-    else applyMove(aiIdx, chosen.tokenId, chosen.value, false, chosen.dieIndex, false);
+    appState.dice.selectedBall = chosen.ballId;
+    render();
+    await sleep(360);
+    await applyMove(aiIdx, chosen.tokenId, chosen.value, false, null, chosen.type === "combined", chosen.ballId);
     if (appState.currentTurn === aiIdx && appState.turn.movePending) setTimeout(step, 420);
   };
-  setTimeout(step, 420);
+  setTimeout(step, 360);
 }
 
 function canCurrentPlayerRoll() {
@@ -977,7 +1061,15 @@ function updateStatus(message) {
     return;
   }
   const p = appState.players[appState.currentTurn];
-  statusText.textContent = p ? `${p.name}'s turn. Tap center dice to roll.` : "Ready.";
+  if (!p) {
+    statusText.textContent = "Ready.";
+  } else if (appState.mode === "single" && p.type === "human") {
+    statusText.textContent = `Your Turn (${COLOR_LABEL[p.color]}). Tap center dice to roll.`;
+  } else if (appState.mode === "single" && p.type === "ai") {
+    statusText.textContent = `Computer Turn (${COLOR_LABEL[p.color]}).`;
+  } else {
+    statusText.textContent = `${p.name}'s turn. Tap center dice to roll.`;
+  }
 }
 
 function formatPlaceLabel(place) {
@@ -1137,7 +1229,8 @@ function hydrateOnlineState(state) {
     used: Array.isArray(state.diceUsed) ? state.diceUsed : [false, false],
     rolledSix: shouldGrantExtraTurn(syncedValues),
     selectedDie: null,
-    combineMode: false
+    combineMode: false,
+    selectedBall: null
   };
 
   appState.mustMove = state.mustMove;
@@ -1243,9 +1336,7 @@ function bindUI() {
   // center dice click/tap triggers roll and die assignment interactions.
   [dice1El, dice2El].forEach((dieEl) => {
     dieEl?.addEventListener("click", () => {
-      const dieIndex = Number(dieEl.dataset.dieIndex || 0);
-      if (appState.turn.movePending) selectDieForMove(dieIndex);
-      else if (appState.mode === "online") sendOnline({ type: "roll-request" });
+      if (appState.mode === "online") sendOnline({ type: "roll-request" });
       else rollDice();
     });
   });
