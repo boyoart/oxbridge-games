@@ -137,6 +137,7 @@ function setupBoard() {
   for (let r = 0; r < 6; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("q-blue");
   for (let r = 9; r < 15; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("q-green");
   for (let r = 9; r < 15; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("q-yellow");
+  addBaseWatermarks();
 
   boardPath = [
     [6, 1], [6, 2], [6, 3], [6, 4], [6, 5], [5, 6], [4, 6], [3, 6], [2, 6], [1, 6], [0, 6], [0, 7], [0, 8],
@@ -161,6 +162,20 @@ function setupBoard() {
   tile(7, 7).classList.add("center");
 
   placeArrows();
+}
+
+function addBaseWatermarks() {
+  el.board.querySelectorAll(".base-watermark").forEach((n) => n.remove());
+  ["red", "blue", "yellow", "green"].forEach((color) => {
+    // Base tile logo placement: one school logo watermark per solid-color base quadrant.
+    const wrap = document.createElement("div");
+    wrap.className = `base-watermark ${color}`;
+    // 50% opacity watermark logic is controlled by CSS and kept below token z-index.
+    wrap.innerHTML = '<img src="assets/logo/logo.png" alt="" aria-hidden="true" />';
+    // Pointer-events disabled so base logos never interfere with token interactivity.
+    wrap.style.pointerEvents = "none";
+    el.board.appendChild(wrap);
+  });
 }
 
 function placeArrows() {
@@ -266,10 +281,10 @@ function canEnterFromBase(ball) {
   // Base-entry validity is checked per selected ball:
   // - Die A ball enters only when Die A is 6
   // - Die B ball enters only when Die B is 6
-  // - Sum ball allows entry if either underlying die is 6
+  // - Sum ball is movement-only (A+B) and does not directly perform a base-entry action
   if (ball === "a") return state.dice.a === ENTRY_ROLL;
   if (ball === "b") return state.dice.b === ENTRY_ROLL;
-  return state.dice.a === ENTRY_ROLL || state.dice.b === ENTRY_ROLL;
+  return false;
 }
 
 function onBallSelect(ball) {
@@ -444,6 +459,7 @@ function maybeAiTurn() {
 function aiChooseBallAndToken() {
   const p = state.players[state.currentTurn];
   if (!p || p.type !== "ai") return;
+  // Active color binding: AI always evaluates choices from CURRENT turn color only.
   // Computer ball/value choice logic: evaluate die A, die B, and sum and pick a valid ball/token without user input.
   const choices = getPlayableBalls(p);
   if (!choices.length) return endTurn();
