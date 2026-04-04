@@ -332,7 +332,8 @@ function onBallSelect(ball) {
   if (state.mode !== "online" && p.type !== "human") return;
   if (!getPlayableBalls(p).includes(ball)) return;
 
-  // Ball selection handling: user must confirm one move-ball before token highlight and movement.
+  // User-side token choice is enabled by ball-first flow:
+  // once a ball is selected, every valid token for that exact ball remains selectable (no auto-forced token).
   state.dice.selectedBall = ball;
   // Selected ball value is applied from the 3-ball system (Ball 1=Die A, Ball 2=Die B, Ball 3=Sum).
   state.validMoves = getValidTokensForBall(p, ball);
@@ -420,6 +421,10 @@ async function doMoveToken(tokenId) {
   handleCapture(state.currentTurn, tokenId);
   if (token.pos === FINAL_HOME) pushToVictory(p.color);
 
+  // Used-vs-remaining ball state handling:
+  // - Die A move consumes only A
+  // - Die B move consumes only B
+  // - Sum consumes both A and B together
   if (state.dice.selectedBall === "a") state.dice.usedA = true;
   else if (state.dice.selectedBall === "b") state.dice.usedB = true;
   else { state.dice.usedA = true; state.dice.usedB = true; }
@@ -576,9 +581,12 @@ function renderBalls() {
 
   balls.forEach((b) => {
     const key = b.dataset.ball;
+    // Die A / Die B / Sum remain independently usable: disable only when not legally playable,
+    // and keep any still-legal remaining die active after one die is consumed.
     b.classList.toggle("disabled", !playable.includes(key));
     b.classList.toggle("selected", state.dice.selectedBall === key);
-    b.classList.toggle("used", (key === "a" && state.dice.usedA) || (key === "b" && state.dice.usedB) || (key === "sum" && (state.dice.usedA || state.dice.usedB)));
+    const consumed = (key === "a" && state.dice.usedA) || (key === "b" && state.dice.usedB) || (key === "sum" && (state.dice.usedA || state.dice.usedB));
+    b.classList.toggle("used", consumed);
     if (!state.dice.rolled) b.classList.add("disabled");
     if (!available.includes(key) && state.dice.rolled) b.classList.add("used");
   });
@@ -603,6 +611,7 @@ function renderBoardTokens() {
       const [r, c] = tokenCoord(p.color, t.pos, t.id);
       const tok = document.createElement("button");
       tok.className = `token ${p.color}`;
+      // Valid move highlighting includes base-entry tokens when selected 6 allows entry.
       if (pIdx === state.currentTurn && state.validMoves.includes(t.id)) tok.classList.add("valid");
       tok.onclick = () => moveToken(t.id);
       tile(r, c).appendChild(tok);
