@@ -564,24 +564,31 @@ function handleCapture(color, tokenId) {
   if (token.pos < 0 || token.pos > 51) return;
   // Intermediate tiles are traversal-only; capture evaluates only on the token's final landing tile.
   const abs = (START_INDEX[p.color] + token.pos) % PATH_LEN;
-
-  state.players.forEach((op) => {
-    if (op.color === color) return;
-    op.tokens.forEach((ot) => {
-      if (ot.pos < 0 || ot.pos > 51) return;
+  // Stacked-token capture rule: select only one enemy token deterministically (player iteration order, then token id order).
+  let captured = null;
+  for (const op of state.players) {
+    if (op.color === color) continue;
+    // Capture is blocked for same-team tokens (Red/Yellow allies, Blue/Green allies).
+    if (isSameSide(p.color, op.color)) continue;
+    for (const ot of op.tokens) {
+      if (ot.pos < 0 || ot.pos > 51) continue;
       const opos = (START_INDEX[op.color] + ot.pos) % PATH_LEN;
       if (opos === abs) {
-        // Capture is blocked for same-team tokens (Red/Yellow allies, Blue/Green allies).
-        if (isSameSide(p.color, op.color)) return;
-        // Capture logic: no safe tiles; captured token returns to base in both difficulties.
-        ot.pos = -1;
-
-        // Difficulty branch applies only on enemy captures: easy sends capturing token home, hard keeps it on board.
-        if (state.difficulty === "easy") token.pos = FINAL_HOME;
-        sfx("capture");
+        captured = ot;
+        break;
       }
-    });
-  });
+    }
+    if (captured) break;
+  }
+
+  if (!captured) return;
+  // Capture resolution removes exactly one token from a stack and returns only that token to base.
+  captured.pos = -1;
+  // Remaining stacked token(s) stay on the landing tile and are rendered in-place on next render pass.
+
+  // Difficulty branch applies only on enemy captures: easy sends capturing token home, hard keeps it on board.
+  if (state.difficulty === "easy") token.pos = FINAL_HOME;
+  sfx("capture");
 }
 
 function assignPlacements() {
