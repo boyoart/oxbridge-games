@@ -342,6 +342,7 @@ function getAvailableBalls() {
 
 function getForcedCombinedMove(side) {
   if (!side || !state.dice.rolled) return null;
+  if (hasBaseEntryOption(side)) return null;
   const moveValue = state.dice.a + state.dice.b;
   const activeMovable = sidePlayers(side).flatMap((player) => player.tokens
     .map((token) => ({ color: player.color, tokenId: token.id, token }))
@@ -353,6 +354,13 @@ function getForcedCombinedMove(side) {
       return target !== null && isLandingLegalForSide(color, target);
     }));
   return activeMovable.length === 1 ? { color: activeMovable[0].color, tokenId: activeMovable[0].tokenId } : null;
+}
+
+function hasBaseEntryOption(side) {
+  if (!side || !state.dice.rolled) return false;
+  const hasUsableSix = (!state.dice.usedA && state.dice.a === ENTRY_ROLL) || (!state.dice.usedB && state.dice.b === ENTRY_ROLL);
+  if (!hasUsableSix) return false;
+  return sidePlayers(side).some((player) => player.tokens.some((token) => token.pos === -1));
 }
 
 function getPlayableBalls(side) {
