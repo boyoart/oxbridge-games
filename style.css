@@ -47,30 +47,31 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
   width: min(88vw, 74vh, 760px);
   aspect-ratio: 1;
   margin: 0 auto;
-  border: 8px solid #bfc7ce;
+  border: 8px solid #9da7b1;
   border-radius: 18px;
-  background: var(--ox-white);
-  box-shadow: 0 10px 24px rgba(0,0,0,.2);
+  background: linear-gradient(145deg, #f9f6ef, #ece7dc);
+  box-shadow: 0 16px 34px rgba(0,0,0,.22);
   overflow: hidden;
 }
 .board {
   width: 100%; height: 100%; display: grid;
   grid-template-columns: repeat(15, 1fr); grid-template-rows: repeat(15, 1fr);
+  position: relative;
 }
 .tile {
-  border: 1px solid #ececec;
+  border: 1px solid #d9dde2;
   position: relative;
   display: grid;
   place-items: center;
-  background: #fff;
-  border-radius: 4px;
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,.05);
+  background: #fefefe;
+  border-radius: 2px;
 }
-.q-red { background: linear-gradient(145deg, #ff8383, var(--red)); }
-.q-blue { background: linear-gradient(145deg, #7ab1ff, var(--blue)); }
-.q-yellow { background: linear-gradient(145deg, #fff1aa, var(--yellow)); }
-.q-green { background: linear-gradient(145deg, #7ef0a3, var(--green)); }
-.track { background: #fff; }
+/* Solid-color base quadrants so each color zone reads as one clean region. */
+.q-red { background: #db4e4e; border-color: #db4e4e; }
+.q-blue { background: #4a78d8; border-color: #4a78d8; }
+.q-yellow { background: #e4c84b; border-color: #e4c84b; }
+.q-green { background: #3faa62; border-color: #3faa62; }
+.track { background: #f8fbff; border-color: #ced8e1; }
 .entrance-red { background: var(--red) !important; }
 .entrance-blue { background: var(--blue) !important; }
 .entrance-yellow { background: var(--yellow) !important; }
@@ -79,28 +80,91 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
 .home-blue { background: color-mix(in oklab, var(--blue) 82%, white); }
 .home-yellow { background: color-mix(in oklab, var(--yellow) 82%, white); }
 .home-green { background: color-mix(in oklab, var(--green) 82%, white); }
-.center { background: conic-gradient(var(--red) 0 25%, var(--blue) 25% 50%, var(--yellow) 50% 75%, var(--green) 75% 100%); }
-.arrow { font-size: 12px; font-weight: 900; text-shadow: 0 1px 0 #fff; }
+.center { background: #ffffff; }
+.arrow { font-size: 14px; font-weight: 900; color: #4f5d6d; text-shadow: 0 1px 0 #fff; }
 
-.token {
-  width: 72%; height: 72%; border-radius: 50%; border: 2px solid #fff; z-index: 2;
-  box-shadow: inset 0 6px 8px rgba(255,255,255,.5), 0 2px 6px rgba(0,0,0,.3);
+/* Center-home school logo constrained to the center diamond with full opacity. */
+.center-home-logo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border-radius: 14%;
+  overflow: hidden;
+  background: #fff;
+  border: 2px solid rgba(255,255,255,.75);
+  z-index: 2;
 }
-.token.red { background: #d91616; }
-.token.blue { background: #134ecf; }
-.token.yellow { background: #d9b200; }
-.token.green { background: #0e9e3f; }
+.center-home-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: rotate(-45deg) scale(1.08);
+  opacity: 1;
+  /* Logo should never block token or board interactions. */
+  pointer-events: none;
+}
+
+/* Token visuals with 3D/pseudo-3D depth for realistic board-piece look. */
+.token {
+  width: 76%;
+  height: 76%;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.96);
+  z-index: 6;
+  box-shadow: inset 0 10px 10px rgba(255,255,255,.42), inset 0 -8px 10px rgba(0,0,0,.22), 0 4px 8px rgba(0,0,0,.36);
+  position: relative;
+}
+.token::after {
+  content: "";
+  position: absolute;
+  top: 17%;
+  left: 20%;
+  width: 50%;
+  height: 28%;
+  border-radius: 50%;
+  background: rgba(255,255,255,.45);
+}
+.token.red { background: radial-gradient(circle at 32% 28%, #ff9f9f, #ca1010 65%, #8f0505 100%); }
+.token.blue { background: radial-gradient(circle at 32% 28%, #9dc1ff, #1751d0 65%, #083492 100%); }
+.token.yellow { background: radial-gradient(circle at 32% 28%, #fff0a4, #d8af00 65%, #967700 100%); }
+.token.green { background: radial-gradient(circle at 32% 28%, #9ff6bb, #13953f 65%, #0d5d29 100%); }
 .token.valid { outline: 3px solid #fff; animation: pulse .8s infinite alternate; cursor: pointer; }
 @keyframes pulse { from { transform: scale(1);} to { transform: scale(1.08);} }
 
+/* Realistic dice visuals with rounded edges, depth, highlights, and pips. */
 .dice-center {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  display: flex; gap: 6px; border: none; background: rgba(0,0,0,.72); padding: 7px 8px; border-radius: 14px;
-  box-shadow: 0 8px 20px rgba(0,0,0,.32); z-index: 3;
+  display: flex; gap: 8px; border: none;
+  background: rgba(20, 30, 45, 0.75); padding: 8px 10px; border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(0,0,0,.36); z-index: 7;
 }
 .die {
-  width: clamp(30px, 5vw, 40px); height: clamp(30px, 5vw, 40px);
-  border-radius: 8px; background: #fff; display: grid; place-items: center; color: #111; font-size: 1.06rem;
+  width: clamp(28px, 4.8vw, 42px); height: clamp(28px, 4.8vw, 42px);
+  border-radius: 10px;
+  background: linear-gradient(160deg, #ffffff 0%, #f0f3f7 65%, #dce3eb 100%);
+  border: 1px solid #b8c2cf;
+  box-shadow: inset 0 2px 1px rgba(255,255,255,.9), inset 0 -4px 6px rgba(0,0,0,.16), 0 4px 7px rgba(0,0,0,.34);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  padding: 4px;
+  gap: 2px;
+}
+.pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #585858 0%, #111 80%);
+  align-self: center;
+  justify-self: center;
+  opacity: 0;
+}
+.pip.on { opacity: 1; }
+.dice-center.rolling .die {
+  filter: brightness(1.04);
 }
 .dice-center.rolling { animation: shake .14s linear infinite; }
 @keyframes shake { 0%{transform:translate(-50%,-50%) rotate(-3deg)} 100%{transform:translate(-50%,-50%) rotate(3deg)} }
@@ -110,6 +174,7 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
   animation: handBob .55s infinite alternate;
   transition: opacity .25s ease;
 }
+.guide-hand.fade-out { opacity: 0; }
 @keyframes handBob { from { transform: translateX(-50%) translateY(0); } to { transform: translateX(-50%) translateY(8px);} }
 
 .bottom-balls { display: flex; justify-content: center; gap: 14px; margin-top: 12px; flex-wrap: wrap; }
