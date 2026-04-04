@@ -58,6 +58,28 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
   grid-template-columns: repeat(15, 1fr); grid-template-rows: repeat(15, 1fr);
   position: relative;
 }
+/* Base tile logo placement: each watermark sits fully inside its 6x6 color base block and never crosses into path tiles. */
+.base-watermark {
+  position: absolute;
+  width: 34%;
+  height: 34%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  pointer-events: none; /* Watermark logos must stay decorative/non-interactive and must not block token taps. */
+}
+/* 50% opacity watermark logic: subtle embedded look in each base, behind token layer. */
+.base-watermark img {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+  opacity: 0.5;
+  filter: saturate(0.92) contrast(0.96);
+}
+.base-watermark.red { top: 3%; left: 3%; }
+.base-watermark.blue { top: 3%; right: 3%; }
+.base-watermark.green { bottom: 3%; left: 3%; }
+.base-watermark.yellow { bottom: 3%; right: 3%; }
 .tile {
   border: 1px solid #d9dde2;
   position: relative;
