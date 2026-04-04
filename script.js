@@ -1,4 +1,7 @@
 const COLORS = ["red", "blue", "yellow", "green"]; // turn order is explicitly fixed: Red -> Blue -> Yellow -> Green.
+// Team ownership is separate from turn ownership:
+// User team: Red + Yellow, Computer team: Blue + Green.
+const TEAM_BY_COLOR = { red: "user", yellow: "user", blue: "computer", green: "computer" };
 // Correct entrance ownership mapping: red/top-left, blue/top-right, yellow/bottom-right, green/bottom-left.
 const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
 const PATH_LEN = 52;
@@ -53,7 +56,13 @@ const state = {
   difficulty: "easy",
   players: [],
   currentTurn: 0,
-  dice: { a: 0, b: 0, usedA: false, usedB: false, rolled: false, selectedBall: null },
+  // Die state is tracked per output: Die A, Die B, and Sum availability/legality are separated.
+  dice: {
+    a: 0, b: 0, usedA: false, usedB: false,
+    sumAvailable: false,
+    hasLegalA: false, hasLegalB: false, hasLegalSum: false, hasRemainingLegalMove: false,
+    rolled: false, selectedBall: null
+  },
   validMoves: [],
   placements: [], // placement assignment is tracked in this ordered array.
   victory: [], // completed tokens are moved into one shared victory container.
@@ -123,7 +132,12 @@ function startLocal() {
 
 function beginGame() {
   state.currentTurn = 0;
-  state.dice = { a: 0, b: 0, usedA: false, usedB: false, rolled: false, selectedBall: null };
+  state.dice = {
+    a: 0, b: 0, usedA: false, usedB: false,
+    sumAvailable: false,
+    hasLegalA: false, hasLegalB: false, hasLegalSum: false, hasRemainingLegalMove: false,
+    rolled: false, selectedBall: null
+  };
   state.validMoves = [];
   state.placements = [];
   state.victory = [];
@@ -267,6 +281,7 @@ function rollDice() {
     console.log("Dice rolled:", [state.dice.a, state.dice.b]);
     state.dice.usedA = false;
     state.dice.usedB = false;
+    state.dice.sumAvailable = true;
     state.dice.rolled = true;
     state.dice.selectedBall = null;
     state.validMoves = [];
@@ -296,13 +311,12 @@ function updateBallValues() {
 }
 
 function getAvailableBalls(_player) {
-  // Ball availability is driven by die usage only: Die A, Die B, and Sum are all valid options when unused.
-  // Do not force sum-only behavior when one token is already outside.
+  // DieA/DieB/sum availability is tracked independently and never collapsed into one shared "used" flag.
 
   const balls = [];
   if (!state.dice.usedA) balls.push("a");
   if (!state.dice.usedB) balls.push("b");
-  if (!state.dice.usedA && !state.dice.usedB) balls.push("sum");
+  if (state.dice.sumAvailable) balls.push("sum");
   return balls;
 }
 
@@ -329,6 +343,7 @@ function canEnterFromBase(ball) {
 function onBallSelect(ball) {
   const p = state.players[state.currentTurn];
   if (!p || p.finished || !state.dice.rolled || state.animating) return;
+  // Active color ownership check: only the current turn color can select a ball and interact.
   if (state.mode !== "online" && p.type !== "human") return;
   if (!getPlayableBalls(p).includes(ball)) return;
 
@@ -368,7 +383,12 @@ function getValidTokensForBall(player, ball) {
   return player.tokens
     .map((t, tokenId) => ({ t, tokenId }))
     .filter(({ t }) => !player.finished && getTargetPos(t.pos, value, ball) !== null)
-    // Base tokens are included in valid move detection whenever selected ball permits entry with a 6.
+    // Valid move detection filters allied-capture scenarios by enforcing team-aware landing legality.
+    .filter(({ t }) => {
+      const target = getTargetPos(t.pos, value, ball);
+      return target !== null && isLandingLegalForTeam(player.color, target);
+    })
+    // Valid move detection includes base tokens whenever selected ball permits entry with a 6.
     // One token already outside does NOT disable entering a new token from base.
     .filter(({ t }) => (t.pos !== -1 || canEnterFromBase(ball)))
     .map((x) => x.tokenId);
@@ -393,8 +413,31 @@ function getTargetPos(pos, move, ball) {
   return target <= FINAL_HOME ? target : null;
 }
 
-function moveToken(tokenId) {
+function isSameTeam(colorA, colorB) {
+  return TEAM_BY_COLOR[colorA] === TEAM_BY_COLOR[colorB];
+}
+
+function isLandingLegalForTeam(movingColor, targetPos) {
+  // Allied-color checks: friendly landing is legal as stack/overlap and never treated as a capture.
+  // This explicitly prevents any "must-capture ally" interpretation during valid-move generation.
+  if (targetPos < 0 || targetPos > 51) return true;
+  const abs = (START_INDEX[movingColor] + targetPos) % PATH_LEN;
+  for (const p of state.players) {
+    for (const t of p.tokens) {
+      if (t.pos < 0 || t.pos > 51) continue;
+      const otherAbs = (START_INDEX[p.color] + t.pos) % PATH_LEN;
+      if (otherAbs !== abs) continue;
+      if (isSameTeam(movingColor, p.color)) return true;
+      return true;
+    }
+  }
+  return true;
+}
+
+function moveToken(playerIndex, tokenId) {
   const p = state.players[state.currentTurn];
+  // Active color ownership is enforced here: clicks from non-active colors are ignored.
+  if (playerIndex !== state.currentTurn) return;
   // User control enforcement: manual token movement is only allowed on user-owned turns (Red/Yellow in single mode).
   if (!p || (state.mode !== "online" && p.type !== "human")) return;
   doMoveToken(tokenId);
@@ -425,9 +468,18 @@ async function doMoveToken(tokenId) {
   // - Die A move consumes only A
   // - Die B move consumes only B
   // - Sum consumes both A and B together
-  if (state.dice.selectedBall === "a") state.dice.usedA = true;
-  else if (state.dice.selectedBall === "b") state.dice.usedB = true;
-  else { state.dice.usedA = true; state.dice.usedB = true; }
+  // Remaining die logic continues after one die is used: consuming A/B leaves the other die intact.
+  if (state.dice.selectedBall === "a") {
+    state.dice.usedA = true;
+    state.dice.sumAvailable = false;
+  } else if (state.dice.selectedBall === "b") {
+    state.dice.usedB = true;
+    state.dice.sumAvailable = false;
+  } else {
+    state.dice.usedA = true;
+    state.dice.usedB = true;
+    state.dice.sumAvailable = false;
+  }
 
   state.dice.selectedBall = null;
   state.validMoves = [];
@@ -436,7 +488,8 @@ async function doMoveToken(tokenId) {
   hideGuideHand();
 
   assignPlacements();
-  const more = getPlayableBalls(p).length > 0;
+  recomputeDiceAvailability(p);
+  const more = state.dice.hasRemainingLegalMove;
   if (!more || p.finished) endTurn();
   else render();
   // Computer chooses again between remaining individual die / sum options after each completed move.
@@ -455,10 +508,12 @@ function handleCapture(pIdx, tokenId) {
       if (ot.pos < 0 || ot.pos > 51) return;
       const opos = (START_INDEX[op.color] + ot.pos) % PATH_LEN;
       if (opos === abs) {
+        // Capture is blocked for same-team tokens (Red/Yellow allies, Blue/Green allies).
+        if (isSameTeam(p.color, op.color)) return;
         // Capture logic: no safe tiles; captured token returns to base in both difficulties.
         ot.pos = -1;
 
-        // Difficulty branch: easy sends capturing token home, hard keeps capturing token on board.
+        // Difficulty branch applies only on enemy captures: easy sends capturing token home, hard keeps it on board.
         if (state.difficulty === "easy") token.pos = FINAL_HOME;
         sfx("capture");
       }
@@ -494,7 +549,12 @@ function endTurn() {
     // Turn transitions: keep fixed order with skip-over for completed players.
     state.currentTurn = next;
   }
-  state.dice = { a: 0, b: 0, usedA: false, usedB: false, rolled: false, selectedBall: null };
+  state.dice = {
+    a: 0, b: 0, usedA: false, usedB: false,
+    sumAvailable: false,
+    hasLegalA: false, hasLegalB: false, hasLegalSum: false, hasRemainingLegalMove: false,
+    rolled: false, selectedBall: null
+  };
   state.validMoves = [];
   hideGuideHand();
   updateBallValues();
@@ -533,7 +593,7 @@ function aiMoveToken() {
 }
 
 function pickAiChoice(player, balls) {
-  // Computer option scoring weighs base-entry (with 6), board advancement, and finish potential across A/B/Sum.
+  // AI respects team membership: only enemy-team capture opportunities receive capture priority.
   const scored = [];
   balls.forEach((ball) => {
     const tokens = getValidTokensForBall(player, ball);
@@ -545,6 +605,7 @@ function pickAiChoice(player, balls) {
       const score =
         (target === FINAL_HOME ? 1000 : 0) +
         (token.pos === -1 && target === 0 ? 300 : 0) +
+        (enemyCaptureCountAtTarget(player.color, target) * 220) +
         (target > token.pos ? target : 0) +
         (ball === "sum" ? 5 : 0);
       scored.push({ ball, tokenId, score });
@@ -553,6 +614,22 @@ function pickAiChoice(player, balls) {
   scored.sort((a, b) => b.score - a.score);
   const bestBall = scored[0]?.ball || balls[0];
   return { ball: bestBall, tokens: getValidTokensForBall(player, bestBall) };
+}
+
+function enemyCaptureCountAtTarget(movingColor, targetPos) {
+  if (targetPos < 0 || targetPos > 51) return 0;
+  const abs = (START_INDEX[movingColor] + targetPos) % PATH_LEN;
+  let count = 0;
+  state.players.forEach((p) => {
+    // Allied-color checks are performed here for AI capture scoring.
+    if (isSameTeam(movingColor, p.color)) return;
+    p.tokens.forEach((t) => {
+      if (t.pos < 0 || t.pos > 51) return;
+      const opos = (START_INDEX[p.color] + t.pos) % PATH_LEN;
+      if (opos === abs) count++;
+    });
+  });
+  return count;
 }
 
 function pushToVictory(color) {
@@ -576,6 +653,7 @@ function render() {
 function renderBalls() {
   const p = state.players[state.currentTurn];
   const balls = [...el.ballTray.querySelectorAll(".ball")];
+  if (p && state.dice.rolled) recomputeDiceAvailability(p);
   const available = p && state.dice.rolled ? getAvailableBalls(p) : [];
   const playable = p && state.dice.rolled ? getPlayableBalls(p) : [];
 
@@ -585,7 +663,7 @@ function renderBalls() {
     // and keep any still-legal remaining die active after one die is consumed.
     b.classList.toggle("disabled", !playable.includes(key));
     b.classList.toggle("selected", state.dice.selectedBall === key);
-    const consumed = (key === "a" && state.dice.usedA) || (key === "b" && state.dice.usedB) || (key === "sum" && (state.dice.usedA || state.dice.usedB));
+    const consumed = (key === "a" && state.dice.usedA) || (key === "b" && state.dice.usedB) || (key === "sum" && !state.dice.sumAvailable);
     b.classList.toggle("used", consumed);
     if (!state.dice.rolled) b.classList.add("disabled");
     if (!available.includes(key) && state.dice.rolled) b.classList.add("used");
@@ -613,10 +691,25 @@ function renderBoardTokens() {
       tok.className = `token ${p.color}`;
       // Valid move highlighting includes base-entry tokens when selected 6 allows entry.
       if (pIdx === state.currentTurn && state.validMoves.includes(t.id)) tok.classList.add("valid");
-      tok.onclick = () => moveToken(t.id);
+      tok.onclick = () => moveToken(pIdx, t.id);
       tile(r, c).appendChild(tok);
     });
   });
+}
+
+function recomputeDiceAvailability(player) {
+  // DieA / DieB / Sum legal availability is explicitly tracked for UI + turn-flow decisions.
+  if (!player || !state.dice.rolled) {
+    state.dice.hasLegalA = false;
+    state.dice.hasLegalB = false;
+    state.dice.hasLegalSum = false;
+    state.dice.hasRemainingLegalMove = false;
+    return;
+  }
+  state.dice.hasLegalA = !state.dice.usedA && getValidTokensForBall(player, "a").length > 0;
+  state.dice.hasLegalB = !state.dice.usedB && getValidTokensForBall(player, "b").length > 0;
+  state.dice.hasLegalSum = state.dice.sumAvailable && getValidTokensForBall(player, "sum").length > 0;
+  state.dice.hasRemainingLegalMove = state.dice.hasLegalA || state.dice.hasLegalB || state.dice.hasLegalSum;
 }
 
 function getPathCoordsForMove(color, tokenId, startPos, targetPos) {
@@ -747,6 +840,7 @@ function syncFromServer(s) {
   state.dice.b = s.diceValues?.[1] || 0;
   state.dice.usedA = !!s.diceUsed?.[0];
   state.dice.usedB = !!s.diceUsed?.[1];
+  state.dice.sumAvailable = !state.dice.usedA && !state.dice.usedB;
   state.dice.rolled = !!(s.diceValues?.[0] || s.diceValues?.[1]);
   state.placements = (s.placements || []).map((x) => ({ ...x, name: state.players[x.playerIndex]?.name || "Player" }));
   el.setup.classList.add("hidden");

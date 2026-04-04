@@ -72,7 +72,7 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
   width: 34%;
   height: 34%;
   /* Layering contract for each base: base color tiles -> watermark -> tokens/highlights/hand. */
-  z-index: 2;
+  z-index: 1;
   display: grid;
   place-items: center;
   pointer-events: none; /* Watermark logos must stay decorative/non-interactive and must not block token taps. */
@@ -96,8 +96,8 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
   place-items: center;
   background: #fefefe;
   border-radius: 2px;
-  /* Keep tile itself out of a forced stacking context so token z-index can render above watermark overlays. */
-  z-index: auto;
+  /* Base tiles (and their token containers) sit above watermark background layer. */
+  z-index: 2;
 }
 /* Solid-color base quadrants so each color zone reads as one clean region. */
 .q-red { background: #db4e4e; border-color: #db4e4e; }
@@ -180,7 +180,7 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
   border-radius: 50%;
   border: 2px solid rgba(255,255,255,.96);
   /* Base tokens must always render above the decorative watermark logos. */
-  z-index: 3;
+  z-index: 4;
   box-shadow: inset 0 10px 10px rgba(255,255,255,.42), inset 0 -8px 10px rgba(0,0,0,.22), 0 4px 8px rgba(0,0,0,.36);
   position: relative;
   place-self: center;
