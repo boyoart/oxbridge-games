@@ -29,7 +29,9 @@ const el = {
   restartBtn: document.getElementById("restartBtn"),
   fullscreenBtn: document.getElementById("fullscreenBtn"),
   soundToggleBtn: document.getElementById("soundToggleBtn"),
-  victoryContainer: document.getElementById("victoryContainer")
+  victoryContainer: document.getElementById("victoryContainer"),
+  brandLogo: document.getElementById("brandLogo"),
+  brandFallback: document.getElementById("brandFallback")
 };
 
 const audio = ["dice-roll", "token-move", "capture", "win", "click"].reduce((acc, k) => {
@@ -94,10 +96,20 @@ function beginGame() {
   state.validMoves = [];
   state.placements = [];
   state.victory = [];
+  el.victoryContainer.innerHTML = "";
   el.setup.classList.add("hidden");
   el.game.classList.remove("hidden");
   render();
   maybeAiTurn();
+}
+
+function setupBranding() {
+  // Oxbridge branding restoration with logo fallback text if image is unavailable.
+  if (!el.brandLogo) return;
+  el.brandLogo.onerror = () => {
+    el.brandLogo.classList.add("hidden");
+    el.brandFallback.classList.remove("hidden");
+  };
 }
 
 function setupBoard() {
@@ -125,6 +137,12 @@ function setupBoard() {
     [13, 6], [12, 6], [11, 6], [10, 6], [9, 6], [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [8, 0], [7, 0], [6, 0]
   ];
   boardPath.forEach(([r, c]) => tile(r, c).classList.add("track"));
+
+  // Entrance tile coloring: each color entrance on outer path is fully filled with its solid color.
+  Object.entries(START_INDEX).forEach(([color, idx]) => {
+    const [r, c] = boardPath[idx];
+    tile(r, c).classList.add(`entrance-${color}`);
+  });
 
   homePaths.red = [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5], [7, 6]];
   homePaths.blue = [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7], [6, 7]];
@@ -172,7 +190,7 @@ function rollDice() {
   el.diceCenter.classList.add("rolling");
   sfx("dice-roll");
   setTimeout(() => {
-    // two-dice values are generated here (Die A and Die B).
+    // Dice generation: this is the strict two-dice source of truth for Die A and Die B.
     state.dice.a = rand(1, 6);
     state.dice.b = rand(1, 6);
     state.dice.usedA = false;
@@ -184,12 +202,15 @@ function rollDice() {
     state.animating = false;
     updateBallValues();
     render();
+
+    const playable = getPlayableBalls(current);
+    if (!playable.length) setTimeout(() => endTurn(), 450);
     if (current.type === "ai") aiChooseBallAndToken();
   }, 750);
 }
 
 function updateBallValues() {
-  // bottom 3-ball assignment is done here: Ball1=DieA, Ball2=DieB, Ball3=A+B.
+  // Ball assignment: Ball1=DieA, Ball2=DieB, Ball3=DieA+DieB; values update immediately after each roll.
   const [ballA, ballB, ballSum] = [...el.ballTray.querySelectorAll(".ball")];
   ballA.textContent = String(state.dice.a);
   ballB.textContent = String(state.dice.b);
@@ -197,12 +218,19 @@ function updateBallValues() {
 }
 
 function getAvailableBalls(player) {
+  // Rule branching (1 token vs multiple): one token out forces Sum, otherwise A/B/Sum are selectable if unused.
   const active = player.tokens.filter((t) => t.pos >= 0 && t.pos < FINAL_HOME).length;
+  if (active === 1 && !state.dice.usedA && !state.dice.usedB) return ["sum"];
+
   const balls = [];
   if (!state.dice.usedA) balls.push("a");
   if (!state.dice.usedB) balls.push("b");
-  if (!state.dice.usedA && !state.dice.usedB && active === 1) balls.splice(0, balls.length, "sum");
+  if (!state.dice.usedA && !state.dice.usedB) balls.push("sum");
   return balls;
+}
+
+function getPlayableBalls(player) {
+  return getAvailableBalls(player).filter((b) => getValidTokensForBall(player, b).length > 0);
 }
 
 function selectedBallValue(ball) {
@@ -211,39 +239,57 @@ function selectedBallValue(ball) {
   return state.dice.a + state.dice.b;
 }
 
+function canEnterFromBase(ball) {
+  if (ball === "a") return state.dice.a === ENTRY_ROLL;
+  if (ball === "b") return state.dice.b === ENTRY_ROLL;
+  return state.dice.a === ENTRY_ROLL || state.dice.b === ENTRY_ROLL;
+}
+
 function onBallSelect(ball) {
   const p = state.players[state.currentTurn];
   if (!p || p.finished || !state.dice.rolled || state.animating) return;
-  if (!getAvailableBalls(p).includes(ball)) return;
+  if (!getPlayableBalls(p).includes(ball)) return;
 
-  // selected move-ball confirmation is handled here before tokens become clickable.
+  // Ball selection handling: user must confirm one move-ball before token highlight and movement.
   state.dice.selectedBall = ball;
   state.validMoves = getValidTokensForBall(p, ball);
 
-  // hand guidance is strictly triggered only after a move-ball is confirmed.
-  el.guideHand.classList.toggle("hidden", state.validMoves.length === 0);
-  render();
+  // Hand activation AFTER selection only: never before ball selection and never auto-click.
+  if (state.validMoves.length > 0) showGuideHand(p.color, state.validMoves[0]);
+  else el.guideHand.classList.add("hidden");
 
+  render();
   if (p.type === "ai") setTimeout(() => aiMoveToken(), 550);
 }
 
+function showGuideHand(color, tokenId) {
+  const token = state.players[state.currentTurn]?.tokens[tokenId];
+  if (!token) return;
+  const [r, c] = tokenCoord(color, token.pos, token.id);
+  el.guideHand.style.left = `${((c + 0.5) / 15) * 100}%`;
+  el.guideHand.style.top = `${((r + 0.5) / 15) * 100 - 4}%`;
+  el.guideHand.classList.remove("hidden");
+}
+
 function getValidTokensForBall(player, ball) {
-  // all valid token calculation for selected ball value is centralized here.
   const value = selectedBallValue(ball);
   return player.tokens
     .map((t, tokenId) => ({ t, tokenId }))
-    .filter(({ t }) => !player.finished && getTargetPos(t.pos, value) !== null)
-    .filter(({ t }) => (t.pos !== -1 || state.dice.a === ENTRY_ROLL || state.dice.b === ENTRY_ROLL))
+    .filter(({ t }) => !player.finished && getTargetPos(t.pos, value, ball) !== null)
+    .filter(({ t }) => (t.pos !== -1 || canEnterFromBase(ball)))
     .map((x) => x.tokenId);
 }
 
-function getTargetPos(pos, move) {
+function getTargetPos(pos, move, ball) {
   if (pos === FINAL_HOME) return null;
-  if (pos === -1) return move === ENTRY_ROLL ? 0 : null;
+
+  // Entry rule: token can leave base only if selected ball includes at least one die with value 6.
+  if (pos === -1) return canEnterFromBase(ball) ? 0 : null;
+
   if (pos >= 0 && pos <= HOME_TURN) {
     const toTurn = HOME_TURN - pos;
     if (move > toTurn) {
-      // home-entry priority turn-in rule is applied in this branch.
+      // Home entry logic: turn into home lane with no overshoot; invalid moves are blocked.
       const inside = move - (toTurn + 1);
       const target = 52 + inside;
       return target <= FINAL_HOME ? target : null;
@@ -258,7 +304,7 @@ function moveToken(tokenId) {
   if (!p || !state.dice.selectedBall || !state.validMoves.includes(tokenId)) return;
   const token = p.tokens[tokenId];
   const value = selectedBallValue(state.dice.selectedBall);
-  const target = getTargetPos(token.pos, value);
+  const target = getTargetPos(token.pos, value, state.dice.selectedBall);
   if (target === null) return;
 
   token.pos = target;
@@ -275,7 +321,7 @@ function moveToken(tokenId) {
   el.guideHand.classList.add("hidden");
 
   assignPlacements();
-  const more = getAvailableBalls(p).some((b) => getValidTokensForBall(p, b).length > 0);
+  const more = getPlayableBalls(p).length > 0;
   if (!more || p.finished) endTurn();
   render();
 }
@@ -292,8 +338,10 @@ function handleCapture(pIdx, tokenId) {
       if (ot.pos < 0 || ot.pos > 51) return;
       const opos = (START_INDEX[op.color] + ot.pos) % PATH_LEN;
       if (opos === abs) {
-        // difficulty-based capture branch is resolved here (easy vs hard behavior).
+        // Capture logic: no safe tiles; captured token returns to base in both difficulties.
         ot.pos = -1;
+
+        // Difficulty branch: easy sends capturing token home, hard keeps capturing token on board.
         if (state.difficulty === "easy") token.pos = FINAL_HOME;
         sfx("capture");
       }
@@ -307,7 +355,6 @@ function assignPlacements() {
     if (p.tokens.every((t) => t.pos === FINAL_HOME)) {
       p.finished = true;
       p.place = state.placements.length + 1;
-      // placement ranking is assigned immediately when a player completes all 4 tokens.
       state.placements.push({ name: p.name, color: p.color, place: p.place });
       sfx("win");
     }
@@ -327,11 +374,14 @@ function endTurn() {
   if (!extra) {
     let next = (state.currentTurn + 1) % state.players.length;
     while (state.players[next].finished) next = (next + 1) % state.players.length;
-    // player/computer turn transition is resolved in fixed order with finished-player skipping.
+    // Turn transitions: keep fixed order with skip-over for completed players.
     state.currentTurn = next;
   }
   state.dice = { a: 0, b: 0, usedA: false, usedB: false, rolled: false, selectedBall: null };
   state.validMoves = [];
+  el.guideHand.classList.add("hidden");
+  updateBallValues();
+  render();
   maybeAiTurn();
 }
 
@@ -343,7 +393,7 @@ function maybeAiTurn() {
 
 function aiChooseBallAndToken() {
   const p = state.players[state.currentTurn];
-  const choices = getAvailableBalls(p).filter((b) => getValidTokensForBall(p, b).length > 0);
+  const choices = getPlayableBalls(p);
   if (!choices.length) return endTurn();
   setTimeout(() => onBallSelect(choices[0]), 500);
 }
@@ -357,7 +407,7 @@ function aiMoveToken() {
 }
 
 function pushToVictory(color) {
-  // completed token transfer to shared victory container is rendered here.
+  // Shared victory container placement: this renders into left panel directly under placements.
   const v = document.createElement("div");
   v.className = `victory-token ${color}`;
   state.victory.push(color);
@@ -377,11 +427,16 @@ function render() {
 function renderBalls() {
   const p = state.players[state.currentTurn];
   const balls = [...el.ballTray.querySelectorAll(".ball")];
-  const avail = p && state.dice.rolled ? getAvailableBalls(p) : [];
+  const available = p && state.dice.rolled ? getAvailableBalls(p) : [];
+  const playable = p && state.dice.rolled ? getPlayableBalls(p) : [];
+
   balls.forEach((b) => {
     const key = b.dataset.ball;
-    b.classList.toggle("disabled", !avail.includes(key));
+    b.classList.toggle("disabled", !playable.includes(key));
     b.classList.toggle("selected", state.dice.selectedBall === key);
+    b.classList.toggle("used", (key === "a" && state.dice.usedA) || (key === "b" && state.dice.usedB) || (key === "sum" && (state.dice.usedA || state.dice.usedB)));
+    if (!state.dice.rolled) b.classList.add("disabled");
+    if (!available.includes(key) && state.dice.rolled) b.classList.add("used");
   });
 }
 
@@ -528,5 +583,7 @@ el.soundToggleBtn.onclick = () => {
   el.soundToggleBtn.textContent = state.soundOn ? "Sound On" : "Sound Off";
 };
 
+setupBranding();
 setupBoard();
+updateBallValues();
 render();

@@ -37,6 +37,10 @@
 
     <section id="gameScreen" class="hidden">
       <header class="top-bar">
+        <div class="brand-wrap" id="brandWrap">
+          <img id="brandLogo" class="brand-logo" src="assets/logo/logo.png" alt="Oxbridge logo" />
+          <div id="brandFallback" class="brand-fallback hidden">Oxbridge Tutorial College</div>
+        </div>
         <div id="turnBanner">Waiting...</div>
         <div class="controls">
           <button id="restartBtn">Restart</button>
@@ -47,7 +51,13 @@
       </header>
 
       <div class="layout">
-        <aside class="panel" id="placementsPanel"></aside>
+        <aside class="panel" id="leftPanel">
+          <div id="placementsPanel"></div>
+          <div id="victoryWrap" class="victory-wrap">
+            <h3>Shared Victory Container</h3>
+            <div id="victoryContainer" class="victory-container"></div>
+          </div>
+        </aside>
 
         <section class="board-shell">
           <div id="board" class="board"></div>
@@ -65,11 +75,6 @@
         <button data-ball="a" class="ball disabled">0</button>
         <button data-ball="b" class="ball disabled">0</button>
         <button data-ball="sum" class="ball disabled">0</button>
-      </div>
-
-      <div id="victoryWrap" class="victory-wrap">
-        <h3>Shared Victory Container</h3>
-        <div id="victoryContainer" class="victory-container"></div>
       </div>
     </section>
   </main>
