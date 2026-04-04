@@ -233,17 +233,17 @@ function rollDice() {
 }
 
 function updateBallValues() {
-  // Ball assignment: Ball1=DieA, Ball2=DieB, Ball3=DieA+DieB; values update immediately after each roll.
+  // Individual die values are exposed directly on the first two bottom balls.
   const [ballA, ballB, ballSum] = [...el.ballTray.querySelectorAll(".ball")];
   ballA.textContent = String(state.dice.a);
   ballB.textContent = String(state.dice.b);
+  // Sum ball is assigned separately and must remain an optional third choice.
   ballSum.textContent = String(state.dice.a + state.dice.b);
 }
 
-function getAvailableBalls(player) {
-  // Rule branching (1 token vs multiple): one token out forces Sum, otherwise A/B/Sum are selectable if unused.
-  const active = player.tokens.filter((t) => t.pos >= 0 && t.pos < FINAL_HOME).length;
-  if (active === 1 && !state.dice.usedA && !state.dice.usedB) return ["sum"];
+function getAvailableBalls(_player) {
+  // Ball availability is driven by die usage only: Die A, Die B, and Sum are all valid options when unused.
+  // Do not force sum-only behavior when one token is already outside.
 
   const balls = [];
   if (!state.dice.usedA) balls.push("a");
@@ -263,6 +263,10 @@ function selectedBallValue(ball) {
 }
 
 function canEnterFromBase(ball) {
+  // Base-entry validity is checked per selected ball:
+  // - Die A ball enters only when Die A is 6
+  // - Die B ball enters only when Die B is 6
+  // - Sum ball allows entry if either underlying die is 6
   if (ball === "a") return state.dice.a === ENTRY_ROLL;
   if (ball === "b") return state.dice.b === ENTRY_ROLL;
   return state.dice.a === ENTRY_ROLL || state.dice.b === ENTRY_ROLL;
@@ -310,6 +314,8 @@ function getValidTokensForBall(player, ball) {
   return player.tokens
     .map((t, tokenId) => ({ t, tokenId }))
     .filter(({ t }) => !player.finished && getTargetPos(t.pos, value, ball) !== null)
+    // Base tokens are included in valid move detection whenever selected ball permits entry with a 6.
+    // One token already outside does NOT disable entering a new token from base.
     .filter(({ t }) => (t.pos !== -1 || canEnterFromBase(ball)))
     .map((x) => x.tokenId);
 }
@@ -364,7 +370,9 @@ function doMoveToken(tokenId) {
   assignPlacements();
   const more = getPlayableBalls(p).length > 0;
   if (!more || p.finished) endTurn();
-  render();
+  else render();
+  // Computer chooses again between remaining individual die / sum options after each completed move.
+  if (more && !p.finished && p.type === "ai") setTimeout(() => aiChooseBallAndToken(), 420);
 }
 
 function handleCapture(pIdx, tokenId) {
@@ -456,6 +464,7 @@ function aiMoveToken() {
 }
 
 function pickAiChoice(player, balls) {
+  // Computer option scoring weighs base-entry (with 6), board advancement, and finish potential across A/B/Sum.
   const scored = [];
   balls.forEach((ball) => {
     const tokens = getValidTokensForBall(player, ball);
