@@ -313,8 +313,12 @@ function rollDice() {
     render();
 
     const playable = getPlayableBalls(state.currentSide);
-    if (!playable.length) setTimeout(() => endTurn(), 450);
-    if (activeSideType() === "ai") aiChooseBallAndToken();
+    if (!playable.length) {
+      // One-roll-per-turn rule: if this roll has no legal move, the turn ends (no reroll-until-6 loop).
+      setTimeout(() => endTurn(), 450);
+    } else if (activeSideType() === "ai") {
+      aiChooseBallAndToken();
+    }
     setTimeout(() => {
       el.diceCenter.classList.remove("rolling", "rolling-return");
     }, 560);
@@ -549,13 +553,9 @@ async function doMoveToken(move) {
   hideGuideHand();
 
   assignPlacements();
-  // After entry/move resolution, immediately recalculate legal moves so the remaining die stays playable when valid.
-  recomputeDiceAvailability(state.currentSide);
-  const more = state.dice.hasRemainingLegalMove;
-  if (!more || p.finished) endTurn();
-  else render();
-  // Computer chooses again between remaining individual die / sum options after each completed move.
-  if (more && !p.finished && activeSideType() === "ai") setTimeout(() => aiChooseBallAndToken(), 420);
+  // One-roll-per-turn rule: after one valid move from this roll, end the turn.
+  // (Only endTurn's double-6 check can keep the same side active.)
+  endTurn();
 }
 
 function handleCapture(color, tokenId) {
@@ -614,11 +614,14 @@ function assignPlacements() {
 function endTurn() {
   const extra = state.dice.a === 6 && state.dice.b === 6;
   if (!extra) {
+    // Turn passes to the other side after the current side's single-roll turn resolution.
     let idx = SIDE_ORDER.indexOf(state.currentSide);
     do {
       idx = (idx + 1) % SIDE_ORDER.length;
       state.currentSide = SIDE_ORDER[idx];
     } while (isSideFinished(state.currentSide));
+  } else {
+    // Double-6 exception: grant an extra turn to the same side.
   }
   state.dice = {
     a: 0, b: 0, usedA: false, usedB: false,
@@ -651,7 +654,7 @@ function aiChooseBallAndToken() {
     return setTimeout(() => aiMoveToken(), 550);
   }
   const choices = getPlayableBalls(state.currentSide);
-  if (!choices.length) return endTurn();
+  if (!choices.length) return endTurn(); // No-valid-move case: end turn immediately.
   const best = pickAiChoice(state.currentSide, choices);
   state.dice.selectedBall = best.ball;
   state.validMoves = getValidMovesForBall(state.currentSide, best.ball);
