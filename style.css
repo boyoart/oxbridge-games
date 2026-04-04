@@ -72,7 +72,7 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
   width: 34%;
   height: 34%;
   /* Layering contract for each base: base color tiles -> watermark -> tokens/highlights/hand. */
-  z-index: 1;
+  z-index: 3;
   display: grid;
   place-items: center;
   pointer-events: none; /* Watermark logos must stay decorative/non-interactive and must not block token taps. */

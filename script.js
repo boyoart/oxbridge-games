@@ -418,19 +418,23 @@ function isSameTeam(colorA, colorB) {
 }
 
 function isLandingLegalForTeam(movingColor, targetPos) {
-  // Allied-color checks: friendly landing is legal as stack/overlap and never treated as a capture.
-  // This explicitly prevents any "must-capture ally" interpretation during valid-move generation.
+  // Valid move checks use team membership:
+  // allied colors are friendly and may coexist/stack; enemies are legal targets for capture.
   if (targetPos < 0 || targetPos > 51) return true;
   const abs = (START_INDEX[movingColor] + targetPos) % PATH_LEN;
+  let hasAlly = false;
+  let hasEnemy = false;
   for (const p of state.players) {
     for (const t of p.tokens) {
       if (t.pos < 0 || t.pos > 51) continue;
       const otherAbs = (START_INDEX[p.color] + t.pos) % PATH_LEN;
       if (otherAbs !== abs) continue;
-      if (isSameTeam(movingColor, p.color)) return true;
-      return true;
+      if (isSameTeam(movingColor, p.color)) hasAlly = true;
+      else hasEnemy = true;
     }
   }
+  if (hasAlly) return true; // friendly landing/stack is allowed and never treated as capture.
+  if (hasEnemy) return true; // enemy landing is legal because capture may occur.
   return true;
 }
 
