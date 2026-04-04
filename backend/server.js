@@ -12,6 +12,8 @@ const rooms = new Map();
 const sockets = new Map();
 // Fixed player turn/color order: Red -> Blue -> Yellow -> Green.
 const COLORS = ["red", "blue", "yellow", "green"];
+// Team ownership is fixed and distinct from turn order ownership.
+const TEAM_BY_COLOR = { red: "user", yellow: "user", blue: "computer", green: "computer" };
 const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
 const PATH_LEN = 52;
 const FINAL_HOME_POSITION = 58;
@@ -33,6 +35,7 @@ function roomCode() {
   return out;
 }
 function newTokens() { return Array.from({ length: 4 }, (_, i) => ({ id: i, pos: -1 })); }
+function isSameTeam(colorA, colorB) { return TEAM_BY_COLOR[colorA] === TEAM_BY_COLOR[colorB]; }
 
 // entry rule is centralized: token can leave base only on 6.
 function canEnterBoard(roll) {
@@ -79,10 +82,18 @@ function getTurnMoveOptions(room, playerIdx) {
   const activeTokens = player.tokens.map((t, idx) => ({ ...t, idx })).filter((t) => t.pos >= 0 && t.pos < FINAL_HOME_POSITION);
   const unusedDice = room.diceValues.map((v, i) => ({ value: v, idx: i })).filter((d) => d.value && !room.diceUsed[d.idx]);
 
-  if (activeTokens.length === 1 && unusedDice.length === 2) {
+  // Ball 3 (sum) stays independently usable while both dice are unused.
+  // This preserves 3-ball behavior: Die A, Die B, and Sum all remain valid options when legal.
+  if (unusedDice.length === 2) {
     const total = unusedDice[0].value + unusedDice[1].value;
-    if (canMoveToken(player, activeTokens[0].idx, total)) options.set(activeTokens[0].idx, [{ type: "combined", value: total }]);
+    activeTokens.forEach((token) => {
+      if (!canMoveToken(player, token.idx, total)) return;
+      if (!options.has(token.idx)) options.set(token.idx, []);
+      options.get(token.idx).push({ type: "combined", value: total });
+    });
   }
+
+  // Base entry on 6 is checked per die, even when another token of the same color is already active.
   unusedDice.forEach((die) => {
     if (!canEnterBoard(die.value)) return;
     player.tokens.forEach((token, tokenId) => {
@@ -91,15 +102,15 @@ function getTurnMoveOptions(room, playerIdx) {
       options.get(tokenId).push({ type: "single", dieIndex: die.idx, value: die.value });
     });
   });
-  if (activeTokens.length !== 1 || unusedDice.length < 2) {
-    unusedDice.forEach((die) => {
-      player.tokens.forEach((_, tokenId) => {
-        if (!canMoveToken(player, tokenId, die.value)) return;
-        if (!options.has(tokenId)) options.set(tokenId, []);
-        options.get(tokenId).push({ type: "single", dieIndex: die.idx, value: die.value });
-      });
+
+  // Die A and Die B remain independently usable, so regular single-die movement is always considered.
+  unusedDice.forEach((die) => {
+    player.tokens.forEach((_, tokenId) => {
+      if (!canMoveToken(player, tokenId, die.value)) return;
+      if (!options.has(tokenId)) options.set(tokenId, []);
+      options.get(tokenId).push({ type: "single", dieIndex: die.idx, value: die.value });
     });
-  }
+  });
   return options;
 }
 
@@ -109,6 +120,8 @@ function canCapture(room, moverIdx, targetPos) {
   const abs = (START_INDEX[mover.color] + targetPos) % PATH_LEN;
 
   return room.players.some((op, idx) => idx !== moverIdx
+    // Allied capture is blocked: only opposing teams are capturable.
+    && !isSameTeam(mover.color, op.color)
     && op.tokens.some((token) => token.pos >= 0 && token.pos <= 51
       && ((START_INDEX[op.color] + token.pos) % PATH_LEN) === abs));
 }
@@ -126,6 +139,8 @@ function capture(room, pIdx, tokenId) {
   let cap = false;
   room.players.forEach((op, i) => {
     if (i === pIdx) return; // same-color tokens cannot capture each other.
+    // Allied capture is blocked for cross-color allies (Red/Yellow and Blue/Green).
+    if (isSameTeam(p.color, op.color)) return;
     op.tokens.forEach((ot) => {
       if (ot.pos < 0 || ot.pos > 51) return;
       const opos = (START_INDEX[op.color] + ot.pos) % PATH_LEN;
