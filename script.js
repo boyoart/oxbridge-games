@@ -1,7 +1,7 @@
-const COLORS = ["red", "blue", "yellow", "green"]; // turn order is explicitly fixed: Red -> Blue -> Yellow -> Green.
-// Team ownership is separate from turn ownership:
-// User team: Red + Yellow, Computer team: Blue + Green.
-const TEAM_BY_COLOR = { red: "user", yellow: "user", blue: "computer", green: "computer" };
+const COLORS = ["red", "blue", "yellow", "green"];
+// Side ownership model (forced): USER controls Red+Yellow, COMPUTER controls Blue+Green.
+const SIDE_BY_COLOR = { red: "user", yellow: "user", blue: "computer", green: "computer" };
+const SIDE_ORDER = ["user", "computer"];
 // Correct entrance ownership mapping: red/top-left, blue/top-right, yellow/bottom-right, green/bottom-left.
 const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
 const PATH_LEN = 52;
@@ -55,6 +55,8 @@ const state = {
   mode: null,
   difficulty: "easy",
   players: [],
+  // Alternating side turn model only: USER -> COMPUTER -> USER -> COMPUTER.
+  currentSide: "user",
   currentTurn: 0,
   // Die state is tracked per output: Die A, Die B, and Sum availability/legality are separated.
   dice: {
@@ -63,6 +65,7 @@ const state = {
     hasLegalA: false, hasLegalB: false, hasLegalSum: false, hasRemainingLegalMove: false,
     rolled: false, selectedBall: null
   },
+  // Valid moves for selected ball span both colors controlled by the active side.
   validMoves: [],
   placements: [], // placement assignment is tracked in this ordered array.
   victory: [], // completed tokens are moved into one shared victory container.
@@ -131,6 +134,7 @@ function startLocal() {
 }
 
 function beginGame() {
+  state.currentSide = "user";
   state.currentTurn = 0;
   state.dice = {
     a: 0, b: 0, usedA: false, usedB: false,
@@ -146,6 +150,23 @@ function beginGame() {
   el.game.classList.remove("hidden");
   render();
   maybeAiTurn();
+}
+
+function sidePlayers(side) {
+  return state.players.filter((p) => SIDE_BY_COLOR[p.color] === side);
+}
+
+function activeSidePlayers() {
+  return sidePlayers(state.currentSide);
+}
+
+function isSideFinished(side) {
+  const players = sidePlayers(side);
+  return players.length > 0 && players.every((p) => p.finished);
+}
+
+function activeSideType() {
+  return state.currentSide === "user" ? "human" : "ai";
 }
 
 function setupBranding() {
@@ -222,7 +243,7 @@ function addBaseWatermarks() {
     // Base tile logo placement: one school logo watermark per solid-color base quadrant.
     const wrap = document.createElement("div");
     wrap.className = `base-watermark ${color}`;
-    // 50% opacity watermark logic is controlled by CSS and kept below token z-index.
+    // Base logo visual rules (100% opacity + drop shadow + behind tokens) are controlled by CSS.
     wrap.innerHTML = '<img src="assets/logo/logo.png" alt="" aria-hidden="true" />';
     // Pointer-events disabled so base logos never interfere with token interactivity.
     wrap.style.pointerEvents = "none";
@@ -259,8 +280,7 @@ function tokenCoord(color, pos, id) {
 
 function rollDice() {
   if (state.animating || state.online.ws) return;
-  const current = state.players[state.currentTurn];
-  if (!current || current.finished || state.dice.rolled) return;
+  if (isSideFinished(state.currentSide) || state.dice.rolled) return;
 
   // Computer and player both use this visible center-board roll animation.
   state.animating = true;
@@ -292,9 +312,9 @@ function rollDice() {
     updateBallValues();
     render();
 
-    const playable = getPlayableBalls(current);
+    const playable = getPlayableBalls(state.currentSide);
     if (!playable.length) setTimeout(() => endTurn(), 450);
-    if (current.type === "ai") aiChooseBallAndToken();
+    if (activeSideType() === "ai") aiChooseBallAndToken();
     setTimeout(() => {
       el.diceCenter.classList.remove("rolling", "rolling-return");
     }, 560);
@@ -310,7 +330,7 @@ function updateBallValues() {
   ballSum.textContent = String(state.dice.a + state.dice.b);
 }
 
-function getAvailableBalls(_player) {
+function getAvailableBalls() {
   // DieA/DieB/sum availability is tracked independently and never collapsed into one shared "used" flag.
 
   const balls = [];
@@ -320,8 +340,8 @@ function getAvailableBalls(_player) {
   return balls;
 }
 
-function getPlayableBalls(player) {
-  return getAvailableBalls(player).filter((b) => getValidTokensForBall(player, b).length > 0);
+function getPlayableBalls(side) {
+  return getAvailableBalls().filter((b) => getValidMovesForBall(side, b).length > 0);
 }
 
 function selectedBallValue(ball) {
@@ -341,27 +361,27 @@ function canEnterFromBase(ball) {
 }
 
 function onBallSelect(ball) {
-  const p = state.players[state.currentTurn];
-  if (!p || p.finished || !state.dice.rolled || state.animating) return;
-  // Active color ownership check: only the current turn color can select a ball and interact.
-  if (state.mode !== "online" && p.type !== "human") return;
-  if (!getPlayableBalls(p).includes(ball)) return;
+  if (!state.dice.rolled || state.animating || isSideFinished(state.currentSide)) return;
+  if (state.mode !== "online" && activeSideType() !== "human") return;
+  if (!getPlayableBalls(state.currentSide).includes(ball)) return;
 
   // User-side token choice is enabled by ball-first flow:
   // once a ball is selected, every valid token for that exact ball remains selectable (no auto-forced token).
   state.dice.selectedBall = ball;
   // Selected ball value is applied from the 3-ball system (Ball 1=Die A, Ball 2=Die B, Ball 3=Sum).
-  state.validMoves = getValidTokensForBall(p, ball);
+  // Valid move highlighting spans both colors controlled by the active side.
+  state.validMoves = getValidMovesForBall(state.currentSide, ball);
 
   // Hand must not auto-trigger before token selection; only valid token highlighting happens here.
   el.guideHand.classList.add("hidden");
 
   render();
-  if (p.type === "ai") setTimeout(() => aiMoveToken(), 550);
+  if (activeSideType() === "ai") setTimeout(() => aiMoveToken(), 550);
 }
 
 function showGuideHand(color, tokenId) {
-  const token = state.players[state.currentTurn]?.tokens[tokenId];
+  const player = state.players.find((p) => p.color === color);
+  const token = player?.tokens[tokenId];
   if (!token) return;
   const [r, c] = tokenCoord(color, token.pos, token.id);
   el.guideHand.style.left = `${((c + 0.5) / 15) * 100}%`;
@@ -378,20 +398,17 @@ function hideGuideHand() {
   }, 220);
 }
 
-function getValidTokensForBall(player, ball) {
+function getValidMovesForBall(side, ball) {
   const value = selectedBallValue(ball);
-  return player.tokens
-    .map((t, tokenId) => ({ t, tokenId }))
+  return sidePlayers(side).flatMap((player) => player.tokens
+    .map((t, tokenId) => ({ playerColor: player.color, t, tokenId }))
     .filter(({ t }) => !player.finished && getTargetPos(t.pos, value, ball) !== null)
-    // Valid move detection filters allied-capture scenarios by enforcing team-aware landing legality.
     .filter(({ t }) => {
       const target = getTargetPos(t.pos, value, ball);
-      return target !== null && isLandingLegalForTeam(player.color, target);
+      return target !== null && isLandingLegalForSide(player.color, target);
     })
-    // Valid move detection includes base tokens whenever selected ball permits entry with a 6.
-    // One token already outside does NOT disable entering a new token from base.
     .filter(({ t }) => (t.pos !== -1 || canEnterFromBase(ball)))
-    .map((x) => x.tokenId);
+    .map(({ playerColor, tokenId }) => ({ color: playerColor, tokenId })));
 }
 
 function getTargetPos(pos, move, ball) {
@@ -413,59 +430,53 @@ function getTargetPos(pos, move, ball) {
   return target <= FINAL_HOME ? target : null;
 }
 
-function isSameTeam(colorA, colorB) {
-  return TEAM_BY_COLOR[colorA] === TEAM_BY_COLOR[colorB];
+function isSameSide(colorA, colorB) {
+  return SIDE_BY_COLOR[colorA] === SIDE_BY_COLOR[colorB];
 }
 
-function isLandingLegalForTeam(movingColor, targetPos) {
-  // Valid move checks use team membership:
-  // allied colors are friendly and may coexist/stack; enemies are legal targets for capture.
+function isLandingLegalForSide(movingColor, targetPos) {
+  // Side-based no-friendly-capture rule is enforced by USER/COMPUTER ownership, not color equality.
   if (targetPos < 0 || targetPos > 51) return true;
   const abs = (START_INDEX[movingColor] + targetPos) % PATH_LEN;
-  let hasAlly = false;
-  let hasEnemy = false;
   for (const p of state.players) {
     for (const t of p.tokens) {
       if (t.pos < 0 || t.pos > 51) continue;
       const otherAbs = (START_INDEX[p.color] + t.pos) % PATH_LEN;
       if (otherAbs !== abs) continue;
-      if (isSameTeam(movingColor, p.color)) hasAlly = true;
-      else hasEnemy = true;
+      if (isSameSide(movingColor, p.color)) return true;
+      return true;
     }
   }
-  if (hasAlly) return true; // friendly landing/stack is allowed and never treated as capture.
-  if (hasEnemy) return true; // enemy landing is legal because capture may occur.
   return true;
 }
 
-function moveToken(playerIndex, tokenId) {
-  const p = state.players[state.currentTurn];
-  // Active color ownership is enforced here: clicks from non-active colors are ignored.
-  if (playerIndex !== state.currentTurn) return;
-  // User control enforcement: manual token movement is only allowed on user-owned turns (Red/Yellow in single mode).
-  if (!p || (state.mode !== "online" && p.type !== "human")) return;
-  doMoveToken(tokenId);
+function moveToken(color, tokenId) {
+  if (SIDE_BY_COLOR[color] !== state.currentSide) return;
+  if (state.mode !== "online" && activeSideType() !== "human") return;
+  doMoveToken({ color, tokenId });
 }
 
-async function doMoveToken(tokenId) {
-  const p = state.players[state.currentTurn];
-  if (!p || !state.dice.selectedBall || !state.validMoves.includes(tokenId)) return;
+async function doMoveToken(move) {
+  const p = state.players.find((player) => player.color === move.color);
+  if (!p || !state.dice.selectedBall) return;
+  const isValid = state.validMoves.some((m) => m.color === move.color && m.tokenId === move.tokenId);
+  if (!isValid) return;
   if (state.animating) return;
-  const token = p.tokens[tokenId];
+  const token = p.tokens[move.tokenId];
   const value = selectedBallValue(state.dice.selectedBall);
   const target = getTargetPos(token.pos, value, state.dice.selectedBall);
   if (target === null) return;
 
   state.animating = true;
-  state.movingToken = { playerIndex: state.currentTurn, tokenId };
+  state.movingToken = { color: move.color, tokenId: move.tokenId };
   const startPos = token.pos;
   render();
-  await animateHandTokenMove(p.color, token.id, startPos, target);
+  await animateHandTokenMove(move.color, token.id, startPos, target);
 
   // Token state updates after movement: once the hand places the token, commit destination into game state.
   token.pos = target;
   sfx("token-move");
-  handleCapture(state.currentTurn, tokenId);
+  handleCapture(move.color, move.tokenId);
   if (token.pos === FINAL_HOME) pushToVictory(p.color);
 
   // Used-vs-remaining ball state handling:
@@ -492,28 +503,28 @@ async function doMoveToken(tokenId) {
   hideGuideHand();
 
   assignPlacements();
-  recomputeDiceAvailability(p);
+  recomputeDiceAvailability(state.currentSide);
   const more = state.dice.hasRemainingLegalMove;
   if (!more || p.finished) endTurn();
   else render();
   // Computer chooses again between remaining individual die / sum options after each completed move.
-  if (more && !p.finished && p.type === "ai") setTimeout(() => aiChooseBallAndToken(), 420);
+  if (more && !p.finished && activeSideType() === "ai") setTimeout(() => aiChooseBallAndToken(), 420);
 }
 
-function handleCapture(pIdx, tokenId) {
-  const p = state.players[pIdx];
+function handleCapture(color, tokenId) {
+  const p = state.players.find((player) => player.color === color);
   const token = p.tokens[tokenId];
   if (token.pos < 0 || token.pos > 51) return;
   const abs = (START_INDEX[p.color] + token.pos) % PATH_LEN;
 
-  state.players.forEach((op, opIdx) => {
-    if (opIdx === pIdx) return;
+  state.players.forEach((op) => {
+    if (op.color === color) return;
     op.tokens.forEach((ot) => {
       if (ot.pos < 0 || ot.pos > 51) return;
       const opos = (START_INDEX[op.color] + ot.pos) % PATH_LEN;
       if (opos === abs) {
         // Capture is blocked for same-team tokens (Red/Yellow allies, Blue/Green allies).
-        if (isSameTeam(p.color, op.color)) return;
+        if (isSameSide(p.color, op.color)) return;
         // Capture logic: no safe tiles; captured token returns to base in both difficulties.
         ot.pos = -1;
 
@@ -548,10 +559,11 @@ function assignPlacements() {
 function endTurn() {
   const extra = state.dice.a === 6 && state.dice.b === 6;
   if (!extra) {
-    let next = (state.currentTurn + 1) % state.players.length;
-    while (state.players[next].finished) next = (next + 1) % state.players.length;
-    // Turn transitions: keep fixed order with skip-over for completed players.
-    state.currentTurn = next;
+    let idx = SIDE_ORDER.indexOf(state.currentSide);
+    do {
+      idx = (idx + 1) % SIDE_ORDER.length;
+      state.currentSide = SIDE_ORDER[idx];
+    } while (isSideFinished(state.currentSide));
   }
   state.dice = {
     a: 0, b: 0, usedA: false, usedB: false,
@@ -567,57 +579,53 @@ function endTurn() {
 }
 
 function maybeAiTurn() {
-  const p = state.players[state.currentTurn];
-  if (!p || p.type !== "ai" || p.finished) return;
+  if (activeSideType() !== "ai" || isSideFinished(state.currentSide)) return;
   // Computer dice roll animation trigger after short AI thinking delay.
   setTimeout(() => rollDice(), 700 + Math.random() * 700);
 }
 
 function aiChooseBallAndToken() {
-  const p = state.players[state.currentTurn];
-  if (!p || p.type !== "ai") return;
-  // Active color binding: AI always evaluates choices from CURRENT turn color only.
-  // Computer ball/value choice logic: evaluate die A, die B, and sum and pick a valid ball/token without user input.
-  const choices = getPlayableBalls(p);
+  if (activeSideType() !== "ai") return;
+  // Computer chooses move across both of its colors (Blue+Green) within one COMPUTER side turn.
+  const choices = getPlayableBalls(state.currentSide);
   if (!choices.length) return endTurn();
-  const best = pickAiChoice(p, choices);
+  const best = pickAiChoice(state.currentSide, choices);
   state.dice.selectedBall = best.ball;
-  state.validMoves = best.tokens;
+  state.validMoves = getValidMovesForBall(state.currentSide, best.ball);
   render();
   setTimeout(() => aiMoveToken(), 550);
 }
 
 function aiMoveToken() {
-  const p = state.players[state.currentTurn];
-  if (!p || p.type !== "ai") return;
+  if (activeSideType() !== "ai") return;
   if (!state.validMoves.length) return endTurn();
-  const choice = pickAiChoice(p, [state.dice.selectedBall]);
-  const tokenId = choice.tokens[0];
-  setTimeout(() => doMoveToken(tokenId), 500);
+  const choice = pickAiChoice(state.currentSide, [state.dice.selectedBall]);
+  if (!choice.move) return endTurn();
+  setTimeout(() => doMoveToken(choice.move), 500);
 }
 
-function pickAiChoice(player, balls) {
-  // AI respects team membership: only enemy-team capture opportunities receive capture priority.
+function pickAiChoice(side, balls) {
+  // AI evaluates both controlled colors each turn and prioritizes capture -> base entry -> progress.
   const scored = [];
   balls.forEach((ball) => {
-    const tokens = getValidTokensForBall(player, ball);
-    tokens.forEach((tokenId) => {
-      const token = player.tokens[tokenId];
+    const moves = getValidMovesForBall(side, ball);
+    moves.forEach((move) => {
+      const player = state.players.find((p) => p.color === move.color);
+      const token = player.tokens[move.tokenId];
       const value = selectedBallValue(ball);
       const target = getTargetPos(token.pos, value, ball);
       if (target === null) return;
       const score =
-        (target === FINAL_HOME ? 1000 : 0) +
-        (token.pos === -1 && target === 0 ? 300 : 0) +
-        (enemyCaptureCountAtTarget(player.color, target) * 220) +
-        (target > token.pos ? target : 0) +
-        (ball === "sum" ? 5 : 0);
-      scored.push({ ball, tokenId, score });
+        (enemyCaptureCountAtTarget(move.color, target) * 1000) +
+        (token.pos === -1 && target === 0 ? 500 : 0) +
+        (target === FINAL_HOME ? 300 : 0) +
+        (target > token.pos ? target : 0);
+      scored.push({ ball, move, score });
     });
   });
   scored.sort((a, b) => b.score - a.score);
-  const bestBall = scored[0]?.ball || balls[0];
-  return { ball: bestBall, tokens: getValidTokensForBall(player, bestBall) };
+  const best = scored[0];
+  return { ball: best?.ball || balls[0], move: best?.move || null };
 }
 
 function enemyCaptureCountAtTarget(movingColor, targetPos) {
@@ -626,7 +634,7 @@ function enemyCaptureCountAtTarget(movingColor, targetPos) {
   let count = 0;
   state.players.forEach((p) => {
     // Allied-color checks are performed here for AI capture scoring.
-    if (isSameTeam(movingColor, p.color)) return;
+    if (isSameSide(movingColor, p.color)) return;
     p.tokens.forEach((t) => {
       if (t.pos < 0 || t.pos > 51) return;
       const opos = (START_INDEX[p.color] + t.pos) % PATH_LEN;
@@ -650,16 +658,15 @@ function render() {
   renderBalls();
   renderPanels();
   renderBoardTokens();
-  const p = state.players[state.currentTurn];
-  el.turnBanner.textContent = p ? `${p.type === "human" ? "Your Turn" : "Computer Turn"} (${p.color.charAt(0).toUpperCase() + p.color.slice(1)})` : "Waiting";
+  el.turnBanner.textContent = state.currentSide === "user" ? "USER Turn (Red + Yellow)" : "COMPUTER Turn (Blue + Green)";
 }
 
 function renderBalls() {
-  const p = state.players[state.currentTurn];
+  const side = state.currentSide;
   const balls = [...el.ballTray.querySelectorAll(".ball")];
-  if (p && state.dice.rolled) recomputeDiceAvailability(p);
-  const available = p && state.dice.rolled ? getAvailableBalls(p) : [];
-  const playable = p && state.dice.rolled ? getPlayableBalls(p) : [];
+  if (side && state.dice.rolled) recomputeDiceAvailability(side);
+  const available = side && state.dice.rolled ? getAvailableBalls() : [];
+  const playable = side && state.dice.rolled ? getPlayableBalls(side) : [];
 
   balls.forEach((b) => {
     const key = b.dataset.ball;
@@ -686,33 +693,33 @@ function renderPanels() {
 
 function renderBoardTokens() {
   el.board.querySelectorAll(".token").forEach((n) => n.remove());
-  state.players.forEach((p, pIdx) => {
+  state.players.forEach((p) => {
     p.tokens.forEach((t) => {
       if (t.pos === FINAL_HOME) return;
-      if (state.movingToken && state.movingToken.playerIndex === pIdx && state.movingToken.tokenId === t.id) return;
+      if (state.movingToken && state.movingToken.color === p.color && state.movingToken.tokenId === t.id) return;
       const [r, c] = tokenCoord(p.color, t.pos, t.id);
       const tok = document.createElement("button");
       tok.className = `token ${p.color}`;
-      // Valid move highlighting includes base-entry tokens when selected 6 allows entry.
-      if (pIdx === state.currentTurn && state.validMoves.includes(t.id)) tok.classList.add("valid");
-      tok.onclick = () => moveToken(pIdx, t.id);
+      // Valid move highlighting spans both colors of the active side after ball selection.
+      if (SIDE_BY_COLOR[p.color] === state.currentSide && state.validMoves.some((m) => m.color === p.color && m.tokenId === t.id)) tok.classList.add("valid");
+      tok.onclick = () => moveToken(p.color, t.id);
       tile(r, c).appendChild(tok);
     });
   });
 }
 
-function recomputeDiceAvailability(player) {
+function recomputeDiceAvailability(side) {
   // DieA / DieB / Sum legal availability is explicitly tracked for UI + turn-flow decisions.
-  if (!player || !state.dice.rolled) {
+  if (!side || !state.dice.rolled) {
     state.dice.hasLegalA = false;
     state.dice.hasLegalB = false;
     state.dice.hasLegalSum = false;
     state.dice.hasRemainingLegalMove = false;
     return;
   }
-  state.dice.hasLegalA = !state.dice.usedA && getValidTokensForBall(player, "a").length > 0;
-  state.dice.hasLegalB = !state.dice.usedB && getValidTokensForBall(player, "b").length > 0;
-  state.dice.hasLegalSum = state.dice.sumAvailable && getValidTokensForBall(player, "sum").length > 0;
+  state.dice.hasLegalA = !state.dice.usedA && getValidMovesForBall(side, "a").length > 0;
+  state.dice.hasLegalB = !state.dice.usedB && getValidMovesForBall(side, "b").length > 0;
+  state.dice.hasLegalSum = state.dice.sumAvailable && getValidMovesForBall(side, "sum").length > 0;
   state.dice.hasRemainingLegalMove = state.dice.hasLegalA || state.dice.hasLegalB || state.dice.hasLegalSum;
 }
 
@@ -893,15 +900,14 @@ el.diceCenter.onclick = () => {
     if (onlineCanAct()) onlineRoll();
     return;
   }
-  if (state.players[state.currentTurn]?.type !== "human") return;
+  if (activeSideType() !== "human") return;
   rollDice();
 };
 
 el.ballTray.querySelectorAll(".ball").forEach((b) => {
   b.onclick = () => {
     if (state.mode === "online" && !onlineCanAct()) return;
-    // User control is explicitly enabled for Red/Yellow turns and blocked for computer-owned turns.
-    if (state.mode !== "online" && state.players[state.currentTurn]?.type !== "human") return;
+    if (state.mode !== "online" && activeSideType() !== "human") return;
     onBallSelect(b.dataset.ball);
   };
 });
