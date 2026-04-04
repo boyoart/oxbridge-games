@@ -69,26 +69,27 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
 /* Base tile logo placement: each watermark sits fully inside its 6x6 color base block and never crosses into path tiles. */
 .base-watermark {
   position: absolute;
-  width: 34%;
-  height: 34%;
-  /* Layering contract for each base: base color tiles -> watermark -> tokens/highlights/hand. */
+  width: 40%;
+  height: 40%;
+  /* Layering contract: base color background -> school logo -> tokens -> indicators/hand. */
   z-index: 3;
   display: grid;
   place-items: center;
-  pointer-events: none; /* Watermark logos must stay decorative/non-interactive and must not block token taps. */
+  overflow: hidden;
+  pointer-events: none; /* Logo layer never blocks token clicks. */
 }
-/* 50% opacity watermark logic: subtle embedded look in each base, behind token layer. */
+/* Base logo is fully visible (100% opacity) with drop shadow and remains behind tokens. */
 .base-watermark img {
-  width: 72%;
-  height: 72%;
+  width: 76%;
+  height: 76%;
   object-fit: contain;
-  opacity: 0.5;
-  filter: saturate(0.92) contrast(0.96);
+  opacity: 1;
+  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.45));
 }
-.base-watermark.red { top: 3%; left: 3%; }
-.base-watermark.blue { top: 3%; right: 3%; }
-.base-watermark.green { bottom: 3%; left: 3%; }
-.base-watermark.yellow { bottom: 3%; right: 3%; }
+.base-watermark.red { top: 0; left: 0; }
+.base-watermark.blue { top: 0; right: 0; }
+.base-watermark.green { bottom: 0; left: 0; }
+.base-watermark.yellow { bottom: 0; right: 0; }
 .tile {
   border: 1px solid #d9dde2;
   position: relative;
@@ -96,8 +97,7 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
   place-items: center;
   background: #fefefe;
   border-radius: 2px;
-  /* Base tiles (and their token containers) sit above watermark background layer. */
-  z-index: 2;
+  /* Tile backgrounds stay below logo/token layers (no local stacking context). */
 }
 /* Solid-color base quadrants so each color zone reads as one clean region. */
 .q-red { background: #db4e4e; border-color: #db4e4e; }
