@@ -11,7 +11,10 @@ body {
   margin: 0;
   font-family: "Segoe UI", Tahoma, sans-serif;
   color: var(--text);
-  background: linear-gradient(140deg, #fff8f8, #ffdede 45%, #fff3cd);
+  background:
+    radial-gradient(circle at 20% 15%, rgba(255, 255, 255, .08), transparent 35%),
+    repeating-radial-gradient(circle at 50% 40%, rgba(0, 0, 0, .055) 0 2px, transparent 2px 18px),
+    #b8783f;
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -67,23 +70,20 @@ select, input {
 .hud { padding: 10px 12px; margin-bottom: 10px; }
 .status-row { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom: 8px; font-weight:700; }
 
-.play-area {
-  display: grid;
-  /* Placements panel sits left; board remains the visual center. */
-  grid-template-columns: minmax(200px, 250px) minmax(0, 1fr) minmax(220px, 280px);
-  gap: 10px;
-  align-items: start;
-}
+.play-area { display: grid; grid-template-columns: 1fr; gap: 10px; justify-items: center; }
 .left-panel,
 .side-panel { padding: 10px; }
 .left-panel { max-height: fit-content; }
+.left-panel,
+.side-panel { display: none; }
 .board-3d {
   --board-size: 720px;
   position: relative;
-  padding: 8px;
-  background: linear-gradient(150deg, #565656, #2c2c2c 45%, #1f1f1f);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px;
+  background: transparent;
+  border: 0;
   overflow: visible;
+  width: min(90vw, 90vh);
 }
 .board-stage {
   width: 100%;
@@ -94,8 +94,8 @@ select, input {
 .board-scaler {
   width: var(--board-size);
   height: var(--board-size);
-  max-width: 100%;
-  max-height: 100%;
+  max-width: 90vw;
+  max-height: 90vh;
   aspect-ratio: 1 / 1;
   position: relative;
 }
@@ -422,14 +422,14 @@ select, input {
 .dice-assignment {
   position: absolute;
   left: 50%;
-  bottom: -56px;
+  bottom: -82px;
   transform: translateX(-50%);
   display: flex;
-  gap: 10px;
+  gap: 14px;
 }
 .move-ball {
-  width: clamp(40px, 5.2vw, 52px);
-  height: clamp(40px, 5.2vw, 52px);
+  width: clamp(50px, 7.4vw, 72px);
+  height: clamp(50px, 7.4vw, 72px);
   border-radius: 50%;
   border: 2px solid rgba(255,255,255,.82);
   color: #fff;
@@ -444,7 +444,7 @@ select, input {
 .move-ball .ball-label { font-size: .54rem; opacity: .9; }
 .move-ball .ball-value { font-size: .92rem; margin-top: -2px; }
 .move-ball.red { background: radial-gradient(circle at 30% 25%, #ff7c7c, #c81919 68%); }
-.move-ball.blue { background: radial-gradient(circle at 30% 25%, #81b2ff, #2561d1 68%); }
+.move-ball.cyan { background: radial-gradient(circle at 30% 25%, #9fe1ff, #1f8bc8 68%); }
 .move-ball.green { background: radial-gradient(circle at 30% 25%, #88e5a2, #199948 68%); }
 .move-ball.selected { transform: translateY(-2px) scale(1.07); box-shadow: 0 0 0 3px rgba(255,255,255,.7), 0 0 0 6px rgba(255,222,0,.42), 0 6px 12px rgba(0,0,0,.28); }
 .move-ball.disabled { opacity: .35; filter: grayscale(.45); pointer-events: none; }
@@ -456,7 +456,10 @@ select, input {
   transform: translate(-50%, -100%);
   animation: hand-pulse .8s ease-in-out infinite alternate;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms ease;
 }
+.guide-hand.visible { opacity: 1; }
 
 @keyframes hand-pulse {
   from { opacity: .45; transform: translate(-50%, -100%) scale(.96); }
@@ -581,16 +584,8 @@ select, input {
 
 @media (max-width: 1024px) {
   .app-shell { width: min(1000px, 98vw); }
-  .play-area { grid-template-columns: 1fr; }
-  .left-panel {
-    order: 1;
-    max-width: 420px;
-    width: 100%;
-    justify-self: center;
-  }
-  .board-3d { order: 2; }
-  .side-panel { order: 3; }
-  .side-panel { display: grid; grid-template-columns: minmax(220px, 360px) 1fr; gap: 10px; align-items: start; }
+  .left-panel,
+  .side-panel { display: none; }
   .board-dice-zone {
     --dice-size: clamp(24px, 4.6vw, 32px);
     width: min(210px, 40%);
@@ -628,8 +623,8 @@ select, input {
     gap: clamp(8px, 3vw, 12px);
   }
   .die-slot-label { font-size: .58rem; padding: 2px 6px; }
-  .dice-assignment { bottom: -52px; gap: 6px; }
-  .move-ball { width: clamp(36px, 9vw, 44px); height: clamp(36px, 9vw, 44px); }
+  .dice-assignment { bottom: -72px; gap: 10px; }
+  .move-ball { width: clamp(46px, 16vw, 56px); height: clamp(46px, 16vw, 56px); }
   .victory-container-wrap { width: min(220px, 94%); }
   .victory-container {
     min-height: 82px;
