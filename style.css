@@ -176,8 +176,10 @@ button, a { background: var(--ox-red); color: #fff; text-decoration: none; curso
 .dice-center {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   display: flex; gap: 8px; border: none;
-  background: rgba(20, 30, 45, 0.75); padding: 8px 10px; border-radius: 14px;
-  box-shadow: 0 10px 24px rgba(0,0,0,.36); z-index: 7;
+  /* Dice wrapper/frame removed: keep only standalone dice with a natural soft shadow. */
+  background: transparent; padding: 0; border-radius: 0;
+  box-shadow: none; z-index: 7;
+  appearance: none;
 }
 .die {
   width: clamp(28px, 4.8vw, 42px); height: clamp(28px, 4.8vw, 42px);
