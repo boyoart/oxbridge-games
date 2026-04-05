@@ -65,10 +65,13 @@ if (logo.complete && logo.naturalWidth === 0) {
 
 function pieceSvg(color, type) {
   const ivory = color === 'w';
-  const main = ivory ? '#f9f1e5' : '#a0142a';
-  const mid = ivory ? '#dcc7a9' : '#6b0319';
-  const edge = ivory ? '#705944' : '#2c0008';
-  const shine = ivory ? 'rgba(255,255,255,0.74)' : 'rgba(255,226,232,0.24)';
+  // Pastel theme applied
+  // Logic unchanged
+  // Visual update only
+  const main = ivory ? '#ffffff' : '#9a74d6';
+  const mid = ivory ? '#fde7f0' : '#6fa8e8';
+  const edge = ivory ? '#6a5f78' : '#2a2233';
+  const shine = ivory ? 'rgba(255,255,255,0.74)' : 'rgba(241,232,255,0.28)';
   const piecePaths = {
     p: '<ellipse cx="50" cy="38" rx="10" ry="10"/><path d="M37 72 C40 54, 44 48, 50 46 C56 48, 60 54, 63 72 Z"/>',
     n: '<path d="M34 74 C35 58, 39 42, 48 30 C56 24, 66 27, 67 37 C62 37, 57 40, 56 45 C58 47, 62 50, 63 56 C61 63, 55 68, 49 70 C44 71, 40 73, 34 74 Z"/><circle cx="58" cy="35" r="2.2"/>',
@@ -406,7 +409,7 @@ function render() {
         const img = document.createElement('img');
         img.className = 'piece';
         img.src = pieceSvg(piece.color, piece.type);
-        img.alt = `${piece.color === 'w' ? 'Ivory' : 'Oxbridge Red'} ${piece.type}`;
+        img.alt = `${piece.color === 'w' ? 'Ivory' : 'Royal'} ${piece.type}`;
 
         pieceWrap.appendChild(img);
         sq.appendChild(pieceWrap);
