@@ -58,13 +58,8 @@ const state = {
   // Alternating side turn model only: USER -> COMPUTER -> USER -> COMPUTER.
   currentSide: "user",
   currentTurn: 0,
-  // Die state is tracked per output: Die A, Die B, and Sum availability/legality are separated.
-  dice: {
-    a: 0, b: 0, usedA: false, usedB: false,
-    sumAvailable: false,
-    hasLegalA: false, hasLegalB: false, hasLegalSum: false, hasRemainingLegalMove: false,
-    rolled: false, selectedBall: null
-  },
+  // Turn resolution uses independent die slots (A/B/Sum) so consuming one die never auto-consumes the other.
+  dice: createDiceState(),
   // Valid moves for selected ball span both colors controlled by the active side.
   validMoves: [],
   placements: [], // placement assignment is tracked in this ordered array.
@@ -81,6 +76,33 @@ let boardCells = [];
 let boardPath = [];
 let homePaths = { red: [], blue: [], yellow: [], green: [] };
 let diceRollTimer = null;
+
+function createDiceState() {
+  return {
+    rolled: false,
+    selectedBall: null,
+    dieA: { value: 0, used: false, hasLegal: false },
+    dieB: { value: 0, used: false, hasLegal: false },
+    sum: { value: 0, used: false, available: false, hasLegal: false },
+    hasRemainingLegalMove: false
+  };
+}
+
+function setRolledDiceValues(a, b) {
+  state.dice.dieA.value = a;
+  state.dice.dieB.value = b;
+  state.dice.dieA.used = false;
+  state.dice.dieB.used = false;
+  state.dice.sum.value = a + b;
+  state.dice.sum.used = false;
+  state.dice.sum.available = true;
+  state.dice.sum.hasLegal = false;
+  state.dice.dieA.hasLegal = false;
+  state.dice.dieB.hasLegal = false;
+  state.dice.hasRemainingLegalMove = false;
+  state.dice.rolled = true;
+  state.dice.selectedBall = null;
+}
 
 function sfx(name) {
   if (!state.soundOn || !audio[name]) return;
@@ -138,12 +160,7 @@ function startLocal() {
 function beginGame() {
   state.currentSide = "user";
   state.currentTurn = 0;
-  state.dice = {
-    a: 0, b: 0, usedA: false, usedB: false,
-    sumAvailable: false,
-    hasLegalA: false, hasLegalB: false, hasLegalSum: false, hasRemainingLegalMove: false,
-    rolled: false, selectedBall: null
-  };
+  state.dice = createDiceState();
   state.validMoves = [];
   state.placements = [];
   state.victory = [];
@@ -299,14 +316,10 @@ function rollDice() {
   setTimeout(() => {
     clearInterval(diceRollTimer);
     // Dice generation: this is the strict two-dice source of truth for Die A and Die B.
-    state.dice.a = rand(1, 6);
-    state.dice.b = rand(1, 6);
-    console.log("Dice rolled:", [state.dice.a, state.dice.b]);
-    state.dice.usedA = false;
-    state.dice.usedB = false;
-    state.dice.sumAvailable = true;
-    state.dice.rolled = true;
-    state.dice.selectedBall = null;
+    const dieAValue = rand(1, 6);
+    const dieBValue = rand(1, 6);
+    setRolledDiceValues(dieAValue, dieBValue);
+    console.log("Rolled:", state.dice.dieA.value, state.dice.dieB.value);
     state.validMoves = [];
     // Dice left-roll animation completes first, then final values are revealed before return-to-center glide.
     el.diceCenter.classList.remove("rolling-left");
@@ -331,19 +344,19 @@ function rollDice() {
 function updateBallValues() {
   // Individual die values are exposed directly on the first two bottom balls.
   const [ballA, ballB, ballSum] = [...el.ballTray.querySelectorAll(".ball")];
-  ballA.textContent = String(state.dice.a);
-  ballB.textContent = String(state.dice.b);
+  ballA.textContent = String(state.dice.dieA.value);
+  ballB.textContent = String(state.dice.dieB.value);
   // Sum ball is assigned separately and must remain an optional third choice.
-  ballSum.textContent = String(state.dice.a + state.dice.b);
+  ballSum.textContent = String(state.dice.sum.value);
 }
 
 function getAvailableBalls() {
   // DieA/DieB/sum availability is tracked independently and never collapsed into one shared "used" flag.
 
   const balls = [];
-  if (!state.dice.usedA) balls.push("a");
-  if (!state.dice.usedB) balls.push("b");
-  if (state.dice.sumAvailable) balls.push("sum");
+  if (!state.dice.dieA.used) balls.push("a");
+  if (!state.dice.dieB.used) balls.push("b");
+  if (state.dice.sum.available && !state.dice.sum.used) balls.push("sum");
   return balls;
 }
 
@@ -351,9 +364,9 @@ function getForcedCombinedMove(side) {
   if (!side || !state.dice.rolled) return null;
   // Combined-total forcing is valid only while the sum ball is still active.
   // If one die was already consumed (e.g., a 6 used for base entry), do NOT force sum resolution.
-  if (!state.dice.sumAvailable) return null;
+  if (!state.dice.sum.available || state.dice.sum.used) return null;
   if (hasBaseEntryOption(side)) return null;
-  const moveValue = state.dice.a + state.dice.b;
+  const moveValue = state.dice.sum.value;
   const activeMovable = sidePlayers(side).flatMap((player) => player.tokens
     .map((token) => ({ color: player.color, tokenId: token.id, token }))
     // One-active-token rule scope: count only tokens currently active on the board for the active side.
@@ -368,7 +381,7 @@ function getForcedCombinedMove(side) {
 
 function hasBaseEntryOption(side) {
   if (!side || !state.dice.rolled) return false;
-  const hasUsableSix = (!state.dice.usedA && state.dice.a === ENTRY_ROLL) || (!state.dice.usedB && state.dice.b === ENTRY_ROLL);
+  const hasUsableSix = (!state.dice.dieA.used && state.dice.dieA.value === ENTRY_ROLL) || (!state.dice.dieB.used && state.dice.dieB.value === ENTRY_ROLL);
   if (!hasUsableSix) return false;
   return sidePlayers(side).some((player) => player.tokens.some((token) => token.pos === -1));
 }
@@ -377,15 +390,15 @@ function getPlayableBalls(side) {
   const forcedCombined = getForcedCombinedMove(side);
   if (forcedCombined) {
     // One-active-token rule: bypass split/single-die options and force the combined-total ball.
-    return state.dice.sumAvailable && getValidMovesForBall(side, "sum").length > 0 ? ["sum"] : [];
+    return state.dice.sum.available && !state.dice.sum.used && getValidMovesForBall(side, "sum").length > 0 ? ["sum"] : [];
   }
   return getAvailableBalls().filter((b) => getValidMovesForBall(side, b).length > 0);
 }
 
 function selectedBallValue(ball) {
-  if (ball === "a") return state.dice.a;
-  if (ball === "b") return state.dice.b;
-  return state.dice.a + state.dice.b;
+  if (ball === "a") return state.dice.dieA.value;
+  if (ball === "b") return state.dice.dieB.value;
+  return state.dice.sum.value;
 }
 
 function canEnterFromBase(ball) {
@@ -393,8 +406,8 @@ function canEnterFromBase(ball) {
   // - Die A ball enters only when Die A is 6
   // - Die B ball enters only when Die B is 6
   // - Sum ball is movement-only (A+B) and does not directly perform a base-entry action
-  if (ball === "a") return state.dice.a === ENTRY_ROLL;
-  if (ball === "b") return state.dice.b === ENTRY_ROLL;
+  if (ball === "a") return state.dice.dieA.value === ENTRY_ROLL;
+  if (ball === "b") return state.dice.dieB.value === ENTRY_ROLL;
   return false;
 }
 
@@ -542,20 +555,20 @@ async function doMoveToken(move) {
   // - Sum consumes both A and B together
   // Remaining die logic continues after one die is used: consuming A/B leaves the other die intact.
   if (state.dice.selectedBall === "a") {
-    // One-die consumption: using Die A consumes only Die A.
-    // Remaining die stays active if it still has a legal move.
-    state.dice.usedA = true;
-    state.dice.sumAvailable = false;
+    state.dice.dieA.used = true;
+    state.dice.sum.available = false;
+    state.dice.sum.used = true;
   } else if (state.dice.selectedBall === "b") {
-    // One-die consumption: using Die B consumes only Die B.
-    // Remaining die stays active if it still has a legal move.
-    state.dice.usedB = true;
-    state.dice.sumAvailable = false;
+    state.dice.dieB.used = true;
+    state.dice.sum.available = false;
+    state.dice.sum.used = true;
   } else {
-    state.dice.usedA = true;
-    state.dice.usedB = true;
-    state.dice.sumAvailable = false;
+    state.dice.dieA.used = true;
+    state.dice.dieB.used = true;
+    state.dice.sum.available = false;
+    state.dice.sum.used = true;
   }
+  console.log("Used die:", state.dice.selectedBall === "a" ? "A" : state.dice.selectedBall === "b" ? "B" : "SUM");
 
   state.dice.selectedBall = null;
   state.validMoves = [];
@@ -567,6 +580,11 @@ async function doMoveToken(move) {
   // Recalculate legal choices after the first die use so any remaining die stays playable.
   recomputeDiceAvailability(state.currentSide);
   const remainingPlayableBalls = getPlayableBalls(state.currentSide);
+  const remainingDieValues = [];
+  if (!state.dice.dieA.used) remainingDieValues.push(state.dice.dieA.value);
+  if (!state.dice.dieB.used) remainingDieValues.push(state.dice.dieB.value);
+  console.log("Remaining die still active:", remainingDieValues.length ? remainingDieValues.join(", ") : "none");
+  console.log("Remaining legal moves:", remainingPlayableBalls);
 
   // Turn ends only when all legal die options are exhausted.
   if (!remainingPlayableBalls.length) {
@@ -617,9 +635,10 @@ function checkAndTriggerSideWinImmediately() {
   state.movingToken = null;
   state.animating = false;
   state.dice.rolled = false;
-  state.dice.usedA = true;
-  state.dice.usedB = true;
-  state.dice.sumAvailable = false;
+  state.dice.dieA.used = true;
+  state.dice.dieB.used = true;
+  state.dice.sum.available = false;
+  state.dice.sum.used = true;
   hideGuideHand();
   sfx("win");
   render();
@@ -681,7 +700,7 @@ function assignPlacements() {
 
 function endTurn() {
   if (state.gameOver) return;
-  const extra = state.dice.a === 6 && state.dice.b === 6;
+  const extra = state.dice.dieA.value === 6 && state.dice.dieB.value === 6;
   if (!extra) {
     // Turn passes to the other side after the current side's single-roll turn resolution.
     let idx = SIDE_ORDER.indexOf(state.currentSide);
@@ -692,12 +711,7 @@ function endTurn() {
   } else {
     // Double-6 exception: grant an extra turn to the same side.
   }
-  state.dice = {
-    a: 0, b: 0, usedA: false, usedB: false,
-    sumAvailable: false,
-    hasLegalA: false, hasLegalB: false, hasLegalSum: false, hasRemainingLegalMove: false,
-    rolled: false, selectedBall: null
-  };
+  state.dice = createDiceState();
   state.validMoves = [];
   hideGuideHand();
   updateBallValues();
@@ -788,8 +802,8 @@ function pushToVictory(color) {
 }
 
 function render() {
-  setDiceFace(el.dieA, state.dice.a || 1, !state.dice.rolled);
-  setDiceFace(el.dieB, state.dice.b || 1, !state.dice.rolled);
+  setDiceFace(el.dieA, state.dice.dieA.value || 1, !state.dice.rolled);
+  setDiceFace(el.dieB, state.dice.dieB.value || 1, !state.dice.rolled);
   renderBalls();
   renderPanels();
   renderBoardTokens();
@@ -813,7 +827,7 @@ function renderBalls() {
     // and keep any still-legal remaining die active after one die is consumed.
     b.classList.toggle("disabled", !playable.includes(key));
     b.classList.toggle("selected", state.dice.selectedBall === key);
-    const consumed = (key === "a" && state.dice.usedA) || (key === "b" && state.dice.usedB) || (key === "sum" && !state.dice.sumAvailable);
+    const consumed = (key === "a" && state.dice.dieA.used) || (key === "b" && state.dice.dieB.used) || (key === "sum" && (!state.dice.sum.available || state.dice.sum.used));
     b.classList.toggle("used", consumed);
     if (!state.dice.rolled) b.classList.add("disabled");
     if (!available.includes(key) && state.dice.rolled) b.classList.add("used");
@@ -882,25 +896,25 @@ function renderBoardTokens() {
 function recomputeDiceAvailability(side) {
   // DieA / DieB / Sum legal availability is explicitly tracked for UI + turn-flow decisions.
   if (!side || !state.dice.rolled) {
-    state.dice.hasLegalA = false;
-    state.dice.hasLegalB = false;
-    state.dice.hasLegalSum = false;
+    state.dice.dieA.hasLegal = false;
+    state.dice.dieB.hasLegal = false;
+    state.dice.sum.hasLegal = false;
     state.dice.hasRemainingLegalMove = false;
     return;
   }
   const forcedCombined = getForcedCombinedMove(side);
   if (forcedCombined) {
     // One-active-token rule: individual dice are disabled; only combined-total legality is exposed.
-    state.dice.hasLegalA = false;
-    state.dice.hasLegalB = false;
-    state.dice.hasLegalSum = state.dice.sumAvailable && getValidMovesForBall(side, "sum").length > 0;
-    state.dice.hasRemainingLegalMove = state.dice.hasLegalSum;
+    state.dice.dieA.hasLegal = false;
+    state.dice.dieB.hasLegal = false;
+    state.dice.sum.hasLegal = state.dice.sum.available && !state.dice.sum.used && getValidMovesForBall(side, "sum").length > 0;
+    state.dice.hasRemainingLegalMove = state.dice.sum.hasLegal;
     return;
   }
-  state.dice.hasLegalA = !state.dice.usedA && getValidMovesForBall(side, "a").length > 0;
-  state.dice.hasLegalB = !state.dice.usedB && getValidMovesForBall(side, "b").length > 0;
-  state.dice.hasLegalSum = state.dice.sumAvailable && getValidMovesForBall(side, "sum").length > 0;
-  state.dice.hasRemainingLegalMove = state.dice.hasLegalA || state.dice.hasLegalB || state.dice.hasLegalSum;
+  state.dice.dieA.hasLegal = !state.dice.dieA.used && getValidMovesForBall(side, "a").length > 0;
+  state.dice.dieB.hasLegal = !state.dice.dieB.used && getValidMovesForBall(side, "b").length > 0;
+  state.dice.sum.hasLegal = state.dice.sum.available && !state.dice.sum.used && getValidMovesForBall(side, "sum").length > 0;
+  state.dice.hasRemainingLegalMove = state.dice.dieA.hasLegal || state.dice.dieB.hasLegal || state.dice.sum.hasLegal;
 }
 
 function getPathCoordsForMove(color, tokenId, startPos, targetPos) {
@@ -1027,11 +1041,13 @@ function syncFromServer(s) {
   state.players = s.players.map((p) => ({ ...p }));
   state.currentTurn = s.currentTurn;
   state.online.myIndex = s.myPlayerIndex;
-  state.dice.a = s.diceValues?.[0] || 0;
-  state.dice.b = s.diceValues?.[1] || 0;
-  state.dice.usedA = !!s.diceUsed?.[0];
-  state.dice.usedB = !!s.diceUsed?.[1];
-  state.dice.sumAvailable = !state.dice.usedA && !state.dice.usedB;
+  state.dice.dieA.value = s.diceValues?.[0] || 0;
+  state.dice.dieB.value = s.diceValues?.[1] || 0;
+  state.dice.dieA.used = !!s.diceUsed?.[0];
+  state.dice.dieB.used = !!s.diceUsed?.[1];
+  state.dice.sum.value = state.dice.dieA.value + state.dice.dieB.value;
+  state.dice.sum.available = !state.dice.dieA.used && !state.dice.dieB.used;
+  state.dice.sum.used = !state.dice.sum.available;
   state.dice.rolled = !!(s.diceValues?.[0] || s.diceValues?.[1]);
   state.placements = (s.placements || []).map((x) => ({ ...x, name: state.players[x.playerIndex]?.name || "Player" }));
   el.setup.classList.add("hidden");
