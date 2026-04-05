@@ -2,73 +2,56 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Flags of the World Quiz | Oxbridge Tutorial College</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>2048 Puzzle | Oxbridge Tutorial College</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main id="gameApp" class="app">
-    <header class="brand-header" aria-label="Oxbridge Tutorial College game header">
+  <main class="app" id="app">
+    <header class="brand-header" aria-label="Oxbridge game header">
       <div class="brand-mark-wrap" data-logo-wrap>
         <img src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" class="brand-logo" data-brand-logo />
         <span class="logo-fallback" data-logo-fallback>Oxbridge Tutorial College</span>
       </div>
       <div class="brand-copy">
         <p class="brand-kicker">Oxbridge Tutorial College</p>
-        <h1>Flags of the World Quiz</h1>
-        <p class="brand-subtitle">Test your geography knowledge</p>
+        <h1>2048 Puzzle</h1>
+        <p class="brand-subtitle">Slide, merge, and plan your way to 2048</p>
       </div>
       <div class="top-actions">
         <a class="ghost-btn" href="/games">← Return to Games</a>
         <button id="fullscreenBtn" class="ghost-btn" type="button">⛶ Fullscreen</button>
-        <button id="soundToggleBtn" class="ghost-btn" type="button" aria-pressed="true">🔊 Sound On</button>
       </div>
     </header>
 
-    <section id="startScreen" class="card active" aria-labelledby="startTitle">
-      <h2 id="startTitle">Welcome</h2>
-      <p>Identify world flags before the timer runs out. Each game session uses a fresh random set of countries.</p>
-      <div class="how-to-play">
-        <h3>How to Play</h3>
-        <ul>
-          <li>20 random countries are selected per game from the full world dataset.</li>
-          <li>Each question has 15 seconds and 4 answer choices.</li>
-          <li>Correct answer: +10 points.</li>
-          <li>Wrong answer or timeout: lose 1 life.</li>
-          <li>You start with 3 lives.</li>
-        </ul>
-      </div>
-      <button id="startGameBtn" class="primary-btn" type="button">Start Game</button>
-    </section>
-
-    <section id="gameScreen" class="card" aria-live="polite">
-      <div class="status-row">
-        <p id="questionCount">Question 1 / 20</p>
-        <p id="scoreDisplay">Score: 0</p>
-        <p id="livesDisplay">Lives: ❤❤❤</p>
-        <p id="timerDisplay" class="timer">Time: 15s</p>
+    <section class="game-shell" aria-live="polite">
+      <div class="hud-row">
+        <div class="score-box">
+          <p class="label">Score</p>
+          <p id="score" class="value">0</p>
+        </div>
+        <div class="score-box">
+          <p class="label">Best</p>
+          <p id="bestScore" class="value">0</p>
+        </div>
+        <button id="restartBtn" class="primary-btn" type="button">Restart</button>
       </div>
 
-      <div class="flag-frame">
-        <img id="flagImage" src="" alt="Country flag question" />
+      <p class="hint">Use arrow keys or swipe. Combine matching tiles to reach 2048.</p>
+
+      <div class="board-wrap">
+        <div id="board" class="board" role="application" aria-label="2048 game board"></div>
       </div>
 
-      <h2 class="question-title">Which country's flag is this?</h2>
-      <div id="answers" class="answers-grid"></div>
-      <p id="feedback" class="feedback" role="status"></p>
-    </section>
-
-    <section id="endScreen" class="card" aria-labelledby="endTitle">
-      <div class="brand-mark-wrap end-logo-wrap" data-logo-wrap>
-        <img src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" class="brand-logo end-logo" data-brand-logo />
-        <span class="logo-fallback" data-logo-fallback>Oxbridge Tutorial College</span>
-      </div>
-      <h2 id="endTitle">Session Complete</h2>
-      <p id="finalMessage"></p>
-      <p id="finalScore"></p>
-      <div class="end-actions">
-        <button id="playAgainBtn" class="primary-btn" type="button">Play Again</button>
-        <a class="ghost-btn" href="/games">Return to Games</a>
+      <div id="overlay" class="overlay hidden" role="dialog" aria-modal="true">
+        <div class="overlay-card">
+          <h2 id="overlayTitle">Game Over</h2>
+          <p id="overlayMessage">Try again and beat your best score!</p>
+          <div class="overlay-actions">
+            <button id="playAgainBtn" class="primary-btn" type="button">Play Again</button>
+            <button id="continueBtn" class="ghost-btn hidden" type="button">Continue</button>
+          </div>
+        </div>
       </div>
     </section>
   </main>

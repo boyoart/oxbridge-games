@@ -1,96 +1,95 @@
-# Flags of the World Quiz (Oxbridge Tutorial College)
+# 2048 Puzzle (Oxbridge Tutorial College)
 
-A self-hosted HTML5 educational game designed for Oxbridge Tutorial College and ready for cPanel + WordPress embedding.
+A polished, self-hosted HTML5 **2048 Puzzle** game built for Oxbridge Tutorial College with mobile swipe, desktop keyboard controls, score tracking, win/lose states, and graceful asset fallbacks.
 
 ## Deployment target
-Upload all project files to:
+Upload this game to:
 
 ```text
-public_html/games/flags-world/
+public_html/games/2048/
 ```
 
-The game is fully static and uses only **relative paths**, so it runs correctly at:
+After upload, it should run at:
 
 ```text
-https://YOURDOMAIN.com/games/flags-world/
+https://YOURDOMAIN.com/games/2048/
 ```
+
+All paths in the project are relative so it works in standard cPanel hosting.
 
 ## Project structure
 
 ```text
-flags-world/
+2048/
 ├─ index.html
 ├─ style.css
 ├─ script.js
 ├─ README.md
 ├─ embed-code.txt
-├─ country-file-list.txt
-├─ sound-file-list.txt
 └─ assets/
-   ├─ flags/            # Upload all country SVG files here
    ├─ logo/
-   │  └─ logo.png       # Oxbridge logo file (uploaded later)
-   └─ sounds/           # Upload sound effects here
+   │  └─ logo.png
+   └─ sounds/
+      ├─ move.mp3      (optional)
+      ├─ merge.mp3     (optional)
+      ├─ click.mp3     (optional)
+      ├─ win.mp3       (optional)
+      └─ end.mp3       (optional)
 ```
 
 ## cPanel upload steps
 1. Open **cPanel → File Manager**.
-2. Navigate to `public_html/games/`.
-3. Create folder `flags-world` (if it does not exist).
-4. Upload all project files (`index.html`, `style.css`, `script.js`, txt files, and `assets/` folders) into `public_html/games/flags-world/`.
-5. Upload all country SVG files into:
-   - `public_html/games/flags-world/assets/flags/`
-6. Upload the school logo file as:
-   - `public_html/games/flags-world/assets/logo/logo.png`
-7. Upload sounds into:
-   - `public_html/games/flags-world/assets/sounds/`
+2. Go to `public_html/games/`.
+3. Create folder `2048` if needed.
+4. Upload `index.html`, `style.css`, `script.js`, `README.md`, `embed-code.txt`.
+5. Upload `assets/logo/logo.png`.
+6. Upload any available sound files into `assets/sounds/`.
 
-## Logo behavior
-The HTML uses:
+## Logo path and fallback
+The game uses:
 
-```html
-<img src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo">
+```text
+assets/logo/logo.png
 ```
 
-If `logo.png` is missing, the interface automatically shows fallback text:
+If the logo file is missing, the game automatically shows fallback text:
 
 ```text
 Oxbridge Tutorial College
 ```
 
-## Sound files (required names)
-Upload the following files to:
+## Sound path and graceful handling
+Optional sounds should be placed in:
 
 ```text
-public_html/games/flags-world/assets/sounds/
+assets/sounds/
 ```
 
-- `correct.mp3`
-- `wrong.mp3`
+Expected filenames:
+- `move.mp3`
+- `merge.mp3`
 - `click.mp3`
-- `start.mp3`
+- `win.mp3`
 - `end.mp3`
 
-If any sound is missing, gameplay still works without crashing.
+If any are missing, the game continues normally without breaking.
 
-## Random session logic
-- The script stores the full world country dataset as the master pool.
-- On each new game, it shuffles the full pool and selects **20 random countries**.
-- A country is used only once in that session (no repeats).
-- Every question shows 4 options:
-  - 1 correct answer
-  - 3 random wrong answers from the remaining pool
-- Answer order is shuffled each question.
+## How to adjust tile colors
+Tile colors are defined in `style.css` with selectors like:
 
-## How to add more countries later
-1. Add new country SVG files to `assets/flags/` using slug filenames (for example `new-country.svg`).
-2. Add the new slug to the `countrySlugs` list in `script.js`.
-3. If needed, add a custom name override in `specialNames` (for special punctuation/hyphenation).
-4. Add the filename to `country-file-list.txt`.
+```css
+.tile[data-val="2"] { ... }
+.tile[data-val="4"] { ... }
+.tile[data-val="8"] { ... }
+...
+.tile[data-val="2048"] { ... }
+```
 
-## WordPress embed code
-Use this iframe in a WordPress Custom HTML block:
+Update background/text colors there to match your preferred Oxbridge theme.
+
+## WordPress embed
+Use this in a WordPress Custom HTML block:
 
 ```html
-<iframe src="/games/flags-world/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>
+<iframe src="/games/2048/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>
 ```
