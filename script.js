@@ -1,343 +1,442 @@
-const QUESTION_TIME = 15;
-const STARTING_LIVES = 3;
-const POINTS_PER_CORRECT = 10;
-const QUESTIONS_PER_SESSION = 20;
+const WORD_DATA = {
+  Countries: [
+    'Canada', 'Brazil', 'Japan', 'Nigeria', 'France', 'India', 'Mexico', 'Italy', 'Sweden', 'Turkey', 'Spain', 'Germany'
+  ],
+  Science: [
+    'Atom', 'Gravity', 'Energy', 'Planet', 'Neuron', 'Molecule', 'Ecosystem', 'Oxygen', 'Photosynthesis', 'Magnet'
+  ],
+  'School Subjects': [
+    'Mathematics', 'History', 'Geography', 'Physics', 'Biology', 'Chemistry', 'English', 'Economics', 'Art', 'Music'
+  ],
+  'General Knowledge': [
+    'Library', 'Compass', 'Internet', 'Puzzle', 'Culture', 'Knowledge', 'Calendar', 'Language', 'Festival', 'Museum'
+  ]
+};
 
-// Country dataset definition (full master pool mapped to local SVG files).
-const countrySlugs = [
-  'afghanistan','albania','algeria','angola','argentina','armenia','australia','austria','azerbaijan','bahamas','bahrain','bangladesh','belarus','belgium','belize','benin','bhutan','bolivia','botswana','brazil','brunei-darussalam','bulgaria','burundi','cambodia','cameroon','canada','central-african-republic','chad','chile','china','colombia','comoros','costa-rica','cote-divoire','croatia','cuba','cyprus','czech-republic','democratic-republic-of-the-congo','denmark','djibouti','dominica','dominican-republic','ecuador','egypt','el-salvador','equatorial-guinea','eritrea','estonia','ethiopia','fiji','finland','france','gabon','gambia','georgia','germany','ghana','greece','grenada','guatemala','guinea','guinea-bissau','guyana','haiti','honduras','hungary','iceland','india','indonesia','iran','iraq','ireland','israel','italy','jamaica','japan','jordan','kazakhstan','kenya','kiribati','kuwait','kyrgyzstan','laos','latvia','lebanon','lesotho','liberia','libya','liechtenstein','lithuania','luxembourg','madagascar','malawi','malaysia','maldives','mali','malta','marshall-islands','mauritania','mauritius','mexico','micronesia','moldova','monaco','mongolia','montenegro','morocco','mozambique','myanmar','namibia','nauru','nepal','netherlands','new-zealand','nicaragua','niger','nigeria','north-korea','north-macedonia','norway','oman','pakistan','panama','papua-new-guinea','paraguay','peru','philippines','poland','portugal','qatar','republic-of-the-congo','romania','russian-federation','rwanda','saint-kitts-and-nevis','saint-lucia','saint-vincent-and-the-grenadines','samoa','san-marino','sao-tome-and-principe','saudi-arabia','senegal','seychelles','sierra-leone','singapore','slovakia','slovenia','solomon-islands','somalia','south-africa','south-korea','south-sudan','spain','sri-lanka','sudan','suriname','swaziland','sweden','switzerland','syrian-arab-republic','taiwan','tajikistan','tanzania','thailand','timor-leste','togo','tonga','trinidad-and-tobago','tunisia','turkey','turkmenistan','tuvalu','uganda','ukraine','united-arab-emirates','united-kingdom','united-states','uruguay','uzbekistan','vanuatu','vatican-city','venezuela','vietnam','yemen','zambia','zimbabwe'
+const DIFFICULTY = {
+  easy: { size: 10, words: 6, seconds: 420 },
+  medium: { size: 12, words: 8, seconds: 360 },
+  hard: { size: 14, words: 10, seconds: 300 }
+};
+
+const DIRECTIONS = [
+  { dr: 0, dc: 1 },  // horizontal
+  { dr: 1, dc: 0 },  // vertical
+  { dr: 1, dc: 1 },  // diagonal down-right
+  { dr: -1, dc: 1 }  // diagonal up-right
 ];
 
-const specialNames = {
-  'brunei-darussalam': 'Brunei Darussalam',
-  'central-african-republic': 'Central African Republic',
-  'cote-divoire': "Cote d'Ivoire",
-  'democratic-republic-of-the-congo': 'Democratic Republic of the Congo',
-  'north-korea': 'North Korea',
-  'republic-of-the-congo': 'Republic of the Congo',
-  'russian-federation': 'Russian Federation',
-  'saint-kitts-and-nevis': 'Saint Kitts and Nevis',
-  'saint-lucia': 'Saint Lucia',
-  'saint-vincent-and-the-grenadines': 'Saint Vincent and the Grenadines',
-  'sao-tome-and-principe': 'Sao Tome and Principe',
-  'syrian-arab-republic': 'Syrian Arab Republic',
-  'timor-leste': 'Timor-Leste',
-  'united-arab-emirates': 'United Arab Emirates',
-  'united-kingdom': 'United Kingdom',
-  'united-states': 'United States',
-  'vatican-city': 'Vatican City'
+const els = {
+  grid: document.getElementById('grid'),
+  wordList: document.getElementById('wordList'),
+  feedback: document.getElementById('feedback'),
+  foundCount: document.getElementById('foundCount'),
+  totalWords: document.getElementById('totalWords'),
+  timerValue: document.getElementById('timerValue'),
+  scoreValue: document.getElementById('scoreValue'),
+  difficultySelect: document.getElementById('difficultySelect'),
+  categorySelect: document.getElementById('categorySelect'),
+  newGameBtn: document.getElementById('newGameBtn'),
+  restartBtn: document.getElementById('restartBtn'),
+  fullscreenBtn: document.getElementById('fullscreenBtn'),
+  overlay: document.getElementById('gameOverOverlay'),
+  gameOverMessage: document.getElementById('gameOverMessage'),
+  playAgainBtn: document.getElementById('playAgainBtn')
 };
 
-function toDisplayName(slug) {
-  if (specialNames[slug]) return specialNames[slug];
-  return slug
-    .split('-')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-const countries = countrySlugs.map((slug) => ({
-  name: toDisplayName(slug),
-  flag: `assets/flags/${slug}.svg`
-}));
-
-const startScreen = document.getElementById('startScreen');
-const gameScreen = document.getElementById('gameScreen');
-const endScreen = document.getElementById('endScreen');
-const startGameBtn = document.getElementById('startGameBtn');
-const playAgainBtn = document.getElementById('playAgainBtn');
-const fullscreenBtn = document.getElementById('fullscreenBtn');
-const soundToggleBtn = document.getElementById('soundToggleBtn');
-const questionCount = document.getElementById('questionCount');
-const scoreDisplay = document.getElementById('scoreDisplay');
-const livesDisplay = document.getElementById('livesDisplay');
-const timerDisplay = document.getElementById('timerDisplay');
-const flagImage = document.getElementById('flagImage');
-const answersEl = document.getElementById('answers');
-const feedbackEl = document.getElementById('feedback');
-const finalMessage = document.getElementById('finalMessage');
-const finalScore = document.getElementById('finalScore');
-
-let sessionQuestions = [];
-let currentIndex = 0;
-let score = 0;
-let lives = STARTING_LIVES;
-let secondsLeft = QUESTION_TIME;
-let timerId = null;
-let acceptingInput = false;
-let soundEnabled = true;
-
-const sounds = {
+const optionalSounds = {
   correct: new Audio('assets/sounds/correct.mp3'),
   wrong: new Audio('assets/sounds/wrong.mp3'),
-  click: new Audio('assets/sounds/click.mp3'),
-  start: new Audio('assets/sounds/start.mp3'),
-  end: new Audio('assets/sounds/end.mp3')
+  click: new Audio('assets/sounds/click.mp3')
 };
 
-Object.values(sounds).forEach((audio) => {
-  audio.preload = 'auto';
-  audio.addEventListener('error', () => {
-    audio.datasetUnavailable = 'true';
-  });
+Object.values(optionalSounds).forEach((a) => {
+  a.preload = 'auto';
+  a.addEventListener('error', () => { a.datasetUnavailable = 'true'; });
 });
 
-function playSound(name) {
-  // Sounds trigger here; gracefully skip if file is missing or sound is off.
-  const sound = sounds[name];
-  if (!soundEnabled || !sound || sound.datasetUnavailable === 'true') return;
-  try {
-    sound.currentTime = 0;
-    sound.play().catch(() => {});
-  } catch (_error) {
-    // Ignore unsupported playback errors.
-  }
+function playSound(type) {
+  const audio = optionalSounds[type];
+  if (!audio || audio.datasetUnavailable === 'true') return;
+  audio.currentTime = 0;
+  audio.play().catch(() => {});
 }
 
-function setScreen(activeScreen) {
-  startScreen.classList.toggle('active', activeScreen === 'start');
-  gameScreen.classList.toggle('active', activeScreen === 'game');
-  endScreen.classList.toggle('active', activeScreen === 'end');
+let state = {
+  difficulty: 'medium',
+  category: 'all',
+  size: 12,
+  matrix: [],
+  placedWords: [],
+  foundWords: new Set(),
+  score: 0,
+  timeLeft: 0,
+  timerId: null,
+  selectionPath: [],
+  isDragging: false
+};
+
+function sanitizeWord(word) {
+  return word.toUpperCase().replace(/[^A-Z]/g, '');
 }
 
-function shuffle(input) {
-  const arr = [...input];
-  for (let i = arr.length - 1; i > 0; i -= 1) {
+function shuffle(arr) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+    [copy[i], copy[j]] = [copy[j], copy[i]];
   }
-  return arr;
+  return copy;
 }
 
-function updateHud() {
-  questionCount.textContent = `Question ${Math.min(currentIndex + 1, sessionQuestions.length)} / ${sessionQuestions.length}`;
-  // Score updates happen here.
-  scoreDisplay.textContent = `Score: ${score}`;
-  // Lives update happens here.
-  livesDisplay.textContent = `Lives: ${'❤'.repeat(lives)}${'♡'.repeat(STARTING_LIVES - lives)}`;
-  timerDisplay.textContent = `Time: ${secondsLeft}s`;
-}
-
-function stopTimer() {
-  if (timerId) {
-    clearInterval(timerId);
-    timerId = null;
+function getWordPool(category) {
+  if (category === 'all') {
+    return Object.values(WORD_DATA).flat();
   }
+  return WORD_DATA[category] || [];
 }
 
-function startTimer() {
-  stopTimer();
-  secondsLeft = QUESTION_TIME;
-  timerDisplay.classList.remove('urgent');
-  timerDisplay.textContent = `Time: ${secondsLeft}s`;
+function pickWords() {
+  const cfg = DIFFICULTY[state.difficulty];
+  const pool = getWordPool(state.category)
+    .map((value) => ({ label: value, token: sanitizeWord(value) }))
+    .filter((entry) => entry.token.length > 2 && entry.token.length <= cfg.size);
 
-  // Timer logic runs here.
-  timerId = setInterval(() => {
-    secondsLeft -= 1;
-    timerDisplay.textContent = `Time: ${secondsLeft}s`;
-    if (secondsLeft <= 5) timerDisplay.classList.add('urgent');
-    if (secondsLeft <= 0) handleTimeout();
-  }, 1000);
+  return shuffle(pool).slice(0, cfg.words);
 }
 
-function createChoices(correctCountryName) {
-  const wrongPool = countries.filter((country) => country.name !== correctCountryName);
-  const wrongChoices = shuffle(wrongPool).slice(0, 3).map((country) => country.name);
-  // Answer choices are randomized here.
-  return shuffle([correctCountryName, ...wrongChoices]);
+function buildEmptyGrid(size) {
+  return Array.from({ length: size }, () => Array.from({ length: size }, () => ''));
 }
 
-function disableAnswers() {
-  answersEl.querySelectorAll('button').forEach((button) => {
-    button.disabled = true;
+function canPlaceWord(grid, word, row, col, dr, dc) {
+  for (let i = 0; i < word.length; i += 1) {
+    const r = row + dr * i;
+    const c = col + dc * i;
+    if (r < 0 || c < 0 || r >= state.size || c >= state.size) return false;
+    if (grid[r][c] && grid[r][c] !== word[i]) return false;
+  }
+  return true;
+}
+
+function placeWord(grid, entry) {
+  const attempts = 160;
+  for (let i = 0; i < attempts; i += 1) {
+    const direction = DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)];
+    const row = Math.floor(Math.random() * state.size);
+    const col = Math.floor(Math.random() * state.size);
+
+    if (!canPlaceWord(grid, entry.token, row, col, direction.dr, direction.dc)) continue;
+
+    const cells = [];
+    for (let j = 0; j < entry.token.length; j += 1) {
+      const r = row + direction.dr * j;
+      const c = col + direction.dc * j;
+      grid[r][c] = entry.token[j];
+      cells.push(`${r}-${c}`);
+    }
+
+    return { ...entry, cells };
+  }
+  return null;
+}
+
+function generateGame() {
+  const cfg = DIFFICULTY[state.difficulty];
+  state.size = cfg.size;
+  const matrix = buildEmptyGrid(cfg.size);
+  const picked = pickWords();
+  const placed = [];
+
+  picked.forEach((entry) => {
+    const result = placeWord(matrix, entry);
+    if (result) placed.push(result);
   });
+
+  for (let r = 0; r < cfg.size; r += 1) {
+    for (let c = 0; c < cfg.size; c += 1) {
+      if (!matrix[r][c]) {
+        matrix[r][c] = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+      }
+    }
+  }
+
+  state.matrix = matrix;
+  state.placedWords = placed;
+  state.foundWords = new Set();
+  state.score = 0;
+  state.timeLeft = cfg.seconds;
 }
 
-function decorateAnswers(correctName, selectedName) {
-  answersEl.querySelectorAll('button').forEach((button) => {
-    if (button.textContent === correctName) {
-      button.classList.add('correct');
-    } else if (selectedName && button.textContent === selectedName) {
-      button.classList.add('wrong');
+function renderWords() {
+  els.wordList.innerHTML = '';
+  state.placedWords.forEach((entry) => {
+    const li = document.createElement('li');
+    li.dataset.word = entry.token;
+    li.textContent = entry.label;
+    if (state.foundWords.has(entry.token)) li.classList.add('found');
+    els.wordList.appendChild(li);
+  });
+
+  els.foundCount.textContent = String(state.foundWords.size);
+  els.totalWords.textContent = String(state.placedWords.length);
+  els.scoreValue.textContent = String(state.score);
+}
+
+function renderGrid() {
+  els.grid.style.setProperty('--size', String(state.size));
+  els.grid.innerHTML = '';
+
+  for (let r = 0; r < state.size; r += 1) {
+    for (let c = 0; c < state.size; c += 1) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cell';
+      btn.dataset.row = String(r);
+      btn.dataset.col = String(c);
+      btn.dataset.key = `${r}-${c}`;
+      btn.textContent = state.matrix[r][c];
+      els.grid.appendChild(btn);
+    }
+  }
+
+  markFoundCells();
+}
+
+function markFoundCells() {
+  const foundCells = new Set();
+  state.placedWords.forEach((word) => {
+    if (state.foundWords.has(word.token)) {
+      word.cells.forEach((key) => foundCells.add(key));
+    }
+  });
+
+  els.grid.querySelectorAll('.cell').forEach((cell) => {
+    if (foundCells.has(cell.dataset.key)) {
+      cell.classList.add('found');
     }
   });
 }
 
-function queueNextQuestion() {
-  setTimeout(() => {
-    currentIndex += 1;
-    renderQuestion();
-  }, 900);
+function clearSelectionVisuals() {
+  els.grid.querySelectorAll('.cell.selected').forEach((el) => el.classList.remove('selected'));
 }
 
-function endGame() {
-  stopTimer();
-  setScreen('end');
-  playSound('end'); // End sound trigger.
+function getCellFromPoint(clientX, clientY) {
+  const element = document.elementFromPoint(clientX, clientY);
+  if (!element || !element.classList.contains('cell')) return null;
+  return element;
+}
 
-  if (lives <= 0) {
-    finalMessage.textContent = 'You ran out of lives. Keep practicing and try again!';
-  } else {
-    finalMessage.textContent = 'Excellent work! You completed your session.';
+function uniquePath(path) {
+  const out = [];
+  const seen = new Set();
+  path.forEach((item) => {
+    if (!seen.has(item.key)) {
+      seen.add(item.key);
+      out.push(item);
+    }
+  });
+  return out;
+}
+
+function isStraightLine(path) {
+  if (path.length < 2) return true;
+  const dr = path[1].row - path[0].row;
+  const dc = path[1].col - path[0].col;
+  if (!DIRECTIONS.some((d) => d.dr === dr && d.dc === dc || d.dr === -dr && d.dc === -dc)) return false;
+
+  for (let i = 2; i < path.length; i += 1) {
+    if (path[i].row - path[i - 1].row !== dr || path[i].col - path[i - 1].col !== dc) return false;
   }
-
-  finalScore.textContent = `Final Score: ${score} / ${sessionQuestions.length * POINTS_PER_CORRECT}`;
+  return true;
 }
 
-function renderQuestion() {
-  feedbackEl.textContent = '';
-  feedbackEl.className = 'feedback';
+function lettersFromPath(path) {
+  return path.map((p) => state.matrix[p.row][p.col]).join('');
+}
 
-  if (currentIndex >= sessionQuestions.length || lives <= 0) {
-    endGame();
+function handleSelectionComplete() {
+  if (state.selectionPath.length < 2) {
+    clearSelectionVisuals();
+    state.selectionPath = [];
     return;
   }
 
-  const question = sessionQuestions[currentIndex];
-  const choices = createChoices(question.name);
+  const path = uniquePath(state.selectionPath);
+  if (!isStraightLine(path)) {
+    els.feedback.textContent = 'Selection must be horizontal, vertical, or diagonal.';
+    els.feedback.className = 'feedback error';
+    playSound('wrong');
+    clearSelectionVisuals();
+    state.selectionPath = [];
+    return;
+  }
 
-  flagImage.src = question.flag;
-  flagImage.alt = `Flag of ${question.name}`;
+  const forward = lettersFromPath(path);
+  const backward = forward.split('').reverse().join('');
 
-  answersEl.innerHTML = '';
-  choices.forEach((choice) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'answer-btn';
-    button.textContent = choice;
-    button.addEventListener('click', () => handleAnswer(choice, question.name));
-    answersEl.appendChild(button);
+  const matched = state.placedWords.find((entry) => {
+    return (entry.token === forward || entry.token === backward) && !state.foundWords.has(entry.token);
   });
 
-  acceptingInput = true;
-  updateHud();
-  startTimer();
-}
-
-function handleAnswer(selectedName, correctName) {
-  if (!acceptingInput) return;
-
-  acceptingInput = false;
-  stopTimer();
-  disableAnswers();
-
-  if (selectedName === correctName) {
-    score += POINTS_PER_CORRECT;
-    feedbackEl.textContent = '✅ Correct!';
-    feedbackEl.classList.add('ok');
-    playSound('correct'); // Correct answer sound trigger.
+  if (matched) {
+    state.foundWords.add(matched.token);
+    state.score += matched.token.length * 10;
+    els.feedback.textContent = `✅ Great! You found "${matched.label}".`;
+    els.feedback.className = 'feedback success';
+    playSound('correct');
   } else {
-    lives -= 1;
-    feedbackEl.textContent = `❌ Incorrect. Correct answer: ${correctName}`;
-    feedbackEl.classList.add('error');
-    playSound('wrong'); // Wrong answer sound trigger.
+    els.feedback.textContent = 'Not a target word. Try another path.';
+    els.feedback.className = 'feedback error';
+    playSound('wrong');
   }
 
-  decorateAnswers(correctName, selectedName);
-  updateHud();
-
-  if (lives <= 0) {
-    setTimeout(endGame, 900);
-    return;
-  }
-
-  queueNextQuestion();
+  clearSelectionVisuals();
+  state.selectionPath = [];
+  renderWords();
+  renderGrid();
+  checkGameOver();
 }
 
-function handleTimeout() {
-  if (!acceptingInput) return;
+function addCellToPath(cell) {
+  const row = Number(cell.dataset.row);
+  const col = Number(cell.dataset.col);
+  const key = cell.dataset.key;
+  state.selectionPath.push({ row, col, key });
+  clearSelectionVisuals();
+  uniquePath(state.selectionPath).forEach((p) => {
+    const selectedCell = els.grid.querySelector(`.cell[data-key="${p.key}"]`);
+    selectedCell?.classList.add('selected');
+  });
+}
 
-  acceptingInput = false;
-  stopTimer();
-  lives -= 1;
+function bindGridInteractions() {
+  const startDrag = (event) => {
+    const touch = event.touches?.[0];
+    const target = event.target.classList?.contains('cell')
+      ? event.target
+      : getCellFromPoint(touch?.clientX ?? event.clientX, touch?.clientY ?? event.clientY);
+    if (!target) return;
 
-  const question = sessionQuestions[currentIndex];
-  feedbackEl.textContent = `⏰ Time up. Correct answer: ${question.name}`;
-  feedbackEl.classList.add('error');
+    state.isDragging = true;
+    state.selectionPath = [];
+    addCellToPath(target);
+    playSound('click');
+    event.preventDefault();
+  };
 
-  disableAnswers();
-  decorateAnswers(question.name, null);
-  updateHud();
-  playSound('wrong'); // Timeout uses wrong sound trigger.
+  const moveDrag = (event) => {
+    if (!state.isDragging) return;
+    const touch = event.touches?.[0];
+    const target = getCellFromPoint(touch?.clientX ?? event.clientX, touch?.clientY ?? event.clientY);
+    if (!target) return;
+    addCellToPath(target);
+    event.preventDefault();
+  };
 
-  if (lives <= 0) {
-    setTimeout(endGame, 900);
-    return;
+  const endDrag = () => {
+    if (!state.isDragging) return;
+    state.isDragging = false;
+    handleSelectionComplete();
+  };
+
+  els.grid.addEventListener('mousedown', startDrag);
+  window.addEventListener('mousemove', moveDrag);
+  window.addEventListener('mouseup', endDrag);
+
+  els.grid.addEventListener('touchstart', startDrag, { passive: false });
+  window.addEventListener('touchmove', moveDrag, { passive: false });
+  window.addEventListener('touchend', endDrag);
+}
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const s = (seconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function startTimer() {
+  clearInterval(state.timerId);
+  els.timerValue.textContent = formatTime(state.timeLeft);
+
+  state.timerId = setInterval(() => {
+    state.timeLeft -= 1;
+    els.timerValue.textContent = formatTime(Math.max(0, state.timeLeft));
+
+    if (state.timeLeft <= 0) {
+      clearInterval(state.timerId);
+      els.feedback.textContent = '⏰ Time is up!';
+      els.feedback.className = 'feedback error';
+      checkGameOver(true);
+    }
+  }, 1000);
+}
+
+function checkGameOver(outOfTime = false) {
+  if (state.foundWords.size !== state.placedWords.length && !outOfTime) return;
+
+  clearInterval(state.timerId);
+  const total = state.placedWords.length;
+  const found = state.foundWords.size;
+
+  if (outOfTime) {
+    els.gameOverMessage.textContent = `You found ${found} out of ${total} words. Score: ${state.score}.`;
+  } else {
+    const bonus = Math.max(state.timeLeft * 2, 0);
+    state.score += bonus;
+    els.scoreValue.textContent = String(state.score);
+    els.gameOverMessage.textContent = `You found all ${total} words! Time bonus: +${bonus}. Final score: ${state.score}.`;
   }
 
-  queueNextQuestion();
+  els.overlay.classList.add('show');
+  els.overlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeOverlay() {
+  els.overlay.classList.remove('show');
+  els.overlay.setAttribute('aria-hidden', 'true');
 }
 
 function startGame() {
-  // Session question pool is created here from full dataset.
-  // Question order is shuffled here so each game starts differently.
-  sessionQuestions = shuffle(countries).slice(0, QUESTIONS_PER_SESSION);
-  // Repeat prevention is enforced by consuming each sessionQuestions item once via currentIndex.
-
-  currentIndex = 0;
-  score = 0;
-  lives = STARTING_LIVES;
-  secondsLeft = QUESTION_TIME;
-
-  setScreen('game');
-  playSound('start'); // Start sound trigger.
-  renderQuestion();
+  closeOverlay();
+  state.difficulty = els.difficultySelect.value;
+  state.category = els.categorySelect.value;
+  generateGame();
+  renderWords();
+  renderGrid();
+  els.feedback.textContent = 'Select letters by dragging across the grid.';
+  els.feedback.className = 'feedback';
+  startTimer();
 }
 
 async function toggleFullscreen() {
-  const container = document.getElementById('gameApp');
   try {
-    // Fullscreen starts here.
     if (!document.fullscreenElement) {
-      await container.requestFullscreen();
+      await document.getElementById('app').requestFullscreen();
     } else {
       await document.exitFullscreen();
     }
   } catch (_error) {
-    // Fullscreen can fail in some mobile/embedded browser contexts.
+    // Silently ignore unsupported contexts.
   }
 }
 
-function toggleSound() {
-  soundEnabled = !soundEnabled;
-  soundToggleBtn.textContent = soundEnabled ? '🔊 Sound On' : '🔇 Sound Off';
-  soundToggleBtn.setAttribute('aria-pressed', String(soundEnabled));
-  playSound('click'); // UI click sound trigger.
-}
-
-function setupLogoFallbacks() {
+function setupLogoFallback() {
   document.querySelectorAll('[data-logo-wrap]').forEach((wrap) => {
-    const img = wrap.querySelector('[data-brand-logo]');
+    const img = wrap.querySelector('[data-logo]');
     if (!img) return;
-
-    const showFallback = () => {
-      wrap.classList.add('logo-missing');
-    };
-
-    img.addEventListener('error', showFallback, { once: true });
-
-    if (img.complete && img.naturalWidth === 0) {
-      showFallback();
-    }
+    const fallback = () => wrap.classList.add('logo-missing');
+    img.addEventListener('error', fallback, { once: true });
+    if (img.complete && img.naturalWidth === 0) fallback();
   });
 }
 
-startGameBtn.addEventListener('click', () => {
-  playSound('click');
-  startGame();
-});
+els.newGameBtn.addEventListener('click', startGame);
+els.restartBtn.addEventListener('click', startGame);
+els.playAgainBtn.addEventListener('click', startGame);
+els.fullscreenBtn.addEventListener('click', toggleFullscreen);
 
-playAgainBtn.addEventListener('click', () => {
-  playSound('click');
-  startGame();
-});
-
-fullscreenBtn.addEventListener('click', () => {
-  playSound('click');
-  toggleFullscreen();
-});
-
-soundToggleBtn.addEventListener('click', toggleSound);
-
-setupLogoFallbacks();
-setScreen('start');
+setupLogoFallback();
+bindGridInteractions();
+startGame();

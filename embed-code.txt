@@ -1,11 +1,11 @@
 Title:
-Flags of the World Quiz
+Word Search Challenge
 
 Excerpt:
-Test your geography knowledge by identifying flags from around the world in this fun interactive quiz.
+A polished Oxbridge word-search game with timer, score tracking, and multiple difficulty levels.
 
 Description:
-Flags of the World Quiz is an Oxbridge-branded educational geography game that challenges students to identify national flags correctly. It uses randomized questions each session to keep gameplay fresh while building memory, global awareness, and pattern recognition.
+Word Search Challenge is a self-hosted HTML5 educational game by Oxbridge Tutorial College. Players find hidden words using drag or swipe gestures across horizontal, vertical, and diagonal directions. Includes categories, responsive design, restart/new game controls, and a game-over summary.
 
 Embed code:
-<iframe src="/games/flags-world/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>
+<iframe src="/games/word-search/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>
