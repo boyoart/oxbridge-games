@@ -1,11 +1,11 @@
 Title:
-Flags of the World Quiz
+2048 Puzzle
 
 Excerpt:
-Test your geography knowledge by identifying flags from around the world in this fun interactive quiz.
+Slide, combine, and reach 2048 in this addictive number puzzle that builds logic and planning skills.
 
 Description:
-Flags of the World Quiz is an Oxbridge-branded educational geography game that challenges students to identify national flags correctly. It uses randomized questions each session to keep gameplay fresh while building memory, global awareness, and pattern recognition.
+2048 Puzzle is an Oxbridge-branded number game that helps students develop logic, planning, and pattern recognition through simple but engaging tile-combining gameplay.
 
 Embed code:
-<iframe src="/games/flags-world/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>
+<iframe src="/games/2048/" style="width:100%;height:85vh;border:0;border-radius:10px;" allowfullscreen></iframe>
