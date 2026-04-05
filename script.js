@@ -69,6 +69,8 @@ const state = {
   validMoves: [],
   placements: [], // placement assignment is tracked in this ordered array.
   victory: [], // completed tokens are moved into one shared victory container.
+  gameOver: false,
+  winnerSide: null,
   movingToken: null,
   animating: false,
   soundOn: true,
@@ -145,6 +147,8 @@ function beginGame() {
   state.validMoves = [];
   state.placements = [];
   state.victory = [];
+  state.gameOver = false;
+  state.winnerSide = null;
   el.victoryContainer.innerHTML = "";
   el.setup.classList.add("hidden");
   el.game.classList.remove("hidden");
@@ -161,8 +165,7 @@ function activeSidePlayers() {
 }
 
 function isSideFinished(side) {
-  const players = sidePlayers(side);
-  return players.length > 0 && players.every((p) => p.finished);
+  return state.gameOver || sideHasCompletedGoal(side);
 }
 
 function activeSideType() {
@@ -279,7 +282,7 @@ function tokenCoord(color, pos, id) {
 }
 
 function rollDice() {
-  if (state.animating || state.online.ws) return;
+  if (state.animating || state.online.ws || state.gameOver) return;
   if (isSideFinished(state.currentSide) || state.dice.rolled) return;
 
   // Computer and player both use this visible center-board roll animation.
@@ -396,7 +399,7 @@ function canEnterFromBase(ball) {
 }
 
 function onBallSelect(ball) {
-  if (!state.dice.rolled || state.animating || isSideFinished(state.currentSide)) return;
+  if (!state.dice.rolled || state.animating || isSideFinished(state.currentSide) || state.gameOver) return;
   if (state.mode !== "online" && activeSideType() !== "human") return;
   if (!getPlayableBalls(state.currentSide).includes(ball)) return;
   if (getForcedCombinedMove(state.currentSide) && ball !== "sum") return;
@@ -492,12 +495,14 @@ function isLandingLegalForSide(movingColor, targetPos) {
 }
 
 function moveToken(color, tokenId) {
+  if (state.gameOver) return;
   if (SIDE_BY_COLOR[color] !== state.currentSide) return;
   if (state.mode !== "online" && activeSideType() !== "human") return;
   doMoveToken({ color, tokenId });
 }
 
 async function doMoveToken(move) {
+  if (state.gameOver) return;
   const p = state.players.find((player) => player.color === move.color);
   if (!p || !state.dice.selectedBall) return;
   const forcedCombined = getForcedCombinedMove(state.currentSide);
@@ -525,7 +530,11 @@ async function doMoveToken(move) {
   sfx("token-move");
   // Final landing tile is already computed in `target`; capture check must happen only after this full move resolves.
   handleCapture(move.color, move.tokenId);
-  if (token.pos === FINAL_HOME) pushToVictory(p.color);
+  if (token.pos === FINAL_HOME) {
+    pushToVictory(p.color);
+    // Win-condition check is run immediately after a token reaches home.
+    if (checkAndTriggerSideWinImmediately()) return;
+  }
 
   // Used-vs-remaining ball state handling:
   // - Die A move consumes only A
@@ -533,11 +542,13 @@ async function doMoveToken(move) {
   // - Sum consumes both A and B together
   // Remaining die logic continues after one die is used: consuming A/B leaves the other die intact.
   if (state.dice.selectedBall === "a") {
-    // Consuming only Die A (including base-entry on a rolled 6) keeps Die B active for follow-up moves.
+    // One-die consumption: using Die A consumes only Die A.
+    // Remaining die stays active if it still has a legal move.
     state.dice.usedA = true;
     state.dice.sumAvailable = false;
   } else if (state.dice.selectedBall === "b") {
-    // Consuming only Die B keeps Die A active for follow-up moves when legal.
+    // One-die consumption: using Die B consumes only Die B.
+    // Remaining die stays active if it still has a legal move.
     state.dice.usedB = true;
     state.dice.sumAvailable = false;
   } else {
@@ -553,9 +564,66 @@ async function doMoveToken(move) {
   hideGuideHand();
 
   assignPlacements();
-  // One-roll-per-turn rule: after one valid move from this roll, end the turn.
-  // (Only endTurn's double-6 check can keep the same side active.)
-  endTurn();
+  // Recalculate legal choices after the first die use so any remaining die stays playable.
+  recomputeDiceAvailability(state.currentSide);
+  const remainingPlayableBalls = getPlayableBalls(state.currentSide);
+
+  // Turn ends only when all legal die options are exhausted.
+  if (!remainingPlayableBalls.length) {
+    endTurn();
+    return;
+  }
+
+  render();
+  if (activeSideType() === "ai") {
+    aiChooseBallAndToken();
+  }
+}
+
+function getColorHomeCount(color) {
+  const player = state.players.find((p) => p.color === color);
+  if (!player) return 0;
+  return player.tokens.filter((t) => t.pos === FINAL_HOME).length;
+}
+
+function sideHomeCounts() {
+  return {
+    red: getColorHomeCount("red"),
+    yellow: getColorHomeCount("yellow"),
+    blue: getColorHomeCount("blue"),
+    green: getColorHomeCount("green")
+  };
+}
+
+function sideHasCompletedGoal(side) {
+  const counts = sideHomeCounts();
+  // User-side win rule: Red 4/4 AND Yellow 4/4.
+  if (side === "user") return counts.red === 4 && counts.yellow === 4;
+  // Computer-side win rule: Blue 4/4 AND Green 4/4.
+  if (side === "computer") return counts.blue === 4 && counts.green === 4;
+  return false;
+}
+
+function checkAndTriggerSideWinImmediately() {
+  const userWon = sideHasCompletedGoal("user");
+  const computerWon = sideHasCompletedGoal("computer");
+  if (!userWon && !computerWon) return false;
+
+  // Immediate game-end trigger: stop turns, rolls, and movement as soon as a side meets the full requirement.
+  state.gameOver = true;
+  state.winnerSide = userWon ? "user" : "computer";
+  state.dice.selectedBall = null;
+  state.validMoves = [];
+  state.movingToken = null;
+  state.animating = false;
+  state.dice.rolled = false;
+  state.dice.usedA = true;
+  state.dice.usedB = true;
+  state.dice.sumAvailable = false;
+  hideGuideHand();
+  sfx("win");
+  render();
+  return true;
 }
 
 function handleCapture(color, tokenId) {
@@ -612,6 +680,7 @@ function assignPlacements() {
 }
 
 function endTurn() {
+  if (state.gameOver) return;
   const extra = state.dice.a === 6 && state.dice.b === 6;
   if (!extra) {
     // Turn passes to the other side after the current side's single-roll turn resolution.
@@ -637,13 +706,13 @@ function endTurn() {
 }
 
 function maybeAiTurn() {
-  if (activeSideType() !== "ai" || isSideFinished(state.currentSide)) return;
+  if (state.gameOver || activeSideType() !== "ai" || isSideFinished(state.currentSide)) return;
   // Computer dice roll animation trigger after short AI thinking delay.
   setTimeout(() => rollDice(), 700 + Math.random() * 700);
 }
 
 function aiChooseBallAndToken() {
-  if (activeSideType() !== "ai") return;
+  if (state.gameOver || activeSideType() !== "ai") return;
   // Computer chooses move across both of its colors (Blue+Green) within one COMPUTER side turn.
   const forcedCombined = getForcedCombinedMove(state.currentSide);
   if (forcedCombined) {
@@ -663,7 +732,7 @@ function aiChooseBallAndToken() {
 }
 
 function aiMoveToken() {
-  if (activeSideType() !== "ai") return;
+  if (state.gameOver || activeSideType() !== "ai") return;
   if (!state.validMoves.length) return endTurn();
   const choice = pickAiChoice(state.currentSide, [state.dice.selectedBall]);
   if (!choice.move) return endTurn();
@@ -724,7 +793,11 @@ function render() {
   renderBalls();
   renderPanels();
   renderBoardTokens();
-  el.turnBanner.textContent = state.currentSide === "user" ? "USER Turn (Red + Yellow)" : "COMPUTER Turn (Blue + Green)";
+  if (state.gameOver) {
+    el.turnBanner.textContent = state.winnerSide === "user" ? "User Wins!" : "Computer Wins!";
+  } else {
+    el.turnBanner.textContent = state.currentSide === "user" ? "USER Turn (Red + Yellow)" : "COMPUTER Turn (Blue + Green)";
+  }
 }
 
 function renderBalls() {
@@ -749,12 +822,18 @@ function renderBalls() {
 
 function renderPanels() {
   el.placements.innerHTML = `<h3>Placements</h3>${state.placements.map((p) => `<div>${p.place}${suffix(p.place)} - ${p.name}</div>`).join("") || "<div>None yet</div>"}`;
-  const rows = state.players.map((p) => {
-    const active = p.tokens.filter((t) => t.pos >= 0 && t.pos < FINAL_HOME).length;
-    const home = p.tokens.filter((t) => t.pos === FINAL_HOME).length;
-    return `<div><b>${p.name}</b> (${p.color})<br/>Active ${active}/4 · Home ${home}/4${p.place ? ` · ${p.place}${suffix(p.place)}` : ""}</div><hr/>`;
-  }).join("");
-  el.status.innerHTML = `<h3>Token Status</h3>${rows}`;
+  const counts = sideHomeCounts();
+  const finalLine = state.gameOver
+    ? `<div><b>Final:</b> Red ${counts.red}/4, Yellow ${counts.yellow}/4, Blue ${counts.blue}/4, Green ${counts.green}/4</div><hr/>`
+    : "";
+  el.status.innerHTML = `
+    <h3>Token Status</h3>
+    <div><b>USER side</b><br/>Red Home: ${counts.red}/4<br/>Yellow Home: ${counts.yellow}/4<br/>User Goal: Red ${counts.red}/4, Yellow ${counts.yellow}/4</div>
+    <hr/>
+    <div><b>COMPUTER side</b><br/>Blue Home: ${counts.blue}/4<br/>Green Home: ${counts.green}/4<br/>Computer Goal: Blue ${counts.blue}/4, Green ${counts.green}/4</div>
+    <hr/>
+    ${finalLine}
+  `;
 }
 
 function renderBoardTokens() {
