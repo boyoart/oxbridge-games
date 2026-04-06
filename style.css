@@ -250,21 +250,19 @@ button {
 }
 
 .square.selected { box-shadow: inset 0 0 0 3px rgba(200,162,255,0.95), inset 0 0 20px rgba(200,162,255,0.5); }
-.square.move::before,
-.square.capture::before {
-  content: "";
+.move-marker {
   position: absolute;
   border-radius: 50%;
   pointer-events: none;
   z-index: 3;
 }
-.square.move::before {
+.move-marker.move {
   width: 34%;
   aspect-ratio: 1;
   background: radial-gradient(circle, rgba(158,203,255,0.9), rgba(232,243,255,0.2));
   box-shadow: 0 0 14px rgba(111,168,232,0.75);
 }
-.square.capture::before {
+.move-marker.capture {
   width: 76%;
   aspect-ratio: 1;
   border: 3px solid rgba(244,166,193,0.92);
@@ -281,17 +279,28 @@ button {
   display: grid;
   place-items: center;
   filter:
-    drop-shadow(0 2px 0 rgba(255,255,255,0.35))
-    drop-shadow(0 8px 6px rgba(0,0,0,0.45));
+    drop-shadow(0 2px 0 rgba(255,255,255,0.52))
+    drop-shadow(0 9px 7px rgba(0,0,0,0.48))
+    drop-shadow(0 0 10px rgba(255,255,255,0.18));
   /* Shaking/jitter fix: remove hover/active transforms and drag affordance. */
   transition: none;
   cursor: pointer;
+}
+.piece-wrap.piece-model-ready::after {
+  content: "";
+  position: absolute;
+  inset: 14%;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  box-shadow: inset 0 0 12px rgba(158,203,255,0.35);
+  pointer-events: none;
 }
 .piece {
   width: 100%;
   pointer-events: none;
   user-select: none;
   transform: translateZ(0);
+  image-rendering: auto;
 }
 
 @media (max-width: 1040px) {

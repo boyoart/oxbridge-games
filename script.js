@@ -20,6 +20,7 @@ const knightOffsets = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2
 const kingOffsets = [[1, 1], [1, 0], [1, -1], [0, 1], [0, -1], [-1, 1], [-1, 0], [-1, -1]];
 
 let state;
+// Selected piece state is stored globally so click-to-move always uses one source of truth.
 let selected = null;
 let legalTargets = [];
 let turnLegalMoves = [];
@@ -29,6 +30,12 @@ let aiLocked = false;
 let timerInterval = null;
 let lastTick = 0;
 let soundEnabled = true;
+let assetLoadVersion = 0;
+
+const pieceAssetCache = new Map();
+const pieceAssetById = new Map();
+const ASSET_TYPES = ['glb', 'gltf', 'obj'];
+const PIECE_NAME_BY_TYPE = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 
 const audio = {
   move: new Audio('assets/sounds/move.mp3'),
@@ -135,6 +142,63 @@ function pieceSvg(color, type) {
   </svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+function getPieceAssetDescriptor(piece) {
+  // Piece file path mapping: white-king -> assets/chess/pieces/white/king.glb (then .gltf/.obj/.png).
+  const side = piece.color === 'w' ? 'white' : 'black';
+  const pieceName = PIECE_NAME_BY_TYPE[piece.type];
+  const pieceId = `${side}-${pieceName}`;
+  const root = `assets/chess/pieces/${side}/${pieceName}`;
+  return {
+    pieceId,
+    modelCandidates: ASSET_TYPES.map((ext) => `${root}.${ext}`),
+    pngCandidate: `${root}.png`,
+    svgCandidate: `${root}.svg`,
+    legacySvg: `assets/pieces/${piece.color}-${pieceName}.svg`
+  };
+}
+
+async function assetExists(url) {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    if (res.ok) return true;
+  } catch (_e) {
+    // Some static hosts do not support HEAD requests; fall through to GET.
+  }
+
+  try {
+    const res = await fetch(url, { method: 'GET' });
+    return res.ok;
+  } catch (_e) {
+    return false;
+  }
+}
+
+function loadPieceAsset(piece) {
+  const descriptor = getPieceAssetDescriptor(piece);
+  if (pieceAssetCache.has(descriptor.pieceId)) return pieceAssetCache.get(descriptor.pieceId);
+
+  // External piece asset lookup and fallback chain are resolved once and cached per logical piece ID.
+  const loader = (async () => {
+    for (const modelPath of descriptor.modelCandidates) {
+      if (await assetExists(modelPath)) return { kind: 'model', url: modelPath, descriptor };
+    }
+    if (await assetExists(descriptor.pngCandidate)) return { kind: 'png', url: descriptor.pngCandidate, descriptor };
+    if (await assetExists(descriptor.svgCandidate)) return { kind: 'svg', url: descriptor.svgCandidate, descriptor };
+    if (await assetExists(descriptor.legacySvg)) return { kind: 'legacy-svg', url: descriptor.legacySvg, descriptor };
+    return { kind: 'internal-svg', url: null, descriptor };
+  })();
+
+  pieceAssetCache.set(descriptor.pieceId, loader);
+  return loader;
+}
+
+function scheduleAssetRefresh() {
+  const token = ++assetLoadVersion;
+  Promise.resolve().then(() => {
+    if (token === assetLoadVersion) render();
+  });
 }
 
 function getMovesForPiece(game, r, c, attackOnly = false) {
@@ -280,6 +344,7 @@ function applyMove(game, move) {
 }
 
 function getLegalMoves(game, color) {
+  // Legal moves are generated here for all piece types, then filtered by king-safety simulation.
   const legal = [];
   for (let r = 0; r < 8; r += 1) {
     for (let c = 0; c < 8; c += 1) {
@@ -417,13 +482,33 @@ function createPieceElement(piece, square) {
   wrap.dataset.pieceId = piece.id;
   wrap.dataset.square = squareKey(square.r, square.c);
   wrap.draggable = false;
+  wrap.setAttribute('aria-label', `${piece.color === 'w' ? 'White' : 'Black'} ${PIECE_NAME_BY_TYPE[piece.type]}`);
 
   const img = document.createElement('img');
   img.className = 'piece';
-  img.src = pieceSvg(piece.color, piece.type);
-  img.alt = `${piece.color === 'w' ? 'White' : 'Black'} ${piece.type}`;
+  img.alt = `${piece.color === 'w' ? 'White' : 'Black'} ${PIECE_NAME_BY_TYPE[piece.type]}`;
 
+  // Fallback renderer is immediately available to avoid interaction blocking while external assets resolve.
+  img.src = pieceSvg(piece.color, piece.type);
   wrap.appendChild(img);
+
+  const descriptor = getPieceAssetDescriptor(piece);
+  const cached = pieceAssetById.get(descriptor.pieceId);
+  if (cached) {
+    wrap.dataset.assetKind = cached.kind;
+    if (cached.kind === 'png' || cached.kind === 'svg' || cached.kind === 'legacy-svg') img.src = cached.url;
+    if (cached.kind === 'model') {
+      // Future-ready marker: model URL is attached for easy swap to model-viewer/three.js pipeline.
+      wrap.dataset.modelUrl = cached.url;
+      wrap.classList.add('piece-model-ready');
+    }
+  } else {
+    loadPieceAsset(piece).then((result) => {
+      pieceAssetById.set(result.descriptor.pieceId, result);
+      scheduleAssetRefresh();
+    });
+  }
+
   return wrap;
 }
 
@@ -440,7 +525,15 @@ function render() {
 
       if (selected && selected.r === r && selected.c === c) sq.classList.add('selected');
       const target = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
-      if (target) sq.classList.add(describeMoveHint(target, state));
+      if (target) {
+        const hintType = describeMoveHint(target, state);
+        sq.classList.add(hintType);
+        // Legal-move highlight layer is explicit DOM to avoid pseudo-element conflicts with dark-square logos.
+        const marker = document.createElement('span');
+        marker.className = `move-marker ${hintType}`;
+        marker.setAttribute('aria-hidden', 'true');
+        sq.appendChild(marker);
+      }
 
       if (state.check) {
         const king = findKing(state, state.check);
