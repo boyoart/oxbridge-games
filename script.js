@@ -22,6 +22,8 @@ const el = {
   startOnlineBtn: document.getElementById("startOnlineBtn"),
   connectionStatus: document.getElementById("connectionStatus"),
   turnBanner: document.getElementById("turnBanner"),
+  turnPill: document.getElementById("turnPill"),
+  playerChips: document.getElementById("playerChips"),
   board: document.getElementById("board"),
   centerHomeLogo: document.getElementById("centerHomeLogo"),
   diceCenter: document.getElementById("diceCenter"),
@@ -36,7 +38,9 @@ const el = {
   soundToggleBtn: document.getElementById("soundToggleBtn"),
   victoryContainer: document.getElementById("victoryContainer"),
   brandLogo: document.getElementById("brandLogo"),
-  brandFallback: document.getElementById("brandFallback")
+  brandFallback: document.getElementById("brandFallback"),
+  timerBubble: document.getElementById("timerBubble"),
+  helpBtn: document.getElementById("helpBtn")
 };
 
 const audio = ["token-move", "capture", "win", "click"].reduce((acc, k) => {
@@ -76,6 +80,8 @@ let boardCells = [];
 let boardPath = [];
 let homePaths = { red: [], blue: [], yellow: [], green: [] };
 let diceRollTimer = null;
+let turnTimerId = null;
+let turnSecondsLeft = 20;
 
 function createDiceState() {
   return {
@@ -166,11 +172,23 @@ function beginGame() {
   state.victory = [];
   state.gameOver = false;
   state.winnerSide = null;
+  resetTurnTimer();
   el.victoryContainer.innerHTML = "";
   el.setup.classList.add("hidden");
   el.game.classList.remove("hidden");
   render();
   maybeAiTurn();
+}
+
+function resetTurnTimer() {
+  clearInterval(turnTimerId);
+  turnSecondsLeft = 20;
+  if (el.timerBubble) el.timerBubble.textContent = String(turnSecondsLeft);
+  turnTimerId = setInterval(() => {
+    if (state.gameOver) return;
+    turnSecondsLeft = Math.max(0, turnSecondsLeft - 1);
+    if (el.timerBubble) el.timerBubble.textContent = String(turnSecondsLeft);
+  }, 1000);
 }
 
 function sidePlayers(side) {
@@ -230,6 +248,7 @@ function setupBoard() {
   for (let r = 9; r < 15; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("q-green");
   for (let r = 9; r < 15; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("q-yellow");
   addBaseWatermarks();
+  addBaseAvatars();
 
   boardPath = [
     [6, 1], [6, 2], [6, 3], [6, 4], [6, 5], [5, 6], [4, 6], [3, 6], [2, 6], [1, 6], [0, 6], [0, 7], [0, 8],
@@ -268,6 +287,17 @@ function addBaseWatermarks() {
     // Pointer-events disabled so base logos never interfere with token interactivity.
     wrap.style.pointerEvents = "none";
     el.board.appendChild(wrap);
+  });
+}
+
+function addBaseAvatars() {
+  el.board.querySelectorAll(".base-avatar").forEach((n) => n.remove());
+  const avatarGlyph = { red: "🦊", blue: "🐼", yellow: "🐯", green: "🐸" };
+  ["red", "blue", "yellow", "green"].forEach((color) => {
+    const avatar = document.createElement("div");
+    avatar.className = `base-avatar ${color}`;
+    avatar.textContent = avatarGlyph[color];
+    el.board.appendChild(avatar);
   });
 }
 
@@ -344,10 +374,10 @@ function rollDice() {
 function updateBallValues() {
   // Individual die values are exposed directly on the first two bottom balls.
   const [ballA, ballB, ballSum] = [...el.ballTray.querySelectorAll(".ball")];
-  ballA.textContent = String(state.dice.dieA.value);
-  ballB.textContent = String(state.dice.dieB.value);
+  ballA.querySelector("strong").textContent = String(state.dice.dieA.value);
+  ballB.querySelector("strong").textContent = String(state.dice.dieB.value);
   // Sum ball is assigned separately and must remain an optional third choice.
-  ballSum.textContent = String(state.dice.sum.value);
+  ballSum.querySelector("strong").textContent = String(state.dice.sum.value);
 }
 
 function getAvailableBalls() {
@@ -640,6 +670,7 @@ function checkAndTriggerSideWinImmediately() {
   state.dice.sum.available = false;
   state.dice.sum.used = true;
   hideGuideHand();
+  clearInterval(turnTimerId);
   sfx("win");
   render();
   return true;
@@ -713,6 +744,7 @@ function endTurn() {
   }
   state.dice = createDiceState();
   state.validMoves = [];
+  resetTurnTimer();
   hideGuideHand();
   updateBallValues();
   render();
@@ -805,13 +837,31 @@ function render() {
   setDiceFace(el.dieA, state.dice.dieA.value || 1, !state.dice.rolled);
   setDiceFace(el.dieB, state.dice.dieB.value || 1, !state.dice.rolled);
   renderBalls();
+  renderTopStatus();
   renderPanels();
   renderBoardTokens();
   if (state.gameOver) {
     el.turnBanner.textContent = state.winnerSide === "user" ? "User Wins!" : "Computer Wins!";
+    if (el.turnPill) el.turnPill.textContent = state.winnerSide === "user" ? "User Victory" : "Computer Victory";
   } else {
     el.turnBanner.textContent = state.currentSide === "user" ? "USER Turn (Red + Yellow)" : "COMPUTER Turn (Blue + Green)";
+    if (el.turnPill) el.turnPill.textContent = state.currentSide === "user" ? "Your Turn" : "Computer Turn";
   }
+}
+
+function renderTopStatus() {
+  if (!el.playerChips) return;
+  const counts = sideHomeCounts();
+  const chips = [
+    { key: "red", label: "Red", owner: "User", value: counts.red },
+    { key: "yellow", label: "Yellow", owner: "User", value: counts.yellow },
+    { key: "blue", label: "Blue", owner: "Computer", value: counts.blue },
+    { key: "green", label: "Green", owner: "Computer", value: counts.green }
+  ];
+  el.playerChips.innerHTML = chips.map((chip) => {
+    const active = SIDE_BY_COLOR[chip.key] === state.currentSide ? "active" : "";
+    return `<div class="player-chip ${active}"><strong>${chip.label} • ${chip.owner}</strong><span>Home ${chip.value}/4</span></div>`;
+  }).join("");
 }
 
 function renderBalls() {
@@ -956,11 +1006,11 @@ async function animateHandTokenMove(color, tokenId, startPos, targetPos) {
   floating.style.transform = "translate(-50%, -50%)";
   el.board.appendChild(floating);
 
-  // Hand enters from outside the board bounds before interacting with any token.
+  // Hand guidance animation trigger: hand enters from above board before guiding a confirmed move token.
   el.guideHand.classList.remove("fade-out", "hidden", "grab");
   el.guideHand.style.opacity = "1";
-  el.guideHand.style.left = "112%";
-  el.guideHand.style.top = "108%";
+  el.guideHand.style.left = "50%";
+  el.guideHand.style.top = "-12%";
   await wait(40);
 
   moveHand(pickupLeft, pickupTop, 260);
@@ -983,7 +1033,7 @@ async function animateHandTokenMove(color, tokenId, startPos, targetPos) {
   await wait(70);
   floating.remove();
 
-  moveHand(-10, -10, 240);
+  moveHand(50, -12, 240);
   el.guideHand.classList.add("fade-out");
   await wait(250);
   el.guideHand.classList.add("hidden");
@@ -1132,6 +1182,12 @@ el.soundToggleBtn.onclick = () => {
   state.soundOn = !state.soundOn;
   el.soundToggleBtn.textContent = state.soundOn ? "Sound On" : "Sound Off";
 };
+if (el.helpBtn) {
+  el.helpBtn.onclick = () => {
+    sfx("click");
+    alert("Pick a bottom ball (Die A / Die B / Sum), then tap a glowing token to move.");
+  };
+}
 
 document.addEventListener("pointerdown", unlockRollSound, { once: true });
 

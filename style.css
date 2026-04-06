@@ -1,238 +1,224 @@
 :root {
-  --ox-red: #b5101a;
-  --ox-red-dark: #8f0f17;
-  --ox-white: #fffdf8;
-  --red: #df2c2c;
-  --blue: #2c62d8;
-  --yellow: #f0cf36;
-  --green: #23a94f;
-  /* UI pastel theme applied */
-  --ui-pastel-pink: #f7c5e8;
-  --ui-pastel-blue: #c9dcff;
-  --ui-pastel-purple: #d9ccff;
-  --ui-pastel-ink: #3f355b;
-  --ui-pastel-soft-border: #d9cdee;
+  --ox-red: #d74a42;
+  --ox-blue: #3f75dc;
+  --ox-yellow: #efc63d;
+  --ox-green: #3bab5f;
+  --ink: #2e231a;
+  --wood-dark: #8a5b34;
+  --wood-mid: #a97648;
+  --wood-light: #cfab77;
+  --mobile-ball-bar-height: 134px;
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
   font-family: "Trebuchet MS", sans-serif;
-  color: #111;
   min-height: 100vh;
-  background: linear-gradient(145deg, #fef9ff 0%, #f3edff 36%, #eef5ff 72%, #ffeef7 100%);
+  color: #1f1711;
+  background:
+    radial-gradient(circle at 20% 14%, rgba(255, 238, 200, .22), transparent 34%),
+    radial-gradient(circle at 84% 75%, rgba(255, 255, 255, .14), transparent 36%),
+    repeating-linear-gradient(12deg, rgba(255,255,255,.04) 0 12px, rgba(0,0,0,.03) 12px 24px),
+    linear-gradient(140deg, var(--wood-dark), var(--wood-mid) 50%, var(--wood-light));
 }
-.screen { width: min(1300px, 98vw); margin: 0 auto; padding: 10px; }
+.screen { width: min(460px, 100vw); margin: 0 auto; padding: 10px 10px 20px; }
+.hidden { display: none !important; }
+
 .setup-card {
-  max-width: 650px; margin: 20px auto; background: rgba(255,255,255,.96); border-radius: 18px;
-  padding: 20px; box-shadow: 0 8px 28px rgba(107, 84, 150, .18); border: 2px solid var(--ui-pastel-soft-border);
+  max-width: 650px; margin: 20px auto; background: rgba(255,255,255,.95); border-radius: 18px;
+  padding: 20px; box-shadow: 0 8px 28px rgba(0,0,0,.22); border: 2px solid rgba(255,255,255,.45);
 }
-.setup-card h1 { margin-top: 0; color: var(--ui-pastel-ink); }
 .setup-row { display: grid; gap: 6px; margin-bottom: 12px; }
 .setup-row.inline { grid-template-columns: 1fr auto; align-items: center; }
 .setup-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 button, a, select, input {
-  border-radius: 12px; border: none; padding: 10px 14px; font-weight: 700; font-size: 0.95rem;
-  color: var(--ui-pastel-ink);
+  border-radius: 12px; border: none; padding: 10px 14px; font-weight: 700; font-size: .92rem;
 }
-button, a {
-  background: linear-gradient(135deg, var(--ui-pastel-pink), var(--ui-pastel-purple) 55%, var(--ui-pastel-blue));
-  color: var(--ui-pastel-ink);
-  text-decoration: none;
-  cursor: pointer;
-  border: 1px solid color-mix(in oklab, var(--ui-pastel-purple) 70%, #baa8e8);
-  box-shadow: 0 3px 10px rgba(111, 90, 156, .2);
-}
-.hidden { display: none !important; }
+button, a { background: linear-gradient(135deg, #ffe6ba, #ffd08a); color: #382511; text-decoration: none; cursor: pointer; }
 
-.top-bar {
-  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; margin-bottom: 8px;
-  background: linear-gradient(130deg, #f5c5e9 0%, #dbcffd 48%, #c9dcff 100%);
-  color: var(--ui-pastel-ink);
-  border-radius: 14px;
+/* Portrait-first layout and status hierarchy: top status -> centered board -> bottom controls. */
+.game-shell {
+  display: grid;
+  gap: 10px;
+  padding-bottom: calc(var(--mobile-ball-bar-height) + env(safe-area-inset-bottom));
+}
+.top-hud {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.88);
+  border: 1px solid rgba(255,255,255,.7);
+}
+.brand-wrap { display: flex; align-items: center; min-height: 42px; }
+.brand-logo { height: 42px; width: auto; object-fit: contain; }
+.brand-fallback { font-size: .88rem; font-weight: 800; }
+.turn-banner {
+  text-align: center;
+  font-weight: 900;
+  background: linear-gradient(145deg, #fff, #ffecc2);
+  border: 1px solid #efce89;
   padding: 8px 10px;
-  border: 1px solid var(--ui-pastel-soft-border);
+  border-radius: 999px;
 }
-.brand-wrap { display: flex; align-items: center; min-height: 48px; }
-.brand-logo { height: 44px; width: auto; object-fit: contain; }
-.brand-fallback { font-size: .9rem; font-weight: 800; letter-spacing: .02em; }
-.controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.layout { display: grid; grid-template-columns: 230px minmax(280px, 1fr) 230px; gap: 10px; align-items: start; }
-.panel {
-  background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(251,245,255,.94));
-  border-radius: 14px;
-  padding: 10px;
-  min-height: 130px;
-  border: 1px solid var(--ui-pastel-soft-border);
-  box-shadow: 0 4px 12px rgba(111, 90, 156, .08);
+.controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+
+/* Status chips mirror compact top name/score style from reference. */
+.player-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
-#leftPanel { display: grid; gap: 10px; }
+.player-chip {
+  padding: 7px 8px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.88);
+  border: 1px solid rgba(255,255,255,.7);
+  display: grid;
+  gap: 2px;
+  font-size: .8rem;
+}
+.player-chip.active { box-shadow: 0 0 0 2px #ffe074; }
 
 .board-shell {
-  /* Board colors locked and unchanged */
   position: relative;
-  width: min(88vw, 74vh, 760px);
+  width: min(95vw, 92svh, 460px);
   aspect-ratio: 1;
   margin: 0 auto;
-  border: 8px solid #9da7b1;
-  border-radius: 18px;
-  box-shadow: 0 16px 34px rgba(0,0,0,.22);
+  border: 10px solid #e9ddc7;
+  border-radius: 24px;
+  box-shadow: 0 14px 26px rgba(0,0,0,.34), inset 0 3px 4px rgba(255,255,255,.6);
   overflow: hidden;
 }
-.board-shell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(145deg, #f9f6ef, #ece7dc);
-  z-index: 1;
-}
+/* Board renderer styling: playful, high-contrast lanes and clean white path tiles. */
 .board {
   width: 100%; height: 100%; display: grid;
   grid-template-columns: repeat(15, 1fr); grid-template-rows: repeat(15, 1fr);
-  position: relative;
-  z-index: 2;
-  background: transparent;
+  position: relative; z-index: 2;
+  background: #fffdf8;
 }
-/* Base tile logo placement: each watermark sits fully inside its 6x6 color base block and never crosses into path tiles. */
-.base-watermark {
-  position: absolute;
-  width: 40%;
-  height: 40%;
-  /* Layering contract: base color background -> school logo -> tokens -> indicators/hand. */
-  z-index: 3;
+.tile {
+  border: 1px solid #e5e5e5;
+  position: relative;
   display: grid;
   place-items: center;
   overflow: hidden;
-  pointer-events: none; /* Logo layer never blocks token clicks. */
+  background: #fff;
 }
-/* Base logo is fully visible (100% opacity) with drop shadow and remains behind tokens. */
+.q-red { background: var(--ox-red); border-color: var(--ox-red); }
+.q-blue { background: var(--ox-blue); border-color: var(--ox-blue); }
+.q-yellow { background: var(--ox-yellow); border-color: var(--ox-yellow); }
+.q-green { background: var(--ox-green); border-color: var(--ox-green); }
+.track { background: #ffffff; border-color: #d4d4d4; }
+.entrance-red { background: var(--ox-red) !important; }
+.entrance-blue { background: var(--ox-blue) !important; }
+.entrance-yellow { background: var(--ox-yellow) !important; }
+.entrance-green { background: var(--ox-green) !important; }
+.home-red { background: color-mix(in oklab, var(--ox-red) 72%, white); }
+.home-blue { background: color-mix(in oklab, var(--ox-blue) 72%, white); }
+.home-yellow { background: color-mix(in oklab, var(--ox-yellow) 72%, white); }
+.home-green { background: color-mix(in oklab, var(--ox-green) 72%, white); }
+.center { background: #fff; }
+
+/* Ensure school logo in each base stays beneath tokens at all times via lower z-index layering. */
+.base-watermark {
+  position: absolute; width: 40%; height: 40%; z-index: 3;
+  display: grid; place-items: center; overflow: hidden; pointer-events: none;
+}
 .base-watermark img {
-  width: 76%;
-  height: 76%;
-  object-fit: contain;
-  opacity: 1;
-  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.45));
+  width: 70%; height: 70%; object-fit: contain;
+  opacity: .88;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,.35));
 }
 .base-watermark.red { top: 0; left: 0; }
 .base-watermark.blue { top: 0; right: 0; }
 .base-watermark.green { bottom: 0; left: 0; }
 .base-watermark.yellow { bottom: 0; right: 0; }
-.tile {
-  border: 1px solid #d9dde2;
-  position: relative;
+
+/* Character/avatar identity panels inside each base quadrant. */
+.base-avatar {
+  position: absolute;
+  width: 26%;
+  height: 26%;
+  z-index: 3;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.8);
+  background: radial-gradient(circle at 30% 20%, #fff, rgba(255,255,255,.3));
   display: grid;
   place-items: center;
-  overflow: hidden;
-  background: #fefefe;
-  border-radius: 2px;
-  /* Tile backgrounds stay below logo/token layers (no local stacking context). */
+  font-size: 1.15rem;
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0,0,0,.3);
+  pointer-events: none;
 }
-/* Solid-color base quadrants so each color zone reads as one clean region. */
-.q-red { background: #db4e4e; border-color: #db4e4e; }
-.q-blue { background: #4a78d8; border-color: #4a78d8; }
-.q-yellow { background: #e4c84b; border-color: #e4c84b; }
-.q-green { background: #3faa62; border-color: #3faa62; }
-.track { background: #f8fbff; border-color: #ced8e1; }
-.entrance-red { background: var(--red) !important; }
-.entrance-blue { background: var(--blue) !important; }
-.entrance-yellow { background: var(--yellow) !important; }
-.entrance-green { background: var(--green) !important; }
-.home-red { background: color-mix(in oklab, var(--red) 82%, white); }
-.home-blue { background: color-mix(in oklab, var(--blue) 82%, white); }
-.home-yellow { background: color-mix(in oklab, var(--yellow) 82%, white); }
-.home-green { background: color-mix(in oklab, var(--green) 82%, white); }
-.center { background: #ffffff; }
-/* Arrow style standardization: one shared stem + head system keeps size/thickness/alignment identical board-wide. */
-.arrow {
-  width: 62%;
-  height: 62%;
-  position: relative;
-  display: block;
-  margin: 0 auto;
-}
-.arrow::before {
-  content: "";
-  position: absolute;
-  left: 14%;
-  right: 28%;
-  top: 50%;
-  height: 2px;
-  background: #4f5d6d;
-  transform: translateY(-50%);
-}
-.arrow::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  right: 10%;
-  width: 0;
-  height: 0;
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-left: 8px solid #4f5d6d;
-  transform: translateY(-50%);
-}
+.base-avatar.red { top: 7%; left: 7%; background-color: #b43c36; }
+.base-avatar.blue { top: 7%; right: 7%; background-color: #355eb2; }
+.base-avatar.green { bottom: 7%; left: 7%; background-color: #2a8d4c; }
+.base-avatar.yellow { bottom: 7%; right: 7%; background-color: #ba9108; }
+
+.arrow { width: 62%; height: 62%; position: relative; display: block; margin: 0 auto; }
+.arrow::before { content: ""; position: absolute; left: 14%; right: 28%; top: 50%; height: 2px; background: #111; transform: translateY(-50%); }
+.arrow::after { content: ""; position: absolute; top: 50%; right: 10%; width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 8px solid #111; transform: translateY(-50%); }
 .arrow.arrow-up { transform: rotate(-90deg); }
 .arrow.arrow-right { transform: rotate(0deg); }
 .arrow.arrow-down { transform: rotate(90deg); }
 .arrow.arrow-left { transform: rotate(180deg); }
 
-/* Center logo clipping: enforce the center-home diamond mask so the logo never bleeds outside playable tiles. */
 .center-home-logo {
+  position: absolute; left: 50%; top: 50%; width: 20%; height: 20%; transform: translate(-50%, -50%);
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); overflow: hidden; background: #fff; border: 2px solid rgba(255,255,255,.72);
+  z-index: 2; pointer-events: none;
+}
+.center-home-logo img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Center dice tray creation: a compact soft pad under the two dice at board center. */
+.dice-tray {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 20%;
-  height: 20%;
+  width: 23%;
+  aspect-ratio: 1;
   transform: translate(-50%, -50%);
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  overflow: hidden;
-  background: #fff;
-  border: 2px solid rgba(255,255,255,.72);
-  z-index: 2;
+  background: radial-gradient(circle at 30% 25%, #f7f2e6, #c9b99f);
+  border-radius: 18px;
+  box-shadow: inset 0 4px 6px rgba(255,255,255,.55), inset 0 -5px 8px rgba(0,0,0,.2);
+  z-index: 3;
   pointer-events: none;
 }
-.center-home-logo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform: scale(1.06);
-  opacity: 1;
+.dice-center {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  display: flex; gap: 8px; border: none; background: transparent; padding: 0; border-radius: 0; box-shadow: none; z-index: 4;
 }
+.die {
+  width: clamp(28px, 7vw, 42px); height: clamp(28px, 7vw, 42px);
+  border-radius: 9px;
+  background: linear-gradient(160deg, #ffffff 0%, #edf1f7 68%, #cfd7e1 100%);
+  border: 1px solid #afbccb;
+  box-shadow: inset 0 2px 1px rgba(255,255,255,.9), inset 0 -4px 6px rgba(0,0,0,.12), 0 4px 7px rgba(0,0,0,.24);
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); padding: 4px; gap: 2px;
+}
+.pip { width: 6px; height: 6px; border-radius: 50%; background: #111; opacity: 0; align-self: center; justify-self: center; }
+.pip.on { opacity: 1; }
+.dice-center.rolling { animation: shake .14s linear infinite; }
+.dice-center.rolling-left { animation: shake .14s linear infinite, rollLeft .55s ease-in-out forwards; }
+.dice-center.rolling-return { animation: settle .45s ease-out forwards, rollReturn .55s ease-in-out forwards; }
+@keyframes shake { 0%{transform:translate(-50%,-50%) rotate(-3deg)} 100%{transform:translate(-50%,-50%) rotate(3deg)} }
+@keyframes settle { 0%{filter:brightness(1.06)} 100%{filter:brightness(1)} }
+@keyframes rollLeft { from { transform: translate(-50%, -50%); } to { transform: translate(-132%, -50%); } }
+@keyframes rollReturn { from { transform: translate(-132%, -50%); } to { transform: translate(-50%, -50%); } }
 
-/* Token circular enforcement: fixed 1:1 aspect ratio + equal dimensions prevents oval distortion on all breakpoints. */
+/* Glossy circular token renderer styled as raised game pieces. */
 .token {
-  /* Token colors preserved intentionally */
-  width: 76%;
-  aspect-ratio: 1 / 1;
-  height: auto;
-  border-radius: 50%;
-  border: 2px solid rgba(255,255,255,.96);
-  /* Base tokens must always render above the decorative watermark logos. */
+  width: 76%; aspect-ratio: 1 / 1; border-radius: 50%; border: 2px solid rgba(255,255,255,.96);
   z-index: 4;
   box-shadow: inset 0 10px 10px rgba(255,255,255,.42), inset 0 -8px 10px rgba(0,0,0,.22), 0 4px 8px rgba(0,0,0,.36);
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 0;
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  flex: 0 0 auto; margin: 0; padding: 0;
 }
-/* Stacked tokens are grouped inside a fixed tile using small offsets; tile dimensions never change. */
-.token.stacked {
-  width: 54%;
-  transform: translate(calc(-50% + var(--stack-x, 0%)), calc(-50% + var(--stack-y, 0%)));
-}
-.token::after {
-  content: "";
-  position: absolute;
-  top: 17%;
-  left: 20%;
-  width: 50%;
-  height: 28%;
-  border-radius: 50%;
-  background: rgba(255,255,255,.45);
-}
+.token.stacked { width: 54%; transform: translate(calc(-50% + var(--stack-x, 0%)), calc(-50% + var(--stack-y, 0%))); }
+.token::after { content: ""; position: absolute; top: 17%; left: 20%; width: 50%; height: 28%; border-radius: 50%; background: rgba(255,255,255,.45); }
 .token.red { background: radial-gradient(circle at 32% 28%, #ff9f9f, #ca1010 65%, #8f0505 100%); }
 .token.blue { background: radial-gradient(circle at 32% 28%, #9dc1ff, #1751d0 65%, #083492 100%); }
 .token.yellow { background: radial-gradient(circle at 32% 28%, #fff0a4, #d8af00 65%, #967700 100%); }
@@ -240,171 +226,112 @@ button, a {
 .token.valid { outline: 3px solid #fff; animation: tokenGlow .8s infinite alternate; cursor: pointer; }
 @keyframes tokenGlow { from { filter: drop-shadow(0 1px 1px rgba(255,255,255,.2)); } to { filter: drop-shadow(0 0 6px rgba(255,255,255,.9)); } }
 
-/* Realistic dice visuals with rounded edges, depth, highlights, and pips. */
-.dice-center {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  display: flex; gap: 8px; border: none;
-  /* Dice wrapper/frame removed: keep only standalone dice with a natural soft shadow. */
-  background: transparent; padding: 0; border-radius: 0;
-  box-shadow: none; z-index: 4;
-  appearance: none;
-}
-.die {
-  width: clamp(28px, 4.8vw, 42px); height: clamp(28px, 4.8vw, 42px);
-  border-radius: 10px;
-  background: linear-gradient(160deg, #ffffff 0%, #f0f3f7 65%, #dce3eb 100%);
-  border: 1px solid #b8c2cf;
-  box-shadow: inset 0 2px 1px rgba(255,255,255,.9), inset 0 -4px 6px rgba(0,0,0,.12), 0 4px 7px rgba(0,0,0,.24);
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  padding: 4px;
-  gap: 2px;
-}
-.pip {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #585858 0%, #111 80%);
-  align-self: center;
-  justify-self: center;
-  opacity: 0;
-}
-.pip.on { opacity: 1; }
-.dice-center.rolling .die {
-  filter: brightness(1.04);
-}
-.dice-center.rolling { animation: shake .14s linear infinite; }
-/* Dice left-roll animation: dice physically travel left while rolling, then return to center after showing result. */
-.dice-center.rolling-left {
-  animation:
-    shake .14s linear infinite,
-    rollLeft 0.55s ease-in-out forwards;
-}
-/* Dice return animation: keeps dice visible and side-by-side while gliding back to center home. */
-.dice-center.rolling-return {
-  animation:
-    settle 0.45s ease-out forwards,
-    rollReturn 0.55s ease-in-out forwards;
-}
-@keyframes shake { 0%{transform:translate(-50%,-50%) rotate(-3deg)} 100%{transform:translate(-50%,-50%) rotate(3deg)} }
-@keyframes settle { 0%{filter:brightness(1.06)} 100%{filter:brightness(1)} }
-@keyframes rollLeft {
-  from { transform: translate(-50%, -50%); }
-  to { transform: translate(-132%, -50%); }
-}
-@keyframes rollReturn {
-  from { transform: translate(-132%, -50%); }
-  to { transform: translate(-50%, -50%); }
-}
-
+/* Hand guidance animation trigger/placement: enters from top and guides selected valid token. */
 .guide-hand {
   position: absolute;
-  top: 18%;
+  top: -8%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 2.4rem;
-  z-index: 6;
+  font-size: clamp(1.5rem, 5vw, 2.1rem);
+  z-index: 7;
   transition: opacity .25s ease;
   pointer-events: none;
 }
 .guide-hand.fade-out { opacity: 0; }
-/* Hand pick-up cue: scales slightly while "grabbing" token during movement animation. */
-.guide-hand.grab {
-  transform: translate(-50%, -50%) scale(1.14);
-}
-@keyframes handBob { from { transform: translateX(-50%) translateY(0); } to { transform: translateX(-50%) translateY(8px);} }
+.guide-hand.grab { transform: translate(-50%, -50%) scale(1.14); }
+.token.animating { position: absolute; width: 5.2%; z-index: 6; pointer-events: none; }
 
-/* Floating token used only while the hand physically carries a piece between tiles. */
-.token.animating {
-  position: absolute;
-  width: 5.2%;
-  z-index: 5;
-  pointer-events: none;
+.bottom-ui { display: grid; gap: 8px; }
+.panel {
+  background: rgba(255,255,255,.9);
+  border-radius: 14px;
+  padding: 9px;
+  border: 1px solid rgba(255,255,255,.7);
 }
-
-.bottom-balls { display: flex; justify-content: center; gap: 14px; margin-top: 12px; flex-wrap: wrap; }
-.ball {
-  width: 62px; height: 62px; border-radius: 50%; border: 3px solid #222;
-  background: radial-gradient(circle at 30% 25%, #fff, #f7c5e8);
-  color: #111; font-size: 1.5rem;
-}
-.ball[data-ball="b"] { background: radial-gradient(circle at 30% 25%, #fff, #c9dcff); }
-.ball[data-ball="sum"] { background: radial-gradient(circle at 30% 25%, #fff, #d9ccff); }
-.ball.selected { outline: 4px solid #fff; box-shadow: 0 0 0 4px #ffcc00; transform: scale(1.08); }
-.ball.disabled { opacity: .35; pointer-events: none; }
-.ball.used { filter: grayscale(.45); opacity: .28; pointer-events: none; }
-
-.victory-wrap {
-  background: linear-gradient(180deg, #fcf8ff, #f4edff);
-  padding: 8px;
-  border-radius: 12px;
-  border: 1px solid var(--ui-pastel-soft-border);
-}
-.victory-wrap h3 { margin: 2px 0 6px; font-size: .9rem; }
-.victory-container {
-  min-height: 44px;
-  border-radius: 12px;
-  border: 1px solid #ad9dd3;
-  padding: 5px;
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  align-items: center;
-  background: linear-gradient(90deg, rgba(247,197,232,.35), rgba(201,220,255,.3), rgba(217,204,255,.35));
-}
-.victory-token { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; animation: pop .2s ease-out; }
+.compact-panel { font-size: .84rem; }
+.victory-wrap h3 { margin: 2px 0 6px; font-size: .84rem; }
+.victory-container { min-height: 34px; border-radius: 10px; border: 1px solid #bfa57a; padding: 5px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; background: #fff8e7; }
+.victory-token { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; }
 .victory-token.red { background: #d91616; }
 .victory-token.blue { background: #134ecf; }
 .victory-token.yellow { background: #d9b200; }
 .victory-token.green { background: #0e9e3f; }
-@keyframes pop { from { transform: scale(.5);} to { transform: scale(1);} }
 
-@media (max-width: 980px) {
-  .layout { grid-template-columns: 1fr; }
-  #leftPanel { order: 2; }
-  #statusPanel { order: 3; }
-  .board-shell { order: 1; width: min(96vw, 76vh); }
-  .top-bar { grid-template-columns: 1fr; }
-  .controls { justify-content: flex-start; }
+/* Bottom move-ball bar is fixed on mobile so Die A / Die B / Sum are always visible and touch-friendly. */
+#ballTray.bottom-balls {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 62px;
+  z-index: 40;
+  display: flex;
+  justify-content: space-evenly;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 14px 12px;
+  padding-left: max(14px, env(safe-area-inset-left));
+  padding-right: max(14px, env(safe-area-inset-right));
+  background: linear-gradient(180deg, rgba(255,249,232,.96), rgba(255,236,199,.98));
+  border-top: 1px solid #d8b478;
+  box-shadow: 0 -8px 22px rgba(58, 34, 10, 0.28);
+}
+.ball {
+  width: clamp(62px, 20vw, 74px);
+  height: clamp(62px, 20vw, 74px);
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.95);
+  box-shadow: inset 0 9px 11px rgba(255,255,255,.46), inset 0 -9px 12px rgba(0,0,0,.18), 0 3px 9px rgba(0,0,0,.28);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  line-height: 1;
+}
+.ball span { font-size: .56rem; font-weight: 800; letter-spacing: .02em; opacity: .88; }
+.ball strong { font-size: 1.4rem; margin-top: 2px; }
+.ball[data-ball="a"] { background: radial-gradient(circle at 30% 22%, #fff, #ff9c9c); }
+.ball[data-ball="b"] { background: radial-gradient(circle at 30% 22%, #fff, #9cc0ff); }
+.ball[data-ball="sum"] { background: radial-gradient(circle at 30% 22%, #fff, #ffe49f); }
+.ball.selected { outline: 3px solid #fff; box-shadow: 0 0 0 4px #ffcf35; transform: scale(1.08); }
+.ball.disabled { opacity: .35; pointer-events: none; }
+.ball.used { filter: grayscale(.45); opacity: .28; pointer-events: none; }
+
+/* Status/timer/help UI render area: app-like bottom turn dock. */
+.turn-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px calc(8px + env(safe-area-inset-bottom));
+  background: rgba(43, 28, 14, .92);
+}
+.turn-pill {
+  text-align: center;
+  background: linear-gradient(145deg, #ffebbc, #ffd174);
+  color: #3b260f;
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-weight: 900;
+}
+.dock-mini {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.34);
+  background: rgba(255,255,255,.16);
+  color: #fff;
+  font-weight: 900;
 }
 
-@media (max-width: 768px) {
-  /* Mobile breakpoint: keep the 3-ball controls always visible without scrolling. */
-  :root {
-    --mobile-ball-bar-height: 96px;
-  }
-
-  /* Mobile sticky/fixed bar: pin the 3 balls to viewport bottom; desktop layout remains untouched above 768px. */
-  #ballTray.bottom-balls {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 40;
-    margin: 0;
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-    /* Mobile safe-area side support keeps all 3 balls fully tappable on notched devices. */
-    padding-left: max(16px, env(safe-area-inset-left));
-    padding-right: max(16px, env(safe-area-inset-right));
-    gap: 12px;
-    justify-content: space-evenly;
-    flex-wrap: nowrap;
-    background: linear-gradient(135deg, rgba(247, 197, 232, 0.96), rgba(217, 204, 255, 0.97), rgba(201, 220, 255, 0.96));
-    border-top-left-radius: 18px;
-    border-top-right-radius: 18px;
-    box-shadow: 0 -8px 22px rgba(101, 84, 141, 0.28);
-    backdrop-filter: blur(4px);
-  }
-
-  #ballTray .ball {
-    width: clamp(58px, 18vw, 68px);
-    height: clamp(58px, 18vw, 68px);
-    flex: 0 0 auto;
-  }
-
-  /* Mobile overlap guard: reserve space so the fixed ball bar does not hide board tiles or controls. */
-  #gameScreen {
-    padding-bottom: calc(var(--mobile-ball-bar-height) + env(safe-area-inset-bottom));
-  }
+@media (min-width: 900px) {
+  .screen { width: min(740px, 96vw); }
+  .bottom-ui { grid-template-columns: 1fr 1fr; }
+  #ballTray.bottom-balls { position: static; border-radius: 16px; box-shadow: none; border: 1px solid #e6ca98; }
+  .turn-dock { position: static; border-radius: 16px; }
+  .game-shell { padding-bottom: 0; }
 }
