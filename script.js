@@ -28,6 +28,7 @@ let aiLocked = false;
 let timerInterval = null;
 let lastTick = 0;
 let soundEnabled = true;
+let dragFrom = null;
 
 const audio = {
   move: new Audio('assets/sounds/move.mp3'),
@@ -409,7 +410,13 @@ function collectPiecePositions() {
   return map;
 }
 
+function describeMoveHint(move, game) {
+  const targetPiece = game.board[move.to[0]][move.to[1]];
+  return targetPiece || move.type === 'enpassant' ? 'capture' : 'move';
+}
+
 function animatePieces(previous) {
+  // Animation handling: FLIP-style transform to smooth old-square -> new-square movement.
   boardEl.querySelectorAll('.piece-wrap[data-piece-id]').forEach((el) => {
     const prev = previous.get(el.dataset.pieceId);
     if (!prev) return;
@@ -428,6 +435,23 @@ function animatePieces(previous) {
   });
 }
 
+// Piece rendering logic rebuilt as a dedicated component-style creator.
+function createPieceElement(piece, square) {
+  const wrap = document.createElement('span');
+  wrap.className = 'piece-wrap';
+  wrap.dataset.pieceId = piece.id;
+  wrap.dataset.square = squareKey(square.r, square.c);
+  wrap.draggable = true;
+
+  const img = document.createElement('img');
+  img.className = 'piece';
+  img.src = pieceSvg(piece.color, piece.type);
+  img.alt = `${piece.color === 'w' ? 'White' : 'Black'} ${piece.type}`;
+
+  wrap.appendChild(img);
+  return wrap;
+}
+
 function render() {
   const prev = collectPiecePositions();
   boardEl.innerHTML = '';
@@ -441,7 +465,7 @@ function render() {
 
       if (selected && selected.r === r && selected.c === c) sq.classList.add('selected');
       const target = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
-      if (target) sq.classList.add(target.type.includes('capture') || target.type === 'enpassant' ? 'capture' : 'move');
+      if (target) sq.classList.add(describeMoveHint(target, state));
 
       if (state.check) {
         const king = findKing(state, state.check);
@@ -450,20 +474,10 @@ function render() {
 
       const piece = state.board[r][c];
       if (piece) {
-        const wrap = document.createElement('span');
-        wrap.className = 'piece-wrap';
-        wrap.dataset.pieceId = piece.id;
-
-        const img = document.createElement('img');
-        img.className = 'piece';
-        img.src = pieceSvg(piece.color, piece.type);
-        img.alt = `${piece.color === 'w' ? 'White' : 'Black'} ${piece.type}`;
-
-        wrap.appendChild(img);
+        const wrap = createPieceElement(piece, { r, c });
         sq.appendChild(wrap);
       }
 
-      sq.addEventListener('click', onSquareClick);
       boardEl.appendChild(sq);
     }
   }
@@ -511,6 +525,7 @@ function onSquareClick(event) {
 
   const { r, c } = parseSquare(event.currentTarget.dataset.key);
   const piece = state.board[r][c];
+  // Move validation trigger: destination must exist in the legal target list.
   const move = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
 
   if (selected && move) {
@@ -520,6 +535,7 @@ function onSquareClick(event) {
 
   if (piece && piece.color === humanColor) {
     selected = { r, c };
+    // Valid move highlighting is calculated from legal move generation only.
     legalTargets = getLegalMoves(state, humanColor).filter((m) => m.from[0] === r && m.from[1] === c);
   } else {
     selected = null;
@@ -527,6 +543,62 @@ function onSquareClick(event) {
   }
 
   render();
+}
+
+// Click-to-select and click-to-move interaction controller.
+function onBoardClick(event) {
+  const squareEl = event.target.closest('.square');
+  if (!squareEl || !boardEl.contains(squareEl)) return;
+  onSquareClick({ currentTarget: squareEl });
+}
+
+// Drag-and-drop handling: secondary interaction mode that reuses move validation.
+function onBoardDragStart(event) {
+  const pieceEl = event.target.closest('.piece-wrap');
+  if (!pieceEl || !boardEl.contains(pieceEl)) return;
+  if (state.over || aiLocked) return;
+
+  const humanColor = activeHumanColor();
+  if (!humanColor) return;
+
+  const { r, c } = parseSquare(pieceEl.dataset.square);
+  const piece = state.board[r][c];
+  if (!piece || piece.color !== humanColor) return;
+
+  selected = { r, c };
+  legalTargets = getLegalMoves(state, humanColor).filter((m) => m.from[0] === r && m.from[1] === c);
+  dragFrom = squareKey(r, c);
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', dragFrom);
+  render();
+}
+
+function onBoardDragOver(event) {
+  const squareEl = event.target.closest('.square');
+  if (!squareEl) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+}
+
+function onBoardDrop(event) {
+  const squareEl = event.target.closest('.square');
+  if (!squareEl || !dragFrom) return;
+  event.preventDefault();
+
+  if (state.over || aiLocked) {
+    dragFrom = null;
+    return;
+  }
+
+  const { r, c } = parseSquare(squareEl.dataset.key);
+  const move = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
+  if (move) playMove(move);
+
+  dragFrom = null;
+}
+
+function onBoardDragEnd() {
+  dragFrom = null;
 }
 
 function declareTimeout(loser) {
@@ -617,6 +689,12 @@ schoolLogoEl.addEventListener('load', () => {
 if (schoolLogoEl.complete && schoolLogoEl.naturalWidth > 0) {
   document.documentElement.style.setProperty('--logo-url', `url("${schoolLogoEl.currentSrc || schoolLogoEl.src}")`);
 }
+
+boardEl.addEventListener('click', onBoardClick);
+boardEl.addEventListener('dragstart', onBoardDragStart);
+boardEl.addEventListener('dragover', onBoardDragOver);
+boardEl.addEventListener('drop', onBoardDrop);
+boardEl.addEventListener('dragend', onBoardDragEnd);
 
 newGame();
 startTimerLoop();
