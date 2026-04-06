@@ -38,6 +38,8 @@ let lastTick = 0;
 let soundEnabled = true;
 let assetLoadVersion = 0;
 let glbRuntimePromise = null;
+const TEST_GLB_PATH = '/games/chess/assets/chess/pieces/white/pawn.glb';
+const OXBRIDGE_ORIGIN = 'https://oxbridgeweb.com';
 
 const pieceAssetCache = new Map();
 const pieceAssetById = new Map();
@@ -244,8 +246,55 @@ function ensureGlbRuntime() {
   glbRuntimePromise = Promise.all([
     import('https://unpkg.com/three@0.160.0/build/three.module.js'),
     import('https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js')
-  ]).then(([threeMod, loaderMod]) => ({ THREE: threeMod, GLTFLoader: loaderMod.GLTFLoader }));
+  ]).then(async ([threeMod, loaderMod]) => {
+    const runtime = { THREE: threeMod, GLTFLoader: loaderMod.GLTFLoader };
+    await runGlbSmokeTest(runtime);
+    return runtime;
+  });
   return glbRuntimePromise;
+}
+
+function getGlbCandidatePaths(path) {
+  if (!path) return [];
+  const candidates = [
+    path,
+    new URL(path, window.location.origin).toString(),
+    new URL(path, OXBRIDGE_ORIGIN).toString()
+  ];
+  return [...new Set(candidates)];
+}
+
+function runGlbSmokeTest({ THREE, GLTFLoader }) {
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1000);
+  camera.position.set(0, 2.2, 6.2);
+  camera.lookAt(0, 1.4, 0);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x334466, 1.1));
+
+  const loader = new GLTFLoader();
+  const candidates = getGlbCandidatePaths(TEST_GLB_PATH);
+  const tryAt = (index) => new Promise((resolve, reject) => {
+    if (index >= candidates.length) {
+      reject(new Error(`Smoke test failed for all candidates: ${TEST_GLB_PATH}`));
+      return;
+    }
+    const candidate = candidates[index];
+    console.log('Loading:', candidate);
+    loader.load(
+      candidate,
+      (gltf) => {
+        console.log('GLB TEST SUCCESS');
+        scene.add(gltf.scene);
+        resolve();
+      },
+      undefined,
+      (error) => {
+        console.error('GLB TEST FAILED', error);
+        resolve(tryAt(index + 1));
+      }
+    );
+  });
+  return tryAt(0);
 }
 
 async function renderGlbPreview(path) {
@@ -300,19 +349,15 @@ async function renderGlbPreview(path) {
 function loadPieceAsset(pieceId) {
   if (pieceAssetCache.has(pieceId)) return pieceAssetCache.get(pieceId);
   const glbPath = pieceAssetMap[pieceId];
-  const glbCandidates = [glbPath].filter(Boolean);
+  const glbCandidates = getGlbCandidatePaths(glbPath);
   const pngCandidate = glbPath ? glbPath.replace(/\.glb$/i, '.png') : null;
 
   // GLB-first fallback chain is resolved once and cached per logical piece ID.
   const loader = (async () => {
     // GLB loading is attempted first for each explicit candidate path.
     for (const candidatePath of glbCandidates) {
-      console.log(`Trying GLB: ${candidatePath}`);
+      console.log('Loading:', candidatePath);
       console.log(`GLB load started: ${pieceId}`);
-      if (!(await assetExists(candidatePath))) {
-        console.error(`GLB load failure: ${pieceId} at ${candidatePath}`);
-        continue;
-      }
       try {
         const previewUrl = await renderGlbPreview(candidatePath);
         console.log(`GLB load success: ${pieceId}`);
