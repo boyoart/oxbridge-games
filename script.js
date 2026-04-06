@@ -14,6 +14,12 @@ const difficultySelectEl = document.getElementById('difficultySelect');
 const timeControlEl = document.getElementById('timeControl');
 const schoolLogoEl = document.getElementById('schoolLogo');
 const gameLayoutEl = document.getElementById('gameLayout');
+const debugSelectedSquareEl = document.getElementById('debugSelectedSquare');
+const debugSelectedPieceEl = document.getElementById('debugSelectedPiece');
+const debugRendererModeEl = document.getElementById('debugRendererMode');
+const debugLegalMoveCountEl = document.getElementById('debugLegalMoveCount');
+const debugGlbLoadCountEl = document.getElementById('debugGlbLoadCount');
+const debugFallbackCountEl = document.getElementById('debugFallbackCount');
 
 const values = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
 const knightOffsets = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]];
@@ -35,6 +41,16 @@ let glbRuntimePromise = null;
 
 const pieceAssetCache = new Map();
 const pieceAssetById = new Map();
+const rendererLogByPieceType = new Map();
+const debugState = {
+  selectedSquare: '-',
+  selectedPiece: '-',
+  rendererMode: 'pending',
+  legalMoveCount: 0,
+  glbLoadCount: 0,
+  fallbackCount: 0
+};
+let glbAccessVerified = false;
 const PIECE_NAME_BY_TYPE = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 const pieceAssetMap = {
   // Exact lowercase root folders are required by uploaded assets:
@@ -54,27 +70,47 @@ const pieceAssetMap = {
   'black-pawn': '/games/chess/assets/chess/pieces/black/pawn.glb'
 };
 
-// Explicit case-variant file map for hosts where uploaded filenames might be capitalized.
-const pieceAssetCaseVariants = {
-  'white-king': ['/games/chess/assets/chess/pieces/white/King.glb'],
-  'white-queen': ['/games/chess/assets/chess/pieces/white/Queen.glb'],
-  'white-rook': ['/games/chess/assets/chess/pieces/white/Rook.glb'],
-  'white-bishop': ['/games/chess/assets/chess/pieces/white/Bishop.glb'],
-  'white-knight': ['/games/chess/assets/chess/pieces/white/Knight.glb'],
-  'white-pawn': ['/games/chess/assets/chess/pieces/white/Pawn.glb'],
-  'black-king': ['/games/chess/assets/chess/pieces/black/King.glb'],
-  'black-queen': ['/games/chess/assets/chess/pieces/black/Queen.glb'],
-  'black-rook': ['/games/chess/assets/chess/pieces/black/Rook.glb'],
-  'black-bishop': ['/games/chess/assets/chess/pieces/black/Bishop.glb'],
-  'black-knight': ['/games/chess/assets/chess/pieces/black/Knight.glb'],
-  'black-pawn': ['/games/chess/assets/chess/pieces/black/Pawn.glb']
-};
-
 const audio = {
   move: new Audio('assets/sounds/move.mp3'),
   capture: new Audio('assets/sounds/capture.mp3'),
   click: new Audio('assets/sounds/click.mp3')
 };
+
+
+function toAlgebraic(r, c) {
+  return `${String.fromCharCode(97 + c)}${8 - r}`;
+}
+
+function updateDebugPanel() {
+  if (debugSelectedSquareEl) debugSelectedSquareEl.textContent = debugState.selectedSquare;
+  if (debugSelectedPieceEl) debugSelectedPieceEl.textContent = debugState.selectedPiece;
+  if (debugRendererModeEl) debugRendererModeEl.textContent = debugState.rendererMode;
+  if (debugLegalMoveCountEl) debugLegalMoveCountEl.textContent = String(debugState.legalMoveCount);
+  if (debugGlbLoadCountEl) debugGlbLoadCountEl.textContent = String(debugState.glbLoadCount);
+  if (debugFallbackCountEl) debugFallbackCountEl.textContent = String(debugState.fallbackCount);
+}
+
+async function verifyGlbAssetAccess() {
+  if (glbAccessVerified) return;
+  glbAccessVerified = true;
+  const paths = Object.values(pieceAssetMap);
+  for (const path of paths) {
+    console.log(`GLB load started: ${path}`);
+    const reachable = await assetExists(path);
+    if (reachable) console.log(`GLB load success: ${path}`);
+    else console.error(`GLB load failure: ${path}`);
+  }
+}
+
+function computeRendererMode() {
+  const kinds = new Set(Array.from(pieceAssetById.values()).map((entry) => entry.kind));
+  if (kinds.size === 0) return 'pending';
+  if (kinds.size === 1) {
+    const kind = [...kinds][0];
+    return kind === 'glb' ? 'glb-only' : 'fallback-only';
+  }
+  return `mixed(${[...kinds].join('+')})`;
+}
 
 function safePlay(kind) {
   if (!soundEnabled || !audio[kind]) return;
@@ -125,6 +161,11 @@ function newGame() {
   updateGameStateStatus();
   // Legal move generation for click interaction is refreshed once per turn.
   turnLegalMoves = getAllLegalMoves(boardState, boardState.turn);
+  debugState.selectedSquare = '-';
+  debugState.selectedPiece = '-';
+  debugState.legalMoveCount = 0;
+  console.log('Board initialized');
+  verifyGlbAssetAccess();
   render();
 }
 
@@ -259,29 +300,38 @@ async function renderGlbPreview(path) {
 function loadPieceAsset(pieceId) {
   if (pieceAssetCache.has(pieceId)) return pieceAssetCache.get(pieceId);
   const glbPath = pieceAssetMap[pieceId];
-  const glbCandidates = [glbPath, ...(pieceAssetCaseVariants[pieceId] || [])].filter(Boolean);
+  const glbCandidates = [glbPath].filter(Boolean);
   const pngCandidate = glbPath ? glbPath.replace(/\.glb$/i, '.png') : null;
 
   // GLB-first fallback chain is resolved once and cached per logical piece ID.
   const loader = (async () => {
     // GLB loading is attempted first for each explicit candidate path.
     for (const candidatePath of glbCandidates) {
-      console.log('Trying GLB:', candidatePath);
-      if (!(await assetExists(candidatePath))) continue;
+      console.log(`Trying GLB: ${candidatePath}`);
+      console.log(`GLB load started: ${pieceId}`);
+      if (!(await assetExists(candidatePath))) {
+        console.error(`GLB load failure: ${pieceId} at ${candidatePath}`);
+        continue;
+      }
       try {
         const previewUrl = await renderGlbPreview(candidatePath);
-        console.log('GLB loaded:', pieceId);
+        console.log(`GLB load success: ${pieceId}`);
+        debugState.glbLoadCount += 1;
         return { kind: 'glb', url: previewUrl, sourceUrl: candidatePath, pieceId };
-      } catch (_e) {
-        console.log('GLB failed:', pieceId, candidatePath);
+      } catch (error) {
+        console.error(`GLB load failure: ${pieceId} at ${candidatePath}`, error);
       }
     }
-    console.log('GLB failed:', pieceId, glbPath);
 
     // If a PNG fallback exists, use it before touching the internal renderer.
-    if (pngCandidate && await assetExists(pngCandidate)) return { kind: 'png', url: pngCandidate, pieceId };
+    if (pngCandidate && await assetExists(pngCandidate)) {
+      console.warn(`Fallback renderer activated: ${pieceId} (png)`);
+      debugState.fallbackCount += 1;
+      return { kind: 'png', url: pngCandidate, pieceId };
+    }
     // Old SVG/internal renderers remain disabled when GLB succeeds; this only runs after GLB failure.
-    console.log('Falling back to internal renderer:', pieceId);
+    console.warn(`Fallback renderer activated: ${pieceId} (internal-svg)`);
+    debugState.fallbackCount += 1;
     return { kind: 'internal-svg', url: null, pieceId };
   })();
 
@@ -601,6 +651,13 @@ function renderPiece(piece, square) {
     // GLB loading is attempted first; any failure follows the explicit fallback chain.
     loadPieceAsset(pieceId).then((result) => {
       pieceAssetById.set(result.pieceId, result);
+      const rendererType = result.kind === 'glb' ? 'glb' : 'fallback';
+      if (rendererLogByPieceType.get(result.pieceId) !== rendererType) {
+        rendererLogByPieceType.set(result.pieceId, rendererType);
+        console.log(`Renderer for ${result.pieceId} = ${rendererType}`);
+      }
+      debugState.rendererMode = computeRendererMode();
+      updateDebugPanel();
       scheduleAssetRefresh();
     });
   }
@@ -652,6 +709,9 @@ function render() {
   blackPanelEl.classList.toggle('active', !boardState.over && boardState.turn === 'b');
   turnIndicatorEl.textContent = boardState.over ? boardState.status : `${boardState.turn === 'w' ? 'White' : 'Black'} to move`;
 
+  debugState.rendererMode = computeRendererMode();
+  updateDebugPanel();
+
   if (modeIsAI()) {
     const side = boardState.turn === 'w' ? 'You (White)' : 'Computer (Black)';
     gameStatusEl.textContent = boardState.over ? gameStatusEl.textContent : `${side} · ${difficultySelectEl.selectedOptions[0].textContent}`;
@@ -675,6 +735,7 @@ function movePiece(fromSquare, toSquare) {
   ));
   if (!move) return false;
 
+  console.log(`Move attempted: ${toAlgebraic(fromSquare.r, fromSquare.c)} -> ${toAlgebraic(toSquare.r, toSquare.c)}`);
   history.push(structuredClone(boardState));
   const wasCapture = Boolean(boardState.board[move.to[0]][move.to[1]]) || move.type === 'enpassant';
   boardState = applyMove(boardState, move);
@@ -684,6 +745,7 @@ function movePiece(fromSquare, toSquare) {
   turnLegalMoves = boardState.over ? [] : getAllLegalMoves(boardState, boardState.turn);
   safePlay(wasCapture ? 'capture' : 'move');
   render();
+  console.log(`Move completed: ${toAlgebraic(fromSquare.r, fromSquare.c)} -> ${toAlgebraic(toSquare.r, toSquare.c)}`);
 
   if (!boardState.over && modeIsAI() && boardState.turn === 'b') {
     requestAnimationFrame(runComputerTurn);
@@ -704,6 +766,7 @@ function selectSquare(square) {
 
   const { r, c } = square;
   const piece = boardState.board[r][c];
+  console.log(`Selected square: ${toAlgebraic(r, c)}`);
   // Square-based selection is authoritative: mesh clicks never drive move legality.
   // Move validation trigger: destination must exist in the legal target list.
   const move = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
@@ -717,11 +780,19 @@ function selectSquare(square) {
   if (piece && piece.color === humanColor && humanColor === boardState.turn) {
     selected = { r, c };
     legalTargets = getLegalMoves(square);
+    const pieceLogicalId = getPieceId(piece);
+    debugState.selectedPiece = `${pieceLogicalId} at ${toAlgebraic(r, c)}`;
+    console.log(`Selected piece id: ${piece.id}`);
+    console.log(`Piece selected: ${pieceLogicalId} at ${toAlgebraic(r, c)}`);
+    console.log(`Legal moves generated: ${legalTargets.map((m) => toAlgebraic(m.to[0], m.to[1])).join(',') || '(none)'}`);
   } else {
     selected = null;
     legalTargets = [];
+    debugState.selectedPiece = '-';
   }
 
+  debugState.selectedSquare = toAlgebraic(r, c);
+  debugState.legalMoveCount = legalTargets.length;
   render();
 }
 
@@ -729,7 +800,9 @@ function selectSquare(square) {
 function onBoardClick(event) {
   const squareEl = event.target.closest('.square');
   if (!squareEl || !boardEl.contains(squareEl)) return;
-  selectSquare(parseSquare(squareEl.dataset.key));
+  const sq = parseSquare(squareEl.dataset.key);
+  console.log(`Square click detected: ${toAlgebraic(sq.r, sq.c)}`);
+  selectSquare(sq);
 }
 
 function declareTimeout(loser) {
