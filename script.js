@@ -39,7 +39,6 @@ let soundEnabled = true;
 let assetLoadVersion = 0;
 let glbRuntimePromise = null;
 const TEST_GLB_PATH = '/games/chess/assets/chess/pieces/white/pawn.glb';
-const OXBRIDGE_ORIGIN = 'https://oxbridgeweb.com';
 
 const pieceAssetCache = new Map();
 const pieceAssetById = new Map();
@@ -254,34 +253,17 @@ function ensureGlbRuntime() {
   return glbRuntimePromise;
 }
 
-function getGlbCandidatePaths(path) {
-  if (!path) return [];
-  const candidates = [
-    path,
-    new URL(path, window.location.origin).toString(),
-    new URL(path, OXBRIDGE_ORIGIN).toString()
-  ];
-  return [...new Set(candidates)];
-}
-
 function runGlbSmokeTest({ THREE, GLTFLoader }) {
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1000);
-  camera.position.set(0, 2.2, 6.2);
-  camera.lookAt(0, 1.4, 0);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x334466, 1.1));
+  return new Promise((resolve, reject) => {
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1000);
+    camera.position.set(0, 2.2, 6.2);
+    camera.lookAt(0, 1.4, 0);
 
-  const loader = new GLTFLoader();
-  const candidates = getGlbCandidatePaths(TEST_GLB_PATH);
-  const tryAt = (index) => new Promise((resolve, reject) => {
-    if (index >= candidates.length) {
-      reject(new Error(`Smoke test failed for all candidates: ${TEST_GLB_PATH}`));
-      return;
-    }
-    const candidate = candidates[index];
-    console.log('Loading:', candidate);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x334466, 1.1));
+    const loader = new GLTFLoader();
     loader.load(
-      candidate,
+      TEST_GLB_PATH,
       (gltf) => {
         console.log('GLB TEST SUCCESS');
         scene.add(gltf.scene);
@@ -290,11 +272,10 @@ function runGlbSmokeTest({ THREE, GLTFLoader }) {
       undefined,
       (error) => {
         console.error('GLB TEST FAILED', error);
-        resolve(tryAt(index + 1));
+        reject(error);
       }
     );
   });
-  return tryAt(0);
 }
 
 async function renderGlbPreview(path) {
