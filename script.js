@@ -31,11 +31,12 @@ let timerInterval = null;
 let lastTick = 0;
 let soundEnabled = true;
 let assetLoadVersion = 0;
+let fbxRuntimePromise = null;
 
 const pieceAssetCache = new Map();
 const pieceAssetById = new Map();
-const ASSET_TYPES = ['glb', 'gltf', 'obj'];
 const PIECE_NAME_BY_TYPE = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
+const PIECE_FILE_BY_TYPE = { k: 'King', q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight', p: 'Pawn' };
 
 const audio = {
   move: new Audio('assets/sounds/move.mp3'),
@@ -145,17 +146,20 @@ function pieceSvg(color, type) {
 }
 
 function getPieceAssetDescriptor(piece) {
-  // Piece file path mapping: white-king -> assets/chess/pieces/white/king.glb (then .gltf/.obj/.png).
+  // Real uploaded lowercase asset roots (do not change):
+  // /games/chess/assets/chess/pieces/white/
+  // /games/chess/assets/chess/pieces/black/
   const side = piece.color === 'w' ? 'white' : 'black';
   const pieceName = PIECE_NAME_BY_TYPE[piece.type];
+  const fileName = PIECE_FILE_BY_TYPE[piece.type];
   const pieceId = `${side}-${pieceName}`;
-  const root = `assets/chess/pieces/${side}/${pieceName}`;
+  // Exact FBX filename mapping (e.g. white bishop => /games/chess/assets/chess/pieces/white/Bishop.fbx).
+  const fbxPath = `/games/chess/assets/chess/pieces/${side}/${fileName}.fbx`;
+  const pngPath = `/games/chess/assets/chess/pieces/${side}/${fileName}.png`;
   return {
     pieceId,
-    modelCandidates: ASSET_TYPES.map((ext) => `${root}.${ext}`),
-    pngCandidate: `${root}.png`,
-    svgCandidate: `${root}.svg`,
-    legacySvg: `assets/pieces/${piece.color}-${pieceName}.svg`
+    fbxPath,
+    pngCandidate: pngPath
   };
 }
 
@@ -175,18 +179,83 @@ async function assetExists(url) {
   }
 }
 
+function ensureFbxRuntime() {
+  if (fbxRuntimePromise) return fbxRuntimePromise;
+  fbxRuntimePromise = Promise.all([
+    import('https://unpkg.com/three@0.160.0/build/three.module.js'),
+    import('https://unpkg.com/three@0.160.0/examples/jsm/loaders/FBXLoader.js')
+  ]).then(([threeMod, loaderMod]) => ({ THREE: threeMod, FBXLoader: loaderMod.FBXLoader }));
+  return fbxRuntimePromise;
+}
+
+async function renderFbxPreview(path) {
+  const { THREE, FBXLoader } = await ensureFbxRuntime();
+  const size = 192;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1000);
+  camera.position.set(0, 2.2, 6.2);
+  camera.lookAt(0, 1.4, 0);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x334466, 1.1));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 0.95);
+  keyLight.position.set(5, 9, 4);
+  scene.add(keyLight);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(1);
+  renderer.setSize(size, size, false);
+  renderer.setClearAlpha(0);
+
+  const loader = new FBXLoader();
+  const object = await loader.loadAsync(path);
+  object.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = false;
+      child.receiveShadow = false;
+      if (Array.isArray(child.material)) child.material.forEach((mat) => { mat.transparent = false; });
+      else if (child.material) child.material.transparent = false;
+    }
+  });
+  scene.add(object);
+
+  const box = new THREE.Box3().setFromObject(object);
+  const sizeVec = box.getSize(new THREE.Vector3());
+  const maxAxis = Math.max(sizeVec.x, sizeVec.y, sizeVec.z) || 1;
+  const targetHeight = 3.15;
+  const scale = targetHeight / maxAxis;
+  object.scale.setScalar(scale);
+
+  const centeredBox = new THREE.Box3().setFromObject(object);
+  const center = centeredBox.getCenter(new THREE.Vector3());
+  object.position.sub(center);
+  object.position.y -= centeredBox.min.y;
+
+  renderer.render(scene, camera);
+  const dataUrl = renderer.domElement.toDataURL('image/png');
+  renderer.dispose();
+  return dataUrl;
+}
+
 function loadPieceAsset(piece) {
   const descriptor = getPieceAssetDescriptor(piece);
   if (pieceAssetCache.has(descriptor.pieceId)) return pieceAssetCache.get(descriptor.pieceId);
 
-  // External piece asset lookup and fallback chain are resolved once and cached per logical piece ID.
+  // FBX-first fallback chain is resolved once and cached per logical piece ID.
   const loader = (async () => {
-    for (const modelPath of descriptor.modelCandidates) {
-      if (await assetExists(modelPath)) return { kind: 'model', url: modelPath, descriptor };
+    // FBX loader call starts here (primary renderer path).
+    console.log('Trying FBX:', descriptor.fbxPath);
+    if (await assetExists(descriptor.fbxPath)) {
+      try {
+        const previewUrl = await renderFbxPreview(descriptor.fbxPath);
+        console.log('FBX loaded:', descriptor.pieceId, descriptor.fbxPath);
+        return { kind: 'fbx', url: previewUrl, sourceUrl: descriptor.fbxPath, descriptor };
+      } catch (_e) {
+        console.log('FBX failed, falling back:', descriptor.pieceId, descriptor.fbxPath);
+      }
     }
+
     if (await assetExists(descriptor.pngCandidate)) return { kind: 'png', url: descriptor.pngCandidate, descriptor };
-    if (await assetExists(descriptor.svgCandidate)) return { kind: 'svg', url: descriptor.svgCandidate, descriptor };
-    if (await assetExists(descriptor.legacySvg)) return { kind: 'legacy-svg', url: descriptor.legacySvg, descriptor };
+    // Old SVG/internal renderers remain disabled when FBX succeeds; this only runs after FBX failure.
     return { kind: 'internal-svg', url: null, descriptor };
   })();
 
@@ -496,10 +565,9 @@ function createPieceElement(piece, square) {
   const cached = pieceAssetById.get(descriptor.pieceId);
   if (cached) {
     wrap.dataset.assetKind = cached.kind;
-    if (cached.kind === 'png' || cached.kind === 'svg' || cached.kind === 'legacy-svg') img.src = cached.url;
-    if (cached.kind === 'model') {
-      // Future-ready marker: model URL is attached for easy swap to model-viewer/three.js pipeline.
-      wrap.dataset.modelUrl = cached.url;
+    if (cached.kind === 'fbx' || cached.kind === 'png') img.src = cached.url;
+    if (cached.kind === 'fbx') {
+      wrap.dataset.modelUrl = cached.sourceUrl;
       wrap.classList.add('piece-model-ready');
     }
   } else {
@@ -593,6 +661,7 @@ function onSquareClick(event) {
 
   const { r, c } = parseSquare(event.currentTarget.dataset.key);
   const piece = state.board[r][c];
+  // Click-to-move is bound to board square state (not direct mesh hit testing), so FBX click issues do not block play.
   // Valid moves are generated from one legal-move source so every piece uses the same move rules.
   const allLegalMoves = (humanColor === state.turn) ? turnLegalMoves : getLegalMoves(state, humanColor);
   // Move validation trigger: destination must exist in the legal target list.

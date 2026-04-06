@@ -285,6 +285,8 @@ button {
   /* Shaking/jitter fix: remove hover/active transforms and drag affordance. */
   transition: none;
   cursor: pointer;
+  /* Board-square click layer stays authoritative for selection/movement. */
+  pointer-events: none;
 }
 .piece-wrap.piece-model-ready::after {
   content: "";
