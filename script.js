@@ -330,7 +330,7 @@ async function renderGlbPreview(path) {
 function loadPieceAsset(pieceId) {
   if (pieceAssetCache.has(pieceId)) return pieceAssetCache.get(pieceId);
   const glbPath = pieceAssetMap[pieceId];
-  const glbCandidates = [glbPath].filter(Boolean);
+  const glbCandidates = getGlbCandidatePaths(glbPath);
   const pngCandidate = glbPath ? glbPath.replace(/\.glb$/i, '.png') : null;
 
   // GLB-first fallback chain is resolved once and cached per logical piece ID.
