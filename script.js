@@ -19,7 +19,7 @@ const values = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
 const knightOffsets = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]];
 const kingOffsets = [[1, 1], [1, 0], [1, -1], [0, 1], [0, -1], [-1, 1], [-1, 0], [-1, -1]];
 
-let state;
+let boardState;
 // Selected piece state is stored globally so click-to-move always uses one source of truth.
 let selected = null;
 let legalTargets = [];
@@ -36,7 +36,23 @@ let fbxRuntimePromise = null;
 const pieceAssetCache = new Map();
 const pieceAssetById = new Map();
 const PIECE_NAME_BY_TYPE = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
-const PIECE_FILE_BY_TYPE = { k: 'King', q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight', p: 'Pawn' };
+const pieceAssetMap = {
+  // Exact lowercase root folders are required by uploaded assets:
+  // /games/chess/assets/chess/pieces/white/
+  // /games/chess/assets/chess/pieces/black/
+  'white-king': '/games/chess/assets/chess/pieces/white/King.fbx',
+  'white-queen': '/games/chess/assets/chess/pieces/white/Queen.fbx',
+  'white-rook': '/games/chess/assets/chess/pieces/white/Rook.fbx',
+  'white-bishop': '/games/chess/assets/chess/pieces/white/Bishop.fbx',
+  'white-knight': '/games/chess/assets/chess/pieces/white/Knight.fbx',
+  'white-pawn': '/games/chess/assets/chess/pieces/white/Pawn.fbx',
+  'black-king': '/games/chess/assets/chess/pieces/black/King.fbx',
+  'black-queen': '/games/chess/assets/chess/pieces/black/Queen.fbx',
+  'black-rook': '/games/chess/assets/chess/pieces/black/Rook.fbx',
+  'black-bishop': '/games/chess/assets/chess/pieces/black/Bishop.fbx',
+  'black-knight': '/games/chess/assets/chess/pieces/black/Knight.fbx',
+  'black-pawn': '/games/chess/assets/chess/pieces/black/Pawn.fbx'
+};
 
 const audio = {
   move: new Audio('assets/sounds/move.mp3'),
@@ -76,7 +92,7 @@ function createInitialBoard() {
 
 function newGame() {
   const initial = Number(timeControlEl.value || 300000);
-  state = {
+  boardState = {
     board: createInitialBoard(),
     turn: 'w',
     enPassant: null,
@@ -92,7 +108,7 @@ function newGame() {
   aiLocked = false;
   updateGameStateStatus();
   // Legal move generation for click interaction is refreshed once per turn.
-  turnLegalMoves = getLegalMoves(state, state.turn);
+  turnLegalMoves = getAllLegalMoves(boardState, boardState.turn);
   render();
 }
 
@@ -145,22 +161,9 @@ function pieceSvg(color, type) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-function getPieceAssetDescriptor(piece) {
-  // Real uploaded lowercase asset roots (do not change):
-  // /games/chess/assets/chess/pieces/white/
-  // /games/chess/assets/chess/pieces/black/
+function getPieceId(piece) {
   const side = piece.color === 'w' ? 'white' : 'black';
-  const pieceName = PIECE_NAME_BY_TYPE[piece.type];
-  const fileName = PIECE_FILE_BY_TYPE[piece.type];
-  const pieceId = `${side}-${pieceName}`;
-  // Exact FBX filename mapping (e.g. white bishop => /games/chess/assets/chess/pieces/white/Bishop.fbx).
-  const fbxPath = `/games/chess/assets/chess/pieces/${side}/${fileName}.fbx`;
-  const pngPath = `/games/chess/assets/chess/pieces/${side}/${fileName}.png`;
-  return {
-    pieceId,
-    fbxPath,
-    pngCandidate: pngPath
-  };
+  return `${side}-${PIECE_NAME_BY_TYPE[piece.type]}`;
 }
 
 async function assetExists(url) {
@@ -236,30 +239,34 @@ async function renderFbxPreview(path) {
   return dataUrl;
 }
 
-function loadPieceAsset(piece) {
-  const descriptor = getPieceAssetDescriptor(piece);
-  if (pieceAssetCache.has(descriptor.pieceId)) return pieceAssetCache.get(descriptor.pieceId);
+function loadPieceAsset(pieceId) {
+  if (pieceAssetCache.has(pieceId)) return pieceAssetCache.get(pieceId);
+  const fbxPath = pieceAssetMap[pieceId];
+  const pngCandidate = fbxPath ? fbxPath.replace(/\.fbx$/i, '.png') : null;
 
   // FBX-first fallback chain is resolved once and cached per logical piece ID.
   const loader = (async () => {
     // FBX loader call starts here (primary renderer path).
-    console.log('Trying FBX:', descriptor.fbxPath);
-    if (await assetExists(descriptor.fbxPath)) {
+    console.log('Trying FBX:', fbxPath);
+    if (fbxPath && await assetExists(fbxPath)) {
       try {
-        const previewUrl = await renderFbxPreview(descriptor.fbxPath);
-        console.log('FBX loaded:', descriptor.pieceId, descriptor.fbxPath);
-        return { kind: 'fbx', url: previewUrl, sourceUrl: descriptor.fbxPath, descriptor };
+        const previewUrl = await renderFbxPreview(fbxPath);
+        console.log('FBX loaded:', pieceId);
+        return { kind: 'fbx', url: previewUrl, sourceUrl: fbxPath, pieceId };
       } catch (_e) {
-        console.log('FBX failed, falling back:', descriptor.pieceId, descriptor.fbxPath);
+        console.log('FBX failed:', pieceId, fbxPath);
       }
+    } else {
+      console.log('FBX failed:', pieceId, fbxPath);
     }
 
-    if (await assetExists(descriptor.pngCandidate)) return { kind: 'png', url: descriptor.pngCandidate, descriptor };
+    if (pngCandidate && await assetExists(pngCandidate)) return { kind: 'png', url: pngCandidate, pieceId };
     // Old SVG/internal renderers remain disabled when FBX succeeds; this only runs after FBX failure.
-    return { kind: 'internal-svg', url: null, descriptor };
+    console.log('Falling back to internal renderer:', pieceId);
+    return { kind: 'internal-svg', url: null, pieceId };
   })();
 
-  pieceAssetCache.set(descriptor.pieceId, loader);
+  pieceAssetCache.set(pieceId, loader);
   return loader;
 }
 
@@ -412,7 +419,7 @@ function applyMove(game, move) {
   return next;
 }
 
-function getLegalMoves(game, color) {
+function getAllLegalMoves(game, color) {
   // Legal moves are generated here for all piece types, then filtered by king-safety simulation.
   const legal = [];
   for (let r = 0; r < 8; r += 1) {
@@ -430,21 +437,21 @@ function getLegalMoves(game, color) {
 }
 
 function updateGameStateStatus() {
-  if (state.over) return;
-  const color = state.turn;
-  const legal = getLegalMoves(state, color);
-  const inCheck = isKingInCheck(state, color);
-  state.check = inCheck ? color : null;
+  if (boardState.over) return;
+  const color = boardState.turn;
+  const legal = getAllLegalMoves(boardState, color);
+  const inCheck = isKingInCheck(boardState, color);
+  boardState.check = inCheck ? color : null;
 
   if (legal.length === 0) {
-    state.over = true;
+    boardState.over = true;
     if (inCheck) {
-      state.status = 'Checkmate';
-      state.winner = color === 'w' ? 'Black' : 'White';
-      gameStatusEl.textContent = `Checkmate. ${state.winner} wins.`;
+      boardState.status = 'Checkmate';
+      boardState.winner = color === 'w' ? 'Black' : 'White';
+      gameStatusEl.textContent = `Checkmate. ${boardState.winner} wins.`;
     } else {
-      state.status = 'Draw';
-      state.winner = null;
+      boardState.status = 'Draw';
+      boardState.winner = null;
       gameStatusEl.textContent = 'Draw by stalemate.';
     }
     return;
@@ -472,7 +479,7 @@ function evaluate(game) {
 
 function minimax(game, depth, alpha, beta, maximizing) {
   const color = maximizing ? 'b' : 'w';
-  const moves = getLegalMoves(game, color);
+  const moves = getAllLegalMoves(game, color);
   const inCheck = isKingInCheck(game, color);
 
   if (depth === 0 || moves.length === 0) {
@@ -503,7 +510,7 @@ function minimax(game, depth, alpha, beta, maximizing) {
 
 function chooseAIMove(game) {
   const depth = Number(difficultySelectEl.value || 2);
-  const moves = getLegalMoves(game, 'b');
+  const moves = getAllLegalMoves(game, 'b');
   let bestMove = moves[0] || null;
   let bestVal = -Infinity;
   for (const move of moves) {
@@ -521,19 +528,19 @@ function runComputerTurn() {
   if (!modeIsAI()) return;
   aiLocked = true;
   setTimeout(() => {
-    if (state.over || state.turn !== 'b' || !modeIsAI()) {
+    if (boardState.over || boardState.turn !== 'b' || !modeIsAI()) {
       aiLocked = false;
       return;
     }
-    const move = chooseAIMove(state);
+    const move = chooseAIMove(boardState);
     if (move) {
-      history.push(structuredClone(state));
-      const wasCapture = Boolean(state.board[move.to[0]][move.to[1]]) || move.type === 'enpassant';
-      state = applyMove(state, move);
+      history.push(structuredClone(boardState));
+      const wasCapture = Boolean(boardState.board[move.to[0]][move.to[1]]) || move.type === 'enpassant';
+      boardState = applyMove(boardState, move);
       safePlay(wasCapture ? 'capture' : 'move');
     }
     updateGameStateStatus();
-    turnLegalMoves = state.over ? [] : getLegalMoves(state, state.turn);
+    turnLegalMoves = boardState.over ? [] : getAllLegalMoves(boardState, boardState.turn);
     aiLocked = false;
     render();
   }, 380);
@@ -544,8 +551,8 @@ function describeMoveHint(move, game) {
   return targetPiece || move.type === 'enpassant' ? 'capture' : 'move';
 }
 
-// Piece rendering logic rebuilt as a dedicated component-style creator.
-function createPieceElement(piece, square) {
+// Piece renderer entry point: exactly one visual renderer is chosen per piece.
+function renderPiece(piece, square) {
   const wrap = document.createElement('span');
   wrap.className = 'piece-wrap';
   wrap.dataset.pieceId = piece.id;
@@ -557,22 +564,24 @@ function createPieceElement(piece, square) {
   img.className = 'piece';
   img.alt = `${piece.color === 'w' ? 'White' : 'Black'} ${PIECE_NAME_BY_TYPE[piece.type]}`;
 
-  // Fallback renderer is immediately available to avoid interaction blocking while external assets resolve.
-  img.src = pieceSvg(piece.color, piece.type);
+  // Old SVG/internal renderer is disabled by default while FBX/PNG loading is in progress.
+  img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
   wrap.appendChild(img);
 
-  const descriptor = getPieceAssetDescriptor(piece);
-  const cached = pieceAssetById.get(descriptor.pieceId);
+  const pieceId = getPieceId(piece);
+  const cached = pieceAssetById.get(pieceId);
   if (cached) {
     wrap.dataset.assetKind = cached.kind;
     if (cached.kind === 'fbx' || cached.kind === 'png') img.src = cached.url;
+    if (cached.kind === 'internal-svg') img.src = pieceSvg(piece.color, piece.type);
     if (cached.kind === 'fbx') {
       wrap.dataset.modelUrl = cached.sourceUrl;
       wrap.classList.add('piece-model-ready');
     }
   } else {
-    loadPieceAsset(piece).then((result) => {
-      pieceAssetById.set(result.descriptor.pieceId, result);
+    // FBX loading is attempted first; any failure follows the explicit fallback chain.
+    loadPieceAsset(pieceId).then((result) => {
+      pieceAssetById.set(result.pieceId, result);
       scheduleAssetRefresh();
     });
   }
@@ -594,7 +603,7 @@ function render() {
       if (selected && selected.r === r && selected.c === c) sq.classList.add('selected');
       const target = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
       if (target) {
-        const hintType = describeMoveHint(target, state);
+        const hintType = describeMoveHint(target, boardState);
         sq.classList.add(hintType);
         // Legal-move highlight layer is explicit DOM to avoid pseudo-element conflicts with dark-square logos.
         const marker = document.createElement('span');
@@ -603,14 +612,14 @@ function render() {
         sq.appendChild(marker);
       }
 
-      if (state.check) {
-        const king = findKing(state, state.check);
+      if (boardState.check) {
+        const king = findKing(boardState, boardState.check);
         if (king && king.r === r && king.c === c) sq.classList.add('check');
       }
 
-      const piece = state.board[r][c];
+      const piece = boardState.board[r][c];
       if (piece) {
-        const wrap = createPieceElement(piece, { r, c });
+        const wrap = renderPiece(piece, { r, c });
         sq.appendChild(wrap);
       }
 
@@ -618,65 +627,77 @@ function render() {
     }
   }
 
-  whiteTimerEl.textContent = formatTime(state.clocks.w);
-  blackTimerEl.textContent = formatTime(state.clocks.b);
-  whitePanelEl.classList.toggle('active', !state.over && state.turn === 'w');
-  blackPanelEl.classList.toggle('active', !state.over && state.turn === 'b');
-  turnIndicatorEl.textContent = state.over ? state.status : `${state.turn === 'w' ? 'White' : 'Black'} to move`;
+  whiteTimerEl.textContent = formatTime(boardState.clocks.w);
+  blackTimerEl.textContent = formatTime(boardState.clocks.b);
+  whitePanelEl.classList.toggle('active', !boardState.over && boardState.turn === 'w');
+  blackPanelEl.classList.toggle('active', !boardState.over && boardState.turn === 'b');
+  turnIndicatorEl.textContent = boardState.over ? boardState.status : `${boardState.turn === 'w' ? 'White' : 'Black'} to move`;
 
   if (modeIsAI()) {
-    const side = state.turn === 'w' ? 'You (White)' : 'Computer (Black)';
-    gameStatusEl.textContent = state.over ? gameStatusEl.textContent : `${side} · ${difficultySelectEl.selectedOptions[0].textContent}`;
+    const side = boardState.turn === 'w' ? 'You (White)' : 'Computer (Black)';
+    gameStatusEl.textContent = boardState.over ? gameStatusEl.textContent : `${side} · ${difficultySelectEl.selectedOptions[0].textContent}`;
   } else {
-    gameStatusEl.textContent = state.over ? gameStatusEl.textContent : 'Local 2 Player mode';
+    gameStatusEl.textContent = boardState.over ? gameStatusEl.textContent : 'Local 2 Player mode';
   }
 }
 
 function activeHumanColor() {
-  if (!modeIsAI()) return state.turn;
-  return state.turn === 'w' ? 'w' : null;
+  if (!modeIsAI()) return boardState.turn;
+  return boardState.turn === 'w' ? 'w' : null;
 }
 
-function playMove(move) {
-  // Move execution: commit exactly one move and update board state exactly once.
-  history.push(structuredClone(state));
-  const wasCapture = Boolean(state.board[move.to[0]][move.to[1]]) || move.type === 'enpassant';
-  state = applyMove(state, move);
+function movePiece(fromSquare, toSquare) {
+  // Move execution updates boardState exactly once, then pieces rerender from board coordinates.
+  const move = turnLegalMoves.find((candidate) => (
+    candidate.from[0] === fromSquare.r
+    && candidate.from[1] === fromSquare.c
+    && candidate.to[0] === toSquare.r
+    && candidate.to[1] === toSquare.c
+  ));
+  if (!move) return false;
+
+  history.push(structuredClone(boardState));
+  const wasCapture = Boolean(boardState.board[move.to[0]][move.to[1]]) || move.type === 'enpassant';
+  boardState = applyMove(boardState, move);
   selected = null;
   legalTargets = [];
   updateGameStateStatus();
-  turnLegalMoves = state.over ? [] : getLegalMoves(state, state.turn);
+  turnLegalMoves = boardState.over ? [] : getAllLegalMoves(boardState, boardState.turn);
   safePlay(wasCapture ? 'capture' : 'move');
   render();
 
-  if (!state.over && modeIsAI() && state.turn === 'b') {
+  if (!boardState.over && modeIsAI() && boardState.turn === 'b') {
     requestAnimationFrame(runComputerTurn);
   }
+
+  return true;
 }
 
-function onSquareClick(event) {
-  if (state.over || aiLocked) return;
+function getLegalMoves(square) {
+  // Legal move highlighting is square-based and renderer-independent.
+  return turnLegalMoves.filter((move) => move.from[0] === square.r && move.from[1] === square.c);
+}
+
+function selectSquare(square) {
+  if (boardState.over || aiLocked) return;
   const humanColor = activeHumanColor();
   if (!humanColor) return;
 
-  const { r, c } = parseSquare(event.currentTarget.dataset.key);
-  const piece = state.board[r][c];
-  // Click-to-move is bound to board square state (not direct mesh hit testing), so FBX click issues do not block play.
-  // Valid moves are generated from one legal-move source so every piece uses the same move rules.
-  const allLegalMoves = (humanColor === state.turn) ? turnLegalMoves : getLegalMoves(state, humanColor);
+  const { r, c } = square;
+  const piece = boardState.board[r][c];
+  // Square-based selection is authoritative: mesh clicks never drive move legality.
   // Move validation trigger: destination must exist in the legal target list.
   const move = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
 
   if (selected && move) {
-    // Destination click triggers exactly one move and one board-state update.
-    playMove(move);
+    movePiece(selected, square);
     return;
   }
 
   // Click-to-select logic: selecting a friendly piece replaces any prior selection.
-  if (piece && piece.color === humanColor) {
+  if (piece && piece.color === humanColor && humanColor === boardState.turn) {
     selected = { r, c };
-    legalTargets = allLegalMoves.filter((m) => m.from[0] === r && m.from[1] === c);
+    legalTargets = getLegalMoves(square);
   } else {
     selected = null;
     legalTargets = [];
@@ -689,26 +710,26 @@ function onSquareClick(event) {
 function onBoardClick(event) {
   const squareEl = event.target.closest('.square');
   if (!squareEl || !boardEl.contains(squareEl)) return;
-  onSquareClick({ currentTarget: squareEl });
+  selectSquare(parseSquare(squareEl.dataset.key));
 }
 
 function declareTimeout(loser) {
-  state.over = true;
-  state.status = 'Time';
-  state.winner = loser === 'w' ? 'Black' : 'White';
-  gameStatusEl.textContent = `${state.winner} wins on time.`;
+  boardState.over = true;
+  boardState.status = 'Time';
+  boardState.winner = loser === 'w' ? 'Black' : 'White';
+  gameStatusEl.textContent = `${boardState.winner} wins on time.`;
 }
 
 function tickTimers() {
-  if (!state || state.over || aiLocked) return;
+  if (!boardState || boardState.over || aiLocked) return;
   const now = performance.now();
   const delta = now - lastTick;
   lastTick = now;
 
-  state.clocks[state.turn] -= delta;
-  if (state.clocks[state.turn] <= 0) {
-    state.clocks[state.turn] = 0;
-    declareTimeout(state.turn);
+  boardState.clocks[boardState.turn] -= delta;
+  if (boardState.clocks[boardState.turn] <= 0) {
+    boardState.clocks[boardState.turn] = 0;
+    declareTimeout(boardState.turn);
   }
   render();
 }
@@ -723,18 +744,18 @@ undoBtn.addEventListener('click', () => {
   safePlay('click');
   if (aiLocked || history.length === 0) return;
 
-  if (modeIsAI() && state.turn === 'w' && history.length >= 2) {
+  if (modeIsAI() && boardState.turn === 'w' && history.length >= 2) {
     history.pop();
-    state = history.pop();
+    boardState = history.pop();
   } else {
-    state = history.pop();
+    boardState = history.pop();
   }
 
   selected = null;
   legalTargets = [];
   aiLocked = false;
   updateGameStateStatus();
-  turnLegalMoves = state.over ? [] : getLegalMoves(state, state.turn);
+  turnLegalMoves = boardState.over ? [] : getAllLegalMoves(boardState, boardState.turn);
   render();
 });
 
