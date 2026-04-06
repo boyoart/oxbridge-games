@@ -28,7 +28,6 @@ let aiLocked = false;
 let timerInterval = null;
 let lastTick = 0;
 let soundEnabled = true;
-let dragFrom = null;
 
 const audio = {
   move: new Audio('assets/sounds/move.mp3'),
@@ -402,37 +401,9 @@ function runComputerTurn() {
   }, 380);
 }
 
-function collectPiecePositions() {
-  const map = new Map();
-  boardEl.querySelectorAll('.piece-wrap[data-piece-id]').forEach((el) => {
-    map.set(el.dataset.pieceId, el.getBoundingClientRect());
-  });
-  return map;
-}
-
 function describeMoveHint(move, game) {
   const targetPiece = game.board[move.to[0]][move.to[1]];
   return targetPiece || move.type === 'enpassant' ? 'capture' : 'move';
-}
-
-function animatePieces(previous) {
-  // Animation handling: FLIP-style transform to smooth old-square -> new-square movement.
-  boardEl.querySelectorAll('.piece-wrap[data-piece-id]').forEach((el) => {
-    const prev = previous.get(el.dataset.pieceId);
-    if (!prev) return;
-    const now = el.getBoundingClientRect();
-    const dx = prev.left - now.left;
-    const dy = prev.top - now.top;
-    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-
-    el.animate(
-      [
-        { transform: `translate(${dx}px, ${dy}px) scale(1.08)`, filter: 'drop-shadow(0 11px 8px rgba(0,0,0,0.5))' },
-        { transform: 'translate(0, 0) scale(1)', filter: 'drop-shadow(0 8px 5px rgba(0,0,0,0.43))' }
-      ],
-      { duration: 190, easing: 'cubic-bezier(0.22,1,0.36,1)' }
-    );
-  });
 }
 
 // Piece rendering logic rebuilt as a dedicated component-style creator.
@@ -441,7 +412,7 @@ function createPieceElement(piece, square) {
   wrap.className = 'piece-wrap';
   wrap.dataset.pieceId = piece.id;
   wrap.dataset.square = squareKey(square.r, square.c);
-  wrap.draggable = true;
+  wrap.draggable = false;
 
   const img = document.createElement('img');
   img.className = 'piece';
@@ -453,7 +424,7 @@ function createPieceElement(piece, square) {
 }
 
 function render() {
-  const prev = collectPiecePositions();
+  // Jitter fix: render board from a single deterministic board-state snapshot (no drag/FLIP transform mixing).
   boardEl.innerHTML = '';
 
   for (let r = 0; r < 8; r += 1) {
@@ -481,8 +452,6 @@ function render() {
       boardEl.appendChild(sq);
     }
   }
-
-  animatePieces(prev);
 
   whiteTimerEl.textContent = formatTime(state.clocks.w);
   blackTimerEl.textContent = formatTime(state.clocks.b);
@@ -525,18 +494,21 @@ function onSquareClick(event) {
 
   const { r, c } = parseSquare(event.currentTarget.dataset.key);
   const piece = state.board[r][c];
+  // Valid moves are generated from one legal-move source so every piece uses the same move rules.
+  const allLegalMoves = getLegalMoves(state, humanColor);
   // Move validation trigger: destination must exist in the legal target list.
   const move = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
 
   if (selected && move) {
+    // Destination click triggers exactly one move and one board-state update.
     playMove(move);
     return;
   }
 
+  // Click-to-select logic: selecting a friendly piece replaces any prior selection.
   if (piece && piece.color === humanColor) {
     selected = { r, c };
-    // Valid move highlighting is calculated from legal move generation only.
-    legalTargets = getLegalMoves(state, humanColor).filter((m) => m.from[0] === r && m.from[1] === c);
+    legalTargets = allLegalMoves.filter((m) => m.from[0] === r && m.from[1] === c);
   } else {
     selected = null;
     legalTargets = [];
@@ -550,55 +522,6 @@ function onBoardClick(event) {
   const squareEl = event.target.closest('.square');
   if (!squareEl || !boardEl.contains(squareEl)) return;
   onSquareClick({ currentTarget: squareEl });
-}
-
-// Drag-and-drop handling: secondary interaction mode that reuses move validation.
-function onBoardDragStart(event) {
-  const pieceEl = event.target.closest('.piece-wrap');
-  if (!pieceEl || !boardEl.contains(pieceEl)) return;
-  if (state.over || aiLocked) return;
-
-  const humanColor = activeHumanColor();
-  if (!humanColor) return;
-
-  const { r, c } = parseSquare(pieceEl.dataset.square);
-  const piece = state.board[r][c];
-  if (!piece || piece.color !== humanColor) return;
-
-  selected = { r, c };
-  legalTargets = getLegalMoves(state, humanColor).filter((m) => m.from[0] === r && m.from[1] === c);
-  dragFrom = squareKey(r, c);
-  event.dataTransfer.effectAllowed = 'move';
-  event.dataTransfer.setData('text/plain', dragFrom);
-  render();
-}
-
-function onBoardDragOver(event) {
-  const squareEl = event.target.closest('.square');
-  if (!squareEl) return;
-  event.preventDefault();
-  event.dataTransfer.dropEffect = 'move';
-}
-
-function onBoardDrop(event) {
-  const squareEl = event.target.closest('.square');
-  if (!squareEl || !dragFrom) return;
-  event.preventDefault();
-
-  if (state.over || aiLocked) {
-    dragFrom = null;
-    return;
-  }
-
-  const { r, c } = parseSquare(squareEl.dataset.key);
-  const move = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
-  if (move) playMove(move);
-
-  dragFrom = null;
-}
-
-function onBoardDragEnd() {
-  dragFrom = null;
 }
 
 function declareTimeout(loser) {
@@ -691,10 +614,6 @@ if (schoolLogoEl.complete && schoolLogoEl.naturalWidth > 0) {
 }
 
 boardEl.addEventListener('click', onBoardClick);
-boardEl.addEventListener('dragstart', onBoardDragStart);
-boardEl.addEventListener('dragover', onBoardDragOver);
-boardEl.addEventListener('drop', onBoardDrop);
-boardEl.addEventListener('dragend', onBoardDragEnd);
 
 newGame();
 startTimerLoop();

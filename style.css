@@ -223,16 +223,16 @@ button {
     linear-gradient(145deg, #9f6c4f, #7a4f38);
 }
 .square.dark::before {
-  /* School logo engraving/pattern applied only on dark squares. */
+  /* Dark-square full-logo layer: exactly one centered school logo per dark tile. */
   content: "";
   position: absolute;
   inset: 0;
   background-image: var(--logo-url);
-  background-size: 52% 52%;
-  background-repeat: repeat;
-  opacity: 0.24;
-  mix-blend-mode: multiply;
-  filter: grayscale(1) contrast(1.3) brightness(1.05);
+  /* One square = one full logo, fully opaque, no repeating fragments. */
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 1;
   z-index: 1;
   pointer-events: none;
 }
@@ -269,7 +269,7 @@ button {
 .square.check { box-shadow: inset 0 0 0 3px rgba(217,127,163,0.95), inset 0 0 26px rgba(154,116,214,0.5); }
 
 .piece-wrap {
-  /* Piece layer intentionally sits above square textures/highlights for clarity. */
+  /* Stable piece positioning: centered in each grid square and above logo/highlights. */
   position: relative;
   z-index: 6;
   width: 90%;
@@ -279,12 +279,10 @@ button {
   filter:
     drop-shadow(0 2px 0 rgba(255,255,255,0.35))
     drop-shadow(0 8px 6px rgba(0,0,0,0.45));
-  transition: transform 160ms ease, filter 160ms ease;
-  cursor: grab;
+  /* Shaking/jitter fix: remove hover/active transforms and drag affordance. */
+  transition: none;
+  cursor: pointer;
 }
-.piece-wrap:active { cursor: grabbing; }
-.square:hover .piece-wrap { transform: translateY(-3px) scale(1.03); }
-.square.selected .piece-wrap { transform: translateY(-5px) scale(1.06); }
 .piece {
   width: 100%;
   pointer-events: none;
