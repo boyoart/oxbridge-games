@@ -22,6 +22,7 @@ const kingOffsets = [[1, 1], [1, 0], [1, -1], [0, 1], [0, -1], [-1, 1], [-1, 0],
 let state;
 let selected = null;
 let legalTargets = [];
+let turnLegalMoves = [];
 let history = [];
 let nextPieceId = 1;
 let aiLocked = false;
@@ -82,6 +83,8 @@ function newGame() {
   history = [];
   aiLocked = false;
   updateGameStateStatus();
+  // Legal move generation for click interaction is refreshed once per turn.
+  turnLegalMoves = getLegalMoves(state, state.turn);
   render();
 }
 
@@ -396,6 +399,7 @@ function runComputerTurn() {
       safePlay(wasCapture ? 'capture' : 'move');
     }
     updateGameStateStatus();
+    turnLegalMoves = state.over ? [] : getLegalMoves(state, state.turn);
     aiLocked = false;
     render();
   }, 380);
@@ -473,12 +477,14 @@ function activeHumanColor() {
 }
 
 function playMove(move) {
+  // Move execution: commit exactly one move and update board state exactly once.
   history.push(structuredClone(state));
   const wasCapture = Boolean(state.board[move.to[0]][move.to[1]]) || move.type === 'enpassant';
   state = applyMove(state, move);
   selected = null;
   legalTargets = [];
   updateGameStateStatus();
+  turnLegalMoves = state.over ? [] : getLegalMoves(state, state.turn);
   safePlay(wasCapture ? 'capture' : 'move');
   render();
 
@@ -495,7 +501,7 @@ function onSquareClick(event) {
   const { r, c } = parseSquare(event.currentTarget.dataset.key);
   const piece = state.board[r][c];
   // Valid moves are generated from one legal-move source so every piece uses the same move rules.
-  const allLegalMoves = getLegalMoves(state, humanColor);
+  const allLegalMoves = (humanColor === state.turn) ? turnLegalMoves : getLegalMoves(state, humanColor);
   // Move validation trigger: destination must exist in the legal target list.
   const move = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
 
@@ -566,6 +572,7 @@ undoBtn.addEventListener('click', () => {
   legalTargets = [];
   aiLocked = false;
   updateGameStateStatus();
+  turnLegalMoves = state.over ? [] : getLegalMoves(state, state.turn);
   render();
 });
 
@@ -614,6 +621,7 @@ if (schoolLogoEl.complete && schoolLogoEl.naturalWidth > 0) {
 }
 
 boardEl.addEventListener('click', onBoardClick);
+// Unstable drag/drop interaction has been intentionally disabled in favor of stable click-to-move.
 
 newGame();
 startTimerLoop();
