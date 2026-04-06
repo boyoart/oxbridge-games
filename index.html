@@ -3,100 +3,88 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Chess Strategy | Oxbridge Tutorial College</title>
+  <title>Oxbridge 3D Chess</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="bg-overlay" aria-hidden="true"></div>
-
-  <main id="gameApp" class="app-shell prestart">
-    <header class="brand-header" aria-label="Oxbridge Tutorial College Header">
-      <div class="header-shine" aria-hidden="true"></div>
-      <div class="header-center">
-        <div class="logo-wrap" id="logoWrap">
-          <img src="assets/logo/logo.png" alt="Oxbridge Tutorial College Logo" id="schoolLogo" />
-          <span class="logo-fallback" id="logoFallback">Oxbridge Tutorial College</span>
-        </div>
-        <div class="title-wrap">
-          <h1>OXBRIDGE TUTORIAL COLLEGE</h1>
-          <p class="subtitle">Interactive Chess Strategy</p>
+  <main class="app" id="app">
+    <header class="topbar">
+      <div class="brand-block">
+        <img src="assets/logo/logo.png" alt="Oxbridge logo" id="schoolLogo" />
+        <div>
+          <p class="brand-kicker">OXBRIDGE</p>
+          <h1>3D Chess Academy</h1>
         </div>
       </div>
-      <p class="turn-badge" id="headerTurnIndicator">Awaiting start</p>
+      <div class="status-block">
+        <p id="turnIndicator">White to move</p>
+        <p id="gameStatus">Ready to play.</p>
+      </div>
     </header>
 
-    <section class="game-stage" id="gameContainer">
-      <section class="intro-screen" id="introScreen" aria-label="Game intro screen">
-        <div class="intro-card">
-          <p class="intro-kicker">OXBRIDGE DIGITAL GAME</p>
-          <h2>Chess Strategy</h2>
-          <p class="intro-sub">A premium chess challenge for planning, logic, and tactical thinking.</p>
-
-          <div class="intro-grid">
-            <label for="difficulty">Difficulty</label>
-            <select id="difficulty" aria-label="AI difficulty">
-              <option value="1">Scholar (Easy)</option>
-              <option value="2" selected>Oxford (Medium)</option>
-              <option value="3">Master (Hard)</option>
-            </select>
-
-            <label for="timeControl">Time Control</label>
-            <select id="timeControl" aria-label="Game timer">
-              <option value="180000">3:00 Blitz</option>
-              <option value="300000" selected>5:00 Standard</option>
-              <option value="600000">10:00 Classic</option>
-            </select>
-          </div>
-
-          <p class="intro-note">How to play: select one of your ivory pieces, choose a glowing square, and outplay the Oxbridge red AI before your timer runs out.</p>
-          <button class="btn intro-start" id="startBtn" type="button">Start Game</button>
+    <section class="game-layout" id="gameLayout">
+      <!-- Left side control panel rendering target -->
+      <aside class="side-panel left-panel">
+        <h2>Players</h2>
+        <div class="player-card active" id="whitePanel">
+          <p class="label">White</p>
+          <p class="value" id="whiteTimer">05:00</p>
         </div>
-      </section>
+        <div class="player-card" id="blackPanel">
+          <p class="label">Black</p>
+          <p class="value" id="blackTimer">05:00</p>
+        </div>
+        <div class="stack">
+          <button id="undoBtn">Undo</button>
+          <button id="restartBtn">Restart</button>
+        </div>
+      </aside>
 
-      <div class="board-shell">
-        <div class="board-scene" aria-label="Front-facing premium chessboard scene">
+      <section class="board-column">
+        <div class="scene-backdrop"></div>
+        <!-- 3D board perspective defined in CSS via perspective + rotateX -->
+        <div class="board-scene">
           <div class="board-shadow" aria-hidden="true"></div>
           <div class="board-stage">
             <div class="board-frame">
-              <div class="board-crest" aria-hidden="true">
-                <span class="crest-ring"></span>
-                <span class="crest-wordmark">OXBRIDGE</span>
-              </div>
-              <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+              <div class="board-watermark" aria-hidden="true">OXBRIDGE</div>
+              <div class="board" id="board" role="grid" aria-label="Chess board"></div>
             </div>
-            <div class="board-edge board-edge-front" aria-hidden="true"></div>
-            <div class="board-edge board-edge-right" aria-hidden="true"></div>
-            <div class="board-edge board-edge-left" aria-hidden="true"></div>
+            <div class="board-depth front"></div>
+            <div class="board-depth right"></div>
+            <div class="board-depth left"></div>
           </div>
         </div>
-      </div>
-
-      <section class="control-console" aria-label="Game controls and timer panel">
-        <article class="timer-panel ivory" id="whitePanel">
-          <p class="timer-label">WHITE · YOU</p>
-          <p class="timer-value" id="whiteTimer">05:00</p>
-        </article>
-
-        <div class="console-center">
-          <div class="status-row">
-            <p class="status-pill" id="turnStatus">Press Start to begin.</p>
-            <p class="status-pill" id="gameStatus">Game loaded.</p>
-          </div>
-
-          <div class="control-buttons">
-            <button class="btn" id="restartBtn" type="button">Restart</button>
-            <button class="btn" id="undoBtn" type="button">Undo</button>
-            <button class="btn" id="fullscreenBtn" type="button">Fullscreen</button>
-            <button class="btn" id="soundToggleBtn" type="button">Sound: On</button>
-            <a class="btn btn-ghost" href="/games">Return to Games</a>
-          </div>
-        </div>
-
-        <article class="timer-panel red" id="redPanel">
-          <p class="timer-label">RED · COMPUTER</p>
-          <p class="timer-value" id="redTimer">05:00</p>
-        </article>
       </section>
+
+      <!-- Right side control panel rendering target -->
+      <aside class="side-panel right-panel">
+        <h2>Settings</h2>
+        <label>Game mode
+          <select id="modeSelect">
+            <option value="ai">Player vs Computer</option>
+            <option value="local">Local 2 Player</option>
+          </select>
+        </label>
+        <label>Difficulty
+          <select id="difficultySelect">
+            <option value="1">Scholar</option>
+            <option value="2" selected>Oxford</option>
+            <option value="3">Master</option>
+          </select>
+        </label>
+        <label>Timer
+          <select id="timeControl">
+            <option value="180000">3:00 Blitz</option>
+            <option value="300000" selected>5:00 Standard</option>
+            <option value="600000">10:00 Classic</option>
+          </select>
+        </label>
+        <div class="stack">
+          <button id="fullscreenBtn">Fullscreen</button>
+          <button id="soundBtn">Sound: On</button>
+        </div>
+      </aside>
     </section>
   </main>
 
