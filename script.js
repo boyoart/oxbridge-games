@@ -1,104 +1,48 @@
 const boardEl = document.getElementById('board');
-const turnStatusEl = document.getElementById('turnStatus');
+const turnIndicatorEl = document.getElementById('turnIndicator');
 const gameStatusEl = document.getElementById('gameStatus');
-const restartBtn = document.getElementById('restartBtn');
-const undoBtn = document.getElementById('undoBtn');
-const fullscreenBtn = document.getElementById('fullscreenBtn');
-const soundToggleBtn = document.getElementById('soundToggleBtn');
-const startBtn = document.getElementById('startBtn');
-const introScreen = document.getElementById('introScreen');
-const timeControlEl = document.getElementById('timeControl');
-const headerTurnIndicatorEl = document.getElementById('headerTurnIndicator');
-const whitePanelEl = document.getElementById('whitePanel');
-const redPanelEl = document.getElementById('redPanel');
 const whiteTimerEl = document.getElementById('whiteTimer');
-const redTimerEl = document.getElementById('redTimer');
-const difficultyEl = document.getElementById('difficulty');
-const logo = document.getElementById('schoolLogo');
-const logoWrap = document.getElementById('logoWrap');
-const container = document.getElementById('gameContainer');
-const appShell = document.getElementById('gameApp');
+const blackTimerEl = document.getElementById('blackTimer');
+const whitePanelEl = document.getElementById('whitePanel');
+const blackPanelEl = document.getElementById('blackPanel');
+const undoBtn = document.getElementById('undoBtn');
+const restartBtn = document.getElementById('restartBtn');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+const soundBtn = document.getElementById('soundBtn');
+const modeSelectEl = document.getElementById('modeSelect');
+const difficultySelectEl = document.getElementById('difficultySelect');
+const timeControlEl = document.getElementById('timeControl');
+const schoolLogoEl = document.getElementById('schoolLogo');
+const gameLayoutEl = document.getElementById('gameLayout');
 
 const values = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 20000 };
 const knightOffsets = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]];
 const kingOffsets = [[1, 1], [1, 0], [1, -1], [0, 1], [0, -1], [-1, 1], [-1, 0], [-1, -1]];
 
-let state = null;
+let state;
 let selected = null;
 let legalTargets = [];
 let history = [];
-let aiLocked = false;
-let gameStarted = false;
-let moveAnimationMeta = null;
 let nextPieceId = 1;
+let aiLocked = false;
 let timerInterval = null;
 let lastTick = 0;
 let soundEnabled = true;
 
-const sounds = {
+const audio = {
   move: new Audio('assets/sounds/move.mp3'),
   capture: new Audio('assets/sounds/capture.mp3'),
   click: new Audio('assets/sounds/click.mp3')
 };
 
-function safePlaySound(kind) {
-  // Sound trigger helper: fails gracefully if files are missing or blocked.
-  if (!soundEnabled) return;
-  const clip = sounds[kind];
-  if (!clip) return;
+function safePlay(kind) {
+  if (!soundEnabled || !audio[kind]) return;
   try {
-    clip.currentTime = 0;
-    clip.play().catch(() => {});
+    audio[kind].currentTime = 0;
+    audio[kind].play().catch(() => {});
   } catch (_e) {
-    // Ignore missing/broken sound file errors for stability.
+    // Ignore autoplay/missing audio issues.
   }
-}
-
-function handleLogoFallback() {
-  logoWrap.classList.add('missing');
-}
-
-logo.addEventListener('error', handleLogoFallback, { once: true });
-if (logo.complete && logo.naturalWidth === 0) {
-  handleLogoFallback();
-}
-
-function pieceSvg(color, type) {
-  const ivory = color === 'w';
-  // Pastel theme applied
-  // Logic unchanged
-  // Visual update only
-  const main = ivory ? '#ffffff' : '#9a74d6';
-  const mid = ivory ? '#fde7f0' : '#6fa8e8';
-  const edge = ivory ? '#6a5f78' : '#2a2233';
-  const shine = ivory ? 'rgba(255,255,255,0.74)' : 'rgba(241,232,255,0.28)';
-  const piecePaths = {
-    p: '<ellipse cx="50" cy="38" rx="10" ry="10"/><path d="M37 72 C40 54, 44 48, 50 46 C56 48, 60 54, 63 72 Z"/>',
-    n: '<path d="M34 74 C35 58, 39 42, 48 30 C56 24, 66 27, 67 37 C62 37, 57 40, 56 45 C58 47, 62 50, 63 56 C61 63, 55 68, 49 70 C44 71, 40 73, 34 74 Z"/><circle cx="58" cy="35" r="2.2"/>',
-    b: '<ellipse cx="50" cy="30" rx="8" ry="10"/><path d="M50 16 L50 25 M46 20 L54 20" stroke-width="2.6" stroke-linecap="round"/><path d="M36 72 C38 56, 42 45, 50 36 C58 45, 62 56, 64 72 Z"/>',
-    r: '<path d="M34 74 L34 40 L40 34 L60 34 L66 40 L66 74 Z"/><path d="M34 40 L30 33 L38 33 L42 28 L46 33 L54 33 L58 28 L62 33 L70 33 L66 40 Z"/>',
-    q: '<path d="M34 74 C36 57, 40 44, 50 36 C60 44, 64 57, 66 74 Z"/><circle cx="36" cy="31" r="4"/><circle cx="50" cy="26" r="4"/><circle cx="64" cy="31" r="4"/>',
-    k: '<path d="M34 74 C37 56, 41 44, 50 34 C59 44, 63 56, 66 74 Z"/><path d="M50 18 L50 34 M43 25 L57 25" stroke-width="3" stroke-linecap="round"/>'
-  };
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="${type}">
-  <defs>
-    <radialGradient id="g1" cx="30%" cy="25%" r="70%">
-      <stop offset="0%" stop-color="${shine}"/>
-      <stop offset="60%" stop-color="${main}"/>
-      <stop offset="100%" stop-color="${mid}"/>
-    </radialGradient>
-    <linearGradient id="base" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="${main}"/>
-      <stop offset="100%" stop-color="${mid}"/>
-    </linearGradient>
-  </defs>
-  <ellipse cx="50" cy="84" rx="29" ry="9" fill="${edge}" opacity="0.23"/>
-  <ellipse cx="50" cy="77" rx="26" ry="9" fill="url(#base)" stroke="${edge}" stroke-width="2.1"/>
-  <g fill="url(#g1)" stroke="${edge}" stroke-width="2.2" stroke-linejoin="round">${piecePaths[type]}</g>
-</svg>`;
-
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
 function makePiece(color, type) {
@@ -121,14 +65,14 @@ function createInitialBoard() {
   return board;
 }
 
-function newGame(resetIntro = false) {
+function newGame() {
   const initial = Number(timeControlEl.value || 300000);
   state = {
     board: createInitialBoard(),
     turn: 'w',
     enPassant: null,
+    status: 'In progress',
     winner: null,
-    status: 'Your turn',
     over: false,
     check: null,
     clocks: { w: initial, b: initial }
@@ -137,20 +81,57 @@ function newGame(resetIntro = false) {
   legalTargets = [];
   history = [];
   aiLocked = false;
-  moveAnimationMeta = null;
-  if (resetIntro) gameStarted = false;
   updateGameStateStatus();
   render();
 }
 
 function inBounds(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
 function squareKey(r, c) { return `${r},${c}`; }
-function parseSquare(key) { const [r, c] = key.split(',').map(Number); return { r, c }; }
+function parseSquare(k) { const [r, c] = k.split(',').map(Number); return { r, c }; }
+function modeIsAI() { return modeSelectEl.value === 'ai'; }
 function formatTime(ms) {
   const total = Math.max(0, Math.ceil(ms / 1000));
   const min = String(Math.floor(total / 60)).padStart(2, '0');
   const sec = String(total % 60).padStart(2, '0');
   return `${min}:${sec}`;
+}
+
+function pieceSvg(color, type) {
+  // Piece materials/colors are assigned here for premium 3D-like silhouettes.
+  const isLight = color === 'w';
+  const body = isLight ? '#fff9ef' : '#5f4ca5';
+  const bodyMid = isLight ? '#edd8bc' : '#7d99d7';
+  const edge = isLight ? '#4e3e4d' : '#1e1c3b';
+  const shine = isLight ? 'rgba(255,255,255,0.86)' : 'rgba(241,232,255,0.55)';
+  const glow = isLight ? 'rgba(244,166,193,0.34)' : 'rgba(158,203,255,0.36)';
+
+  const paths = {
+    p: '<ellipse cx="50" cy="34" rx="10" ry="10"/><path d="M36 73 C39 56,44 48,50 45 C56 48,61 56,64 73 Z"/>',
+    n: '<path d="M34 74 C34 56,39 40,47 30 C57 23,68 28,67 40 C60 39,55 43,54 49 C57 51,62 54,63 60 C60 67,53 72,45 73 C41 73,38 74,34 74 Z"/><circle cx="58" cy="37" r="2.5"/>',
+    b: '<ellipse cx="50" cy="29" rx="8" ry="10"/><path d="M50 16 L50 25 M45 20 L55 20" stroke-width="2.8" stroke-linecap="round"/><path d="M35 73 C37 56,42 45,50 35 C58 45,63 56,65 73 Z"/>',
+    r: '<path d="M34 74 L34 42 L40 36 L60 36 L66 42 L66 74 Z"/><path d="M33 42 L30 34 L38 34 L42 28 L46 34 L54 34 L58 28 L62 34 L70 34 L67 42 Z"/>',
+    q: '<path d="M34 74 C36 57,40 45,50 36 C60 45,64 57,66 74 Z"/><circle cx="36" cy="30" r="4"/><circle cx="50" cy="25" r="4"/><circle cx="64" cy="30" r="4"/>',
+    k: '<path d="M34 74 C37 56,41 44,50 33 C59 44,63 56,66 74 Z"/><path d="M50 16 L50 32 M43 24 L57 24" stroke-width="3" stroke-linecap="round"/>'
+  };
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="${type}">
+    <defs>
+      <radialGradient id="body" cx="30%" cy="24%" r="78%">
+        <stop offset="0%" stop-color="${shine}"/>
+        <stop offset="58%" stop-color="${body}"/>
+        <stop offset="100%" stop-color="${bodyMid}"/>
+      </radialGradient>
+      <linearGradient id="base" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="${body}"/>
+        <stop offset="100%" stop-color="${bodyMid}"/>
+      </linearGradient>
+    </defs>
+    <ellipse cx="50" cy="83" rx="30" ry="10" fill="${glow}"/>
+    <ellipse cx="50" cy="80" rx="27" ry="9" fill="url(#base)" stroke="${edge}" stroke-width="2.1"/>
+    <g fill="url(#body)" stroke="${edge}" stroke-width="2.2" stroke-linejoin="round">${paths[type]}</g>
+  </svg>`;
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
 function getMovesForPiece(game, r, c, attackOnly = false) {
@@ -228,6 +209,7 @@ function getMovesForPiece(game, r, c, attackOnly = false) {
       }
     }
   }
+
   return moves;
 }
 
@@ -270,12 +252,14 @@ function applyMove(game, move) {
     const capRow = piece.color === 'w' ? tr + 1 : tr - 1;
     next.board[capRow][tc] = null;
   }
+
   if (move.type === 'castle-king') {
     const row = piece.color === 'w' ? 7 : 0;
     const rook = { ...next.board[row][7], moved: true };
     next.board[row][7] = null;
     next.board[row][5] = rook;
   }
+
   if (move.type === 'castle-queen') {
     const row = piece.color === 'w' ? 7 : 0;
     const rook = { ...next.board[row][0], moved: true };
@@ -308,15 +292,6 @@ function getLegalMoves(game, color) {
   return legal;
 }
 
-function declareTimeout(loser) {
-  state.over = true;
-  state.status = 'Time';
-  state.winner = loser === 'w' ? 'Computer' : 'You';
-  gameStatusEl.textContent = `${state.winner} wins on time.`;
-  turnStatusEl.textContent = 'Time expired';
-  if (headerTurnIndicatorEl) headerTurnIndicatorEl.textContent = 'Time expired';
-}
-
 function updateGameStateStatus() {
   if (state.over) return;
   const color = state.turn;
@@ -327,152 +302,20 @@ function updateGameStateStatus() {
   if (legal.length === 0) {
     state.over = true;
     if (inCheck) {
-      state.winner = color === 'w' ? 'Computer' : 'You';
       state.status = 'Checkmate';
-      gameStatusEl.textContent = `${state.status}: ${state.winner} wins.`;
+      state.winner = color === 'w' ? 'Black' : 'White';
+      gameStatusEl.textContent = `Checkmate. ${state.winner} wins.`;
     } else {
-      state.winner = null;
       state.status = 'Draw';
+      state.winner = null;
       gameStatusEl.textContent = 'Draw by stalemate.';
     }
     return;
   }
 
-  if (inCheck) gameStatusEl.textContent = 'Check';
-  else gameStatusEl.textContent = state.turn === 'w' ? 'Your turn' : 'Computer thinking';
-}
-
-function collectPiecePositions() {
-  const map = new Map();
-  boardEl.querySelectorAll('.piece-wrap[data-piece-id]').forEach((el) => {
-    map.set(el.dataset.pieceId, el.getBoundingClientRect());
-  });
-  return map;
-}
-
-function animatePieces(previousPositions) {
-  // Movement animation starts here: FLIP animation gives smooth gliding with subtle lift.
-  boardEl.querySelectorAll('.piece-wrap[data-piece-id]').forEach((el) => {
-    const prev = previousPositions.get(el.dataset.pieceId);
-    if (!prev) return;
-    const now = el.getBoundingClientRect();
-    const dx = prev.left - now.left;
-    const dy = prev.top - now.top;
-    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-
-    el.animate(
-      [
-        { transform: `translate(${dx}px, ${dy}px) scale(1.08)`, filter: 'drop-shadow(0 11px 9px rgba(0,0,0,0.45))' },
-        { transform: 'translate(0, 0) scale(1)', filter: 'drop-shadow(0 7px 4px rgba(0,0,0,0.35))' }
-      ],
-      { duration: 210, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
-    );
-  });
-}
-
-function render() {
-  const prevPositions = collectPiecePositions();
-  boardEl.innerHTML = '';
-
-  // Board and piece rendering is handled here.
-  for (let r = 0; r < 8; r += 1) {
-    for (let c = 0; c < 8; c += 1) {
-      const sq = document.createElement('button');
-      sq.type = 'button';
-      sq.className = `square ${(r + c) % 2 === 0 ? 'light' : 'dark'}`;
-      sq.dataset.key = squareKey(r, c);
-
-      if (selected && selected.r === r && selected.c === c) sq.classList.add('selected');
-
-      // Premium move highlight rendering (move/capture rings).
-      const target = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
-      if (target) sq.classList.add(target.type.includes('capture') || target.type === 'enpassant' ? 'capture' : 'move');
-
-      if (state.check) {
-        const king = findKing(state, state.check);
-        if (king && king.r === r && king.c === c) sq.classList.add('check');
-      }
-
-      if (r === 7) {
-        const fileLabel = document.createElement('span');
-        fileLabel.className = 'coord-file';
-        fileLabel.textContent = String.fromCharCode(97 + c);
-        sq.appendChild(fileLabel);
-      }
-
-      const piece = state.board[r][c];
-      if (piece) {
-        const pieceWrap = document.createElement('span');
-        pieceWrap.className = 'piece-wrap';
-        pieceWrap.dataset.pieceId = piece.id;
-
-        const img = document.createElement('img');
-        img.className = 'piece';
-        img.src = pieceSvg(piece.color, piece.type);
-        img.alt = `${piece.color === 'w' ? 'Ivory' : 'Royal'} ${piece.type}`;
-
-        pieceWrap.appendChild(img);
-        sq.appendChild(pieceWrap);
-      }
-
-      sq.addEventListener('click', onSquareClick);
-      boardEl.appendChild(sq);
-    }
-  }
-
-  animatePieces(prevPositions);
-
-  whiteTimerEl.textContent = formatTime(state.clocks.w);
-  redTimerEl.textContent = formatTime(state.clocks.b);
-
-  turnStatusEl.textContent = state.turn === 'w' ? 'Your turn (Ivory)' : 'Computer turn (Oxbridge Red)';
-  headerTurnIndicatorEl.textContent = state.turn === 'w' ? 'White to move' : 'Red to move';
-  whitePanelEl.classList.toggle('active', state.turn === 'w' && !state.over);
-  redPanelEl.classList.toggle('active', state.turn === 'b' && !state.over);
-
-  if (state.over) {
-    turnStatusEl.textContent = state.status;
-    headerTurnIndicatorEl.textContent = state.status;
-  }
-}
-
-function onSquareClick(event) {
-  if (!gameStarted || state.over || aiLocked || state.turn !== 'w') return;
-
-  const { r, c } = parseSquare(event.currentTarget.dataset.key);
-  const piece = state.board[r][c];
-  const move = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
-
-  if (selected && move) {
-    playMove(move);
-    return;
-  }
-
-  if (piece && piece.color === 'w') {
-    selected = { r, c };
-    legalTargets = getLegalMoves(state, 'w').filter((m) => m.from[0] === r && m.from[1] === c);
-  } else {
-    selected = null;
-    legalTargets = [];
-  }
-  render();
-}
-
-function playMove(move) {
-  const hadTarget = Boolean(state.board[move.to[0]][move.to[1]]) || move.type === 'enpassant';
-  // Save history for undo with timers included.
-  history.push(structuredClone(state));
-  moveAnimationMeta = move;
-  state = applyMove(state, move);
-  selected = null;
-  legalTargets = [];
-  updateGameStateStatus();
-
-  // Sound triggers fire here after move completion.
-  safePlaySound(hadTarget ? 'capture' : 'move');
-  render();
-
-  if (!state.over && state.turn === 'b') requestAnimationFrame(runComputerTurn);
+  if (inCheck) gameStatusEl.textContent = `${color === 'w' ? 'White' : 'Black'} in check.`;
+  else if (modeIsAI() && color === 'b') gameStatusEl.textContent = 'Computer thinking...';
+  else gameStatusEl.textContent = 'Game in progress.';
 }
 
 function evaluate(game) {
@@ -482,8 +325,8 @@ function evaluate(game) {
       const piece = game.board[r][c];
       if (!piece) continue;
       const base = values[piece.type];
-      const centerBonus = (3.5 - Math.abs(3.5 - r)) + (3.5 - Math.abs(3.5 - c));
-      const signed = base + (centerBonus * 4);
+      const center = (3.5 - Math.abs(3.5 - r)) + (3.5 - Math.abs(3.5 - c));
+      const signed = base + center * 4;
       score += piece.color === 'b' ? signed : -signed;
     }
   }
@@ -522,54 +365,183 @@ function minimax(game, depth, alpha, beta, maximizing) {
 }
 
 function chooseAIMove(game) {
-  const depth = Number(difficultyEl.value);
+  const depth = Number(difficultySelectEl.value || 2);
   const moves = getLegalMoves(game, 'b');
-  let bestVal = -Infinity;
   let bestMove = moves[0] || null;
-
+  let bestVal = -Infinity;
   for (const move of moves) {
-    const val = minimax(applyMove(game, move), Math.max(depth - 1, 0), -Infinity, Infinity, false);
+    const value = minimax(applyMove(game, move), Math.max(depth - 1, 0), -Infinity, Infinity, false);
     const jitter = Math.random() * 0.2;
-    if (val + jitter > bestVal) {
-      bestVal = val + jitter;
+    if (value + jitter > bestVal) {
+      bestVal = value + jitter;
       bestMove = move;
     }
   }
-
   return bestMove;
 }
 
 function runComputerTurn() {
+  if (!modeIsAI()) return;
   aiLocked = true;
-  gameStatusEl.textContent = 'Computer thinking';
-
   setTimeout(() => {
-    if (state.over || state.turn !== 'b') {
+    if (state.over || state.turn !== 'b' || !modeIsAI()) {
       aiLocked = false;
       return;
     }
-
     const move = chooseAIMove(state);
     if (move) {
       history.push(structuredClone(state));
-      const hadTarget = Boolean(state.board[move.to[0]][move.to[1]]) || move.type === 'enpassant';
+      const wasCapture = Boolean(state.board[move.to[0]][move.to[1]]) || move.type === 'enpassant';
       state = applyMove(state, move);
-      safePlaySound(hadTarget ? 'capture' : 'move');
+      safePlay(wasCapture ? 'capture' : 'move');
     }
-
     updateGameStateStatus();
     aiLocked = false;
     render();
-  }, 440);
+  }, 380);
+}
+
+function collectPiecePositions() {
+  const map = new Map();
+  boardEl.querySelectorAll('.piece-wrap[data-piece-id]').forEach((el) => {
+    map.set(el.dataset.pieceId, el.getBoundingClientRect());
+  });
+  return map;
+}
+
+function animatePieces(previous) {
+  boardEl.querySelectorAll('.piece-wrap[data-piece-id]').forEach((el) => {
+    const prev = previous.get(el.dataset.pieceId);
+    if (!prev) return;
+    const now = el.getBoundingClientRect();
+    const dx = prev.left - now.left;
+    const dy = prev.top - now.top;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+
+    el.animate(
+      [
+        { transform: `translate(${dx}px, ${dy}px) scale(1.08)`, filter: 'drop-shadow(0 11px 8px rgba(0,0,0,0.5))' },
+        { transform: 'translate(0, 0) scale(1)', filter: 'drop-shadow(0 8px 5px rgba(0,0,0,0.43))' }
+      ],
+      { duration: 190, easing: 'cubic-bezier(0.22,1,0.36,1)' }
+    );
+  });
+}
+
+function render() {
+  const prev = collectPiecePositions();
+  boardEl.innerHTML = '';
+
+  for (let r = 0; r < 8; r += 1) {
+    for (let c = 0; c < 8; c += 1) {
+      const sq = document.createElement('button');
+      sq.type = 'button';
+      sq.className = `square ${(r + c) % 2 === 0 ? 'light' : 'dark'}`;
+      sq.dataset.key = squareKey(r, c);
+
+      if (selected && selected.r === r && selected.c === c) sq.classList.add('selected');
+      const target = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
+      if (target) sq.classList.add(target.type.includes('capture') || target.type === 'enpassant' ? 'capture' : 'move');
+
+      if (state.check) {
+        const king = findKing(state, state.check);
+        if (king && king.r === r && king.c === c) sq.classList.add('check');
+      }
+
+      const piece = state.board[r][c];
+      if (piece) {
+        const wrap = document.createElement('span');
+        wrap.className = 'piece-wrap';
+        wrap.dataset.pieceId = piece.id;
+
+        const img = document.createElement('img');
+        img.className = 'piece';
+        img.src = pieceSvg(piece.color, piece.type);
+        img.alt = `${piece.color === 'w' ? 'White' : 'Black'} ${piece.type}`;
+
+        wrap.appendChild(img);
+        sq.appendChild(wrap);
+      }
+
+      sq.addEventListener('click', onSquareClick);
+      boardEl.appendChild(sq);
+    }
+  }
+
+  animatePieces(prev);
+
+  whiteTimerEl.textContent = formatTime(state.clocks.w);
+  blackTimerEl.textContent = formatTime(state.clocks.b);
+  whitePanelEl.classList.toggle('active', !state.over && state.turn === 'w');
+  blackPanelEl.classList.toggle('active', !state.over && state.turn === 'b');
+  turnIndicatorEl.textContent = state.over ? state.status : `${state.turn === 'w' ? 'White' : 'Black'} to move`;
+
+  if (modeIsAI()) {
+    const side = state.turn === 'w' ? 'You (White)' : 'Computer (Black)';
+    gameStatusEl.textContent = state.over ? gameStatusEl.textContent : `${side} · ${difficultySelectEl.selectedOptions[0].textContent}`;
+  } else {
+    gameStatusEl.textContent = state.over ? gameStatusEl.textContent : 'Local 2 Player mode';
+  }
+}
+
+function activeHumanColor() {
+  if (!modeIsAI()) return state.turn;
+  return state.turn === 'w' ? 'w' : null;
+}
+
+function playMove(move) {
+  history.push(structuredClone(state));
+  const wasCapture = Boolean(state.board[move.to[0]][move.to[1]]) || move.type === 'enpassant';
+  state = applyMove(state, move);
+  selected = null;
+  legalTargets = [];
+  updateGameStateStatus();
+  safePlay(wasCapture ? 'capture' : 'move');
+  render();
+
+  if (!state.over && modeIsAI() && state.turn === 'b') {
+    requestAnimationFrame(runComputerTurn);
+  }
+}
+
+function onSquareClick(event) {
+  if (state.over || aiLocked) return;
+  const humanColor = activeHumanColor();
+  if (!humanColor) return;
+
+  const { r, c } = parseSquare(event.currentTarget.dataset.key);
+  const piece = state.board[r][c];
+  const move = legalTargets.find((m) => m.to[0] === r && m.to[1] === c);
+
+  if (selected && move) {
+    playMove(move);
+    return;
+  }
+
+  if (piece && piece.color === humanColor) {
+    selected = { r, c };
+    legalTargets = getLegalMoves(state, humanColor).filter((m) => m.from[0] === r && m.from[1] === c);
+  } else {
+    selected = null;
+    legalTargets = [];
+  }
+
+  render();
+}
+
+function declareTimeout(loser) {
+  state.over = true;
+  state.status = 'Time';
+  state.winner = loser === 'w' ? 'Black' : 'White';
+  gameStatusEl.textContent = `${state.winner} wins on time.`;
 }
 
 function tickTimers() {
-  if (!gameStarted || !state || state.over || aiLocked) return;
+  if (!state || state.over || aiLocked) return;
   const now = performance.now();
   const delta = now - lastTick;
   lastTick = now;
 
-  // Timer start/pause/switch logic is handled in this tick function.
   state.clocks[state.turn] -= delta;
   if (state.clocks[state.turn] <= 0) {
     state.clocks[state.turn] = 0;
@@ -584,22 +556,11 @@ function startTimerLoop() {
   timerInterval = setInterval(tickTimers, 100);
 }
 
-startBtn.addEventListener('click', () => {
-  // Intro screen transitions into gameplay here.
-  safePlaySound('click');
-  gameStarted = true;
-  introScreen.classList.add('hidden');
-  appShell.classList.remove('prestart');
-  newGame();
-  startTimerLoop();
-  gameStatusEl.textContent = 'Game started. Good luck!';
-});
-
 undoBtn.addEventListener('click', () => {
-  safePlaySound('click');
-  if (!gameStarted || aiLocked || history.length === 0) return;
+  safePlay('click');
+  if (aiLocked || history.length === 0) return;
 
-  if (state.turn === 'w' && history.length >= 2) {
+  if (modeIsAI() && state.turn === 'w' && history.length >= 2) {
     history.pop();
     state = history.pop();
   } else {
@@ -614,30 +575,48 @@ undoBtn.addEventListener('click', () => {
 });
 
 restartBtn.addEventListener('click', () => {
-  safePlaySound('click');
+  safePlay('click');
   newGame();
-  if (gameStarted) {
-    startTimerLoop();
-    gameStatusEl.textContent = 'Game reset.';
-  }
+  startTimerLoop();
 });
 
-soundToggleBtn.addEventListener('click', () => {
+soundBtn.addEventListener('click', () => {
   soundEnabled = !soundEnabled;
-  soundToggleBtn.textContent = `Sound: ${soundEnabled ? 'On' : 'Off'}`;
-  safePlaySound('click');
+  soundBtn.textContent = `Sound: ${soundEnabled ? 'On' : 'Off'}`;
+  safePlay('click');
 });
 
 fullscreenBtn.addEventListener('click', async () => {
-  // Fullscreen logic is handled here.
-  safePlaySound('click');
+  safePlay('click');
   try {
-    if (!document.fullscreenElement) await container.requestFullscreen();
+    if (!document.fullscreenElement) await gameLayoutEl.requestFullscreen();
     else await document.exitFullscreen();
   } catch (_e) {
-    // Some browsers block fullscreen in iframes.
+    // Browser may block fullscreen depending on sandbox.
   }
 });
 
-newGame(true);
-render();
+modeSelectEl.addEventListener('change', () => {
+  newGame();
+});
+
+difficultySelectEl.addEventListener('change', () => {
+  render();
+});
+
+timeControlEl.addEventListener('change', () => {
+  newGame();
+  startTimerLoop();
+});
+
+schoolLogoEl.addEventListener('load', () => {
+  // School logo asset loaded and injected for engraved dark-square pattern.
+  document.documentElement.style.setProperty('--logo-url', `url("${schoolLogoEl.currentSrc || schoolLogoEl.src}")`);
+}, { once: true });
+
+if (schoolLogoEl.complete && schoolLogoEl.naturalWidth > 0) {
+  document.documentElement.style.setProperty('--logo-url', `url("${schoolLogoEl.currentSrc || schoolLogoEl.src}")`);
+}
+
+newGame();
+startTimerLoop();
