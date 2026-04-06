@@ -31,7 +31,7 @@ let timerInterval = null;
 let lastTick = 0;
 let soundEnabled = true;
 let assetLoadVersion = 0;
-let fbxRuntimePromise = null;
+let glbRuntimePromise = null;
 
 const pieceAssetCache = new Map();
 const pieceAssetById = new Map();
@@ -40,18 +40,34 @@ const pieceAssetMap = {
   // Exact lowercase root folders are required by uploaded assets:
   // /games/chess/assets/chess/pieces/white/
   // /games/chess/assets/chess/pieces/black/
-  'white-king': '/games/chess/assets/chess/pieces/white/King.fbx',
-  'white-queen': '/games/chess/assets/chess/pieces/white/Queen.fbx',
-  'white-rook': '/games/chess/assets/chess/pieces/white/Rook.fbx',
-  'white-bishop': '/games/chess/assets/chess/pieces/white/Bishop.fbx',
-  'white-knight': '/games/chess/assets/chess/pieces/white/Knight.fbx',
-  'white-pawn': '/games/chess/assets/chess/pieces/white/Pawn.fbx',
-  'black-king': '/games/chess/assets/chess/pieces/black/King.fbx',
-  'black-queen': '/games/chess/assets/chess/pieces/black/Queen.fbx',
-  'black-rook': '/games/chess/assets/chess/pieces/black/Rook.fbx',
-  'black-bishop': '/games/chess/assets/chess/pieces/black/Bishop.fbx',
-  'black-knight': '/games/chess/assets/chess/pieces/black/Knight.fbx',
-  'black-pawn': '/games/chess/assets/chess/pieces/black/Pawn.fbx'
+  'white-king': '/games/chess/assets/chess/pieces/white/king.glb',
+  'white-queen': '/games/chess/assets/chess/pieces/white/queen.glb',
+  'white-rook': '/games/chess/assets/chess/pieces/white/rook.glb',
+  'white-bishop': '/games/chess/assets/chess/pieces/white/bishop.glb',
+  'white-knight': '/games/chess/assets/chess/pieces/white/knight.glb',
+  'white-pawn': '/games/chess/assets/chess/pieces/white/pawn.glb',
+  'black-king': '/games/chess/assets/chess/pieces/black/king.glb',
+  'black-queen': '/games/chess/assets/chess/pieces/black/queen.glb',
+  'black-rook': '/games/chess/assets/chess/pieces/black/rook.glb',
+  'black-bishop': '/games/chess/assets/chess/pieces/black/bishop.glb',
+  'black-knight': '/games/chess/assets/chess/pieces/black/knight.glb',
+  'black-pawn': '/games/chess/assets/chess/pieces/black/pawn.glb'
+};
+
+// Explicit case-variant file map for hosts where uploaded filenames might be capitalized.
+const pieceAssetCaseVariants = {
+  'white-king': ['/games/chess/assets/chess/pieces/white/King.glb'],
+  'white-queen': ['/games/chess/assets/chess/pieces/white/Queen.glb'],
+  'white-rook': ['/games/chess/assets/chess/pieces/white/Rook.glb'],
+  'white-bishop': ['/games/chess/assets/chess/pieces/white/Bishop.glb'],
+  'white-knight': ['/games/chess/assets/chess/pieces/white/Knight.glb'],
+  'white-pawn': ['/games/chess/assets/chess/pieces/white/Pawn.glb'],
+  'black-king': ['/games/chess/assets/chess/pieces/black/King.glb'],
+  'black-queen': ['/games/chess/assets/chess/pieces/black/Queen.glb'],
+  'black-rook': ['/games/chess/assets/chess/pieces/black/Rook.glb'],
+  'black-bishop': ['/games/chess/assets/chess/pieces/black/Bishop.glb'],
+  'black-knight': ['/games/chess/assets/chess/pieces/black/Knight.glb'],
+  'black-pawn': ['/games/chess/assets/chess/pieces/black/Pawn.glb']
 };
 
 const audio = {
@@ -182,17 +198,17 @@ async function assetExists(url) {
   }
 }
 
-function ensureFbxRuntime() {
-  if (fbxRuntimePromise) return fbxRuntimePromise;
-  fbxRuntimePromise = Promise.all([
+function ensureGlbRuntime() {
+  if (glbRuntimePromise) return glbRuntimePromise;
+  glbRuntimePromise = Promise.all([
     import('https://unpkg.com/three@0.160.0/build/three.module.js'),
-    import('https://unpkg.com/three@0.160.0/examples/jsm/loaders/FBXLoader.js')
-  ]).then(([threeMod, loaderMod]) => ({ THREE: threeMod, FBXLoader: loaderMod.FBXLoader }));
-  return fbxRuntimePromise;
+    import('https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js')
+  ]).then(([threeMod, loaderMod]) => ({ THREE: threeMod, GLTFLoader: loaderMod.GLTFLoader }));
+  return glbRuntimePromise;
 }
 
-async function renderFbxPreview(path) {
-  const { THREE, FBXLoader } = await ensureFbxRuntime();
+async function renderGlbPreview(path) {
+  const { THREE, GLTFLoader } = await ensureGlbRuntime();
   const size = 192;
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1000);
@@ -209,8 +225,9 @@ async function renderFbxPreview(path) {
   renderer.setSize(size, size, false);
   renderer.setClearAlpha(0);
 
-  const loader = new FBXLoader();
-  const object = await loader.loadAsync(path);
+  const loader = new GLTFLoader();
+  const gltf = await loader.loadAsync(path);
+  const object = gltf.scene;
   object.traverse((child) => {
     if (child.isMesh) {
       child.castShadow = false;
@@ -241,27 +258,29 @@ async function renderFbxPreview(path) {
 
 function loadPieceAsset(pieceId) {
   if (pieceAssetCache.has(pieceId)) return pieceAssetCache.get(pieceId);
-  const fbxPath = pieceAssetMap[pieceId];
-  const pngCandidate = fbxPath ? fbxPath.replace(/\.fbx$/i, '.png') : null;
+  const glbPath = pieceAssetMap[pieceId];
+  const glbCandidates = [glbPath, ...(pieceAssetCaseVariants[pieceId] || [])].filter(Boolean);
+  const pngCandidate = glbPath ? glbPath.replace(/\.glb$/i, '.png') : null;
 
-  // FBX-first fallback chain is resolved once and cached per logical piece ID.
+  // GLB-first fallback chain is resolved once and cached per logical piece ID.
   const loader = (async () => {
-    // FBX loader call starts here (primary renderer path).
-    console.log('Trying FBX:', fbxPath);
-    if (fbxPath && await assetExists(fbxPath)) {
+    // GLB loading is attempted first for each explicit candidate path.
+    for (const candidatePath of glbCandidates) {
+      console.log('Trying GLB:', candidatePath);
+      if (!(await assetExists(candidatePath))) continue;
       try {
-        const previewUrl = await renderFbxPreview(fbxPath);
-        console.log('FBX loaded:', pieceId);
-        return { kind: 'fbx', url: previewUrl, sourceUrl: fbxPath, pieceId };
+        const previewUrl = await renderGlbPreview(candidatePath);
+        console.log('GLB loaded:', pieceId);
+        return { kind: 'glb', url: previewUrl, sourceUrl: candidatePath, pieceId };
       } catch (_e) {
-        console.log('FBX failed:', pieceId, fbxPath);
+        console.log('GLB failed:', pieceId, candidatePath);
       }
-    } else {
-      console.log('FBX failed:', pieceId, fbxPath);
     }
+    console.log('GLB failed:', pieceId, glbPath);
 
+    // If a PNG fallback exists, use it before touching the internal renderer.
     if (pngCandidate && await assetExists(pngCandidate)) return { kind: 'png', url: pngCandidate, pieceId };
-    // Old SVG/internal renderers remain disabled when FBX succeeds; this only runs after FBX failure.
+    // Old SVG/internal renderers remain disabled when GLB succeeds; this only runs after GLB failure.
     console.log('Falling back to internal renderer:', pieceId);
     return { kind: 'internal-svg', url: null, pieceId };
   })();
@@ -564,7 +583,7 @@ function renderPiece(piece, square) {
   img.className = 'piece';
   img.alt = `${piece.color === 'w' ? 'White' : 'Black'} ${PIECE_NAME_BY_TYPE[piece.type]}`;
 
-  // Old SVG/internal renderer is disabled by default while FBX/PNG loading is in progress.
+  // Old SVG/internal renderer is disabled by default while GLB/PNG loading is in progress.
   img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
   wrap.appendChild(img);
 
@@ -572,14 +591,14 @@ function renderPiece(piece, square) {
   const cached = pieceAssetById.get(pieceId);
   if (cached) {
     wrap.dataset.assetKind = cached.kind;
-    if (cached.kind === 'fbx' || cached.kind === 'png') img.src = cached.url;
+    if (cached.kind === 'glb' || cached.kind === 'png') img.src = cached.url;
     if (cached.kind === 'internal-svg') img.src = pieceSvg(piece.color, piece.type);
-    if (cached.kind === 'fbx') {
+    if (cached.kind === 'glb') {
       wrap.dataset.modelUrl = cached.sourceUrl;
       wrap.classList.add('piece-model-ready');
     }
   } else {
-    // FBX loading is attempted first; any failure follows the explicit fallback chain.
+    // GLB loading is attempted first; any failure follows the explicit fallback chain.
     loadPieceAsset(pieceId).then((result) => {
       pieceAssetById.set(result.pieceId, result);
       scheduleAssetRefresh();
