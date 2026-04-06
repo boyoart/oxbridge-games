@@ -135,6 +135,24 @@ button {
   position: relative;
   perspective: 1450px;
 }
+
+.debug-panel {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 20;
+  width: min(260px, 48vw);
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(25, 20, 35, 0.84);
+  color: #fff;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+.debug-panel h3 { margin: 0 0 8px; font-size: 0.82rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.debug-panel p { margin: 4px 0; overflow-wrap: anywhere; }
+.debug-panel span { color: #9ecbff; font-weight: 700; }
 .board-shadow {
   position: absolute;
   width: calc(var(--board-size) * 0.95);

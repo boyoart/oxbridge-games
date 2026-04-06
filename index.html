@@ -45,6 +45,16 @@
         <!-- 3D board perspective defined in CSS via perspective + rotateX -->
         <div class="board-scene">
           <div class="board-shadow" aria-hidden="true"></div>
+
+        <div class="debug-panel" id="debugPanel" aria-live="polite">
+          <h3>Debug</h3>
+          <p>Selected square: <span id="debugSelectedSquare">-</span></p>
+          <p>Selected piece: <span id="debugSelectedPiece">-</span></p>
+          <p>Renderer mode: <span id="debugRendererMode">pending</span></p>
+          <p>Legal move count: <span id="debugLegalMoveCount">0</span></p>
+          <p>GLB load count: <span id="debugGlbLoadCount">0</span></p>
+          <p>Fallback count: <span id="debugFallbackCount">0</span></p>
+        </div>
           <div class="board-stage">
             <div class="board-frame">
               <div class="board-watermark" aria-hidden="true">OXBRIDGE</div>
