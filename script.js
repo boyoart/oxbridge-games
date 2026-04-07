@@ -7,6 +7,8 @@ const fullscreenBtn = document.getElementById('fullscreenBtn');
 const modeSelectEl = document.getElementById('modeSelect');
 const difficultySelectEl = document.getElementById('difficultySelect');
 const schoolLogoEl = document.getElementById('schoolLogo');
+const capturedByWhiteEl = document.getElementById('capturedByWhite');
+const capturedByBlackEl = document.getElementById('capturedByBlack');
 
 const PIECE_TEXT = {
   w: { k: '♔', q: '♕', r: '♖', b: '♗', n: '♘', p: '♙' },
@@ -64,6 +66,8 @@ function cloneState(state) {
     board: state.board.map((row) => row.map((piece) => (piece ? { ...piece } : null))),
     turn: state.turn,
     enPassant: state.enPassant ? { ...state.enPassant } : null,
+    capturedByWhite: [...(state.capturedByWhite || [])],
+    capturedByBlack: [...(state.capturedByBlack || [])],
     over: state.over,
     winner: state.winner,
     status: state.status
@@ -76,6 +80,9 @@ function createNewGame() {
     board: createInitialBoard(),
     turn: 'w',
     enPassant: null,
+    // Captured pieces tracking: arrays store piece types taken by each side for panel rendering.
+    capturedByWhite: [],
+    capturedByBlack: [],
     over: false,
     winner: null,
     status: 'Game in progress.'
@@ -257,10 +264,12 @@ function applyMove(state, move) {
   const next = cloneState(state);
   const board = next.board;
   const piece = board[move.from.r][move.from.c];
+  let capturedPiece = board[move.to.r][move.to.c];
   board[move.from.r][move.from.c] = null;
 
   if (move.special === 'en-passant') {
     const captureRow = piece.color === 'w' ? move.to.r + 1 : move.to.r - 1;
+    capturedPiece = board[captureRow][move.to.c];
     board[captureRow][move.to.c] = null;
   }
 
@@ -280,6 +289,11 @@ function applyMove(state, move) {
 
   if (piece.type === 'p' && (move.to.r === 0 || move.to.r === 7)) {
     board[move.to.r][move.to.c] = { color: piece.color, type: 'q', moved: true };
+  }
+
+  if (capturedPiece) {
+    if (piece.color === 'w') next.capturedByWhite.push(capturedPiece.type);
+    else next.capturedByBlack.push(capturedPiece.type);
   }
 
   next.enPassant = null;
@@ -438,6 +452,7 @@ function maybeTriggerAiTurn() {
 }
 
 function render() {
+  // Red tile branding system: dark squares use the school logo via CSS variable for full-strength branding.
   if (schoolLogoEl && schoolLogoEl.complete && schoolLogoEl.naturalWidth > 0) {
     document.documentElement.style.setProperty('--logo-url', `url('${schoolLogoEl.src}')`);
   }
@@ -474,6 +489,25 @@ function render() {
     ? 'Game complete'
     : `${game.turn === 'w' ? 'White' : 'Black'} to move`;
   gameStatusEl.textContent = game.status;
+
+  if (capturedByWhiteEl && capturedByBlackEl) {
+    capturedByWhiteEl.innerHTML = '';
+    capturedByBlackEl.innerHTML = '';
+
+    for (const type of game.capturedByWhite) {
+      const icon = document.createElement('span');
+      icon.className = 'captured-piece black';
+      icon.textContent = PIECE_TEXT.b[type];
+      capturedByWhiteEl.appendChild(icon);
+    }
+
+    for (const type of game.capturedByBlack) {
+      const icon = document.createElement('span');
+      icon.className = 'captured-piece white';
+      icon.textContent = PIECE_TEXT.w[type];
+      capturedByBlackEl.appendChild(icon);
+    }
+  }
 }
 
 undoBtn.addEventListener('click', () => {
