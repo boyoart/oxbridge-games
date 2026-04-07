@@ -459,7 +459,8 @@ function render() {
       const piece = game.board[r][c];
       if (piece) {
         const pieceEl = document.createElement('span');
-        pieceEl.className = 'piece';
+        // Piece visibility improvements: color-specific class strengthens contrast while preserving gameplay logic.
+        pieceEl.className = `piece ${piece.color === 'w' ? 'white' : 'black'}`;
         pieceEl.textContent = renderPiece(piece);
         btn.appendChild(pieceEl);
       }

@@ -1,8 +1,12 @@
 :root {
   --bg: #f6f4ff;
-  --surface: #ffffff;
+  --surface: #f8f4ff;
   --text: #251f33;
   --muted: #6c6480;
+  /* Pastel theme application: soft blue/pink/purple accents for all UI chrome. */
+  --pastel-blue: #A7C7E7;
+  --pastel-pink: #F4C2C2;
+  --pastel-purple: #CDB4DB;
   --frame-dark: #4f3021;
   --frame-light: #7e5237;
   --light-square: #f2dfca;
@@ -35,8 +39,8 @@ body {
   justify-content: space-between;
   gap: 12px;
   align-items: center;
-  background: var(--surface);
-  border: 1px solid #e5deef;
+  background: linear-gradient(135deg, rgba(167, 199, 231, 0.45), rgba(205, 180, 219, 0.35));
+  border: 1px solid rgba(174, 152, 213, 0.55);
   border-radius: 14px;
   padding: 10px 14px;
 }
@@ -61,16 +65,45 @@ h1 { margin: 2px 0 0; font-size: 1.3rem; }
   grid-template-columns: repeat(2, minmax(170px, 220px)) 1fr;
   gap: 10px;
   align-items: end;
+  /* Pastel theme application: Settings panel treatment without changing board layout. */
+  background: linear-gradient(135deg, rgba(244, 194, 194, 0.28), rgba(167, 199, 231, 0.35));
+  border: 1px solid rgba(205, 180, 219, 0.6);
+  border-radius: 14px;
+  padding: 12px;
 }
 label { display: grid; gap: 6px; color: var(--muted); font-weight: 600; }
-select, button {
+select, button, .button-link {
   border: 1px solid #d8cee9;
   border-radius: 10px;
   padding: 10px;
   font: inherit;
 }
 .buttons { display: flex; gap: 8px; justify-content: flex-end; }
-button { cursor: pointer; background: #fff; }
+button, .button-link {
+  cursor: pointer;
+  color: var(--text);
+  background: linear-gradient(145deg, rgba(167, 199, 231, 0.6), rgba(244, 194, 194, 0.56), rgba(205, 180, 219, 0.62));
+  border-color: rgba(152, 129, 196, 0.5);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+select {
+  color: var(--text);
+  background: linear-gradient(145deg, rgba(167, 199, 231, 0.45), rgba(205, 180, 219, 0.35));
+  border-color: rgba(152, 129, 196, 0.42);
+}
+.button-link {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+button:hover, .button-link:hover, select:hover {
+  box-shadow: 0 6px 14px rgba(117, 92, 168, 0.18);
+  filter: brightness(1.03);
+}
+button:active, .button-link:active {
+  transform: translateY(1px);
+}
 
 .board-shell {
   margin-top: 16px;
@@ -120,11 +153,13 @@ button { cursor: pointer; background: #fff; }
   position: absolute;
   inset: 0;
   background-image: var(--logo-url);
-  background-size: 72%;
+  /* Logo opacity adjustment: lower visual competition with active pieces. */
+  background-size: 75%;
   background-repeat: no-repeat;
   background-position: center;
   opacity: 0.25;
   pointer-events: none;
+  z-index: 1;
 }
 
 .square.selected { box-shadow: inset 0 0 0 4px var(--select); }
@@ -145,15 +180,25 @@ button { cursor: pointer; background: #fff; }
 }
 
 .piece {
+  /* Piece visibility improvements: keep pieces above logo and add subtle depth/contrast. */
   position: relative;
   z-index: 2;
   font-size: clamp(26px, 4.2vmin, 44px);
   line-height: 1;
   user-select: none;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25));
+}
+.piece.white {
+  color: #ffffff;
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.piece.black {
+  color: #121212;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 @media (max-width: 840px) {
   .controls { grid-template-columns: 1fr; }
   .buttons { justify-content: stretch; }
-  .buttons button { flex: 1; }
+  .buttons > * { flex: 1; }
 }
