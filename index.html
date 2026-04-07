@@ -47,6 +47,18 @@
       </div>
     </section>
 
+    <!-- Captured pieces tracking UI: white panel shows black captures, black panel shows white captures. -->
+    <section class="captured-panels" aria-label="Captured pieces">
+      <article class="captured-panel">
+        <h2>Captured from Black</h2>
+        <div id="capturedByWhite" class="captured-list" aria-live="polite"></div>
+      </article>
+      <article class="captured-panel">
+        <h2>Captured from White</h2>
+        <div id="capturedByBlack" class="captured-list" aria-live="polite"></div>
+      </article>
+    </section>
+
     <!-- Board styling layer: framed board with square-based interaction. -->
     <section class="board-shell">
       <div class="board-frame">
