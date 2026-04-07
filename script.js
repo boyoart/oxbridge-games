@@ -38,6 +38,8 @@ let lastTick = 0;
 let soundEnabled = true;
 let assetLoadVersion = 0;
 let glbRuntimePromise = null;
+let glbTestPromise = null;
+let glbTestPassed = false;
 const TEST_GLB_PATH = '/games/chess/assets/chess/pieces/white/pawn.glb';
 const GLB_LOAD_TIMEOUT_MS = 2500;
 const PENDING_MODE_MAX_MS = 3000;
@@ -45,6 +47,8 @@ const PENDING_MODE_MAX_MS = 3000;
 const pieceAssetCache = new Map();
 const pieceAssetById = new Map();
 const rendererLogByPieceType = new Map();
+let totalGlbSuccesses = 0;
+let totalGlbFailures = 0;
 const debugState = {
   selectedSquare: '-',
   selectedPiece: '-',
@@ -94,15 +98,37 @@ function updateDebugPanel() {
 }
 
 async function verifyGlbAssetAccess() {
-  if (glbAccessVerified) return;
+  if (glbAccessVerified || glbTestPromise) return glbTestPromise;
   glbAccessVerified = true;
-  const paths = Object.values(pieceAssetMap);
-  for (const path of paths) {
-    console.log(`GLB load started: ${path}`);
-    const reachable = await assetExists(path);
-    if (reachable) console.log(`GLB load success: ${path}`);
-    else console.error(`GLB load failure: ${path}`);
-  }
+  glbTestPromise = ensureGlbRuntime()
+    .then(({ GLTFLoader }) => new Promise((resolve, reject) => {
+      console.log(`Trying GLB test load: ${TEST_GLB_PATH}`);
+      const loader = new GLTFLoader();
+      loader.load(
+        TEST_GLB_PATH,
+        () => {
+          glbTestPassed = true;
+          console.log(`GLB test success: ${TEST_GLB_PATH}`);
+          pieceAssetCache.clear();
+          pieceAssetById.clear();
+          rendererLogByPieceType.clear();
+          resolve(true);
+        },
+        undefined,
+        (error) => {
+          glbTestPassed = false;
+          console.error(`GLB test failed: ${TEST_GLB_PATH}`, error);
+          reject(error);
+        }
+      );
+    }))
+    .then(() => {
+      scheduleAssetRefresh();
+    })
+    .catch(() => {
+      scheduleAssetRefresh();
+    });
+  return glbTestPromise;
 }
 
 function setRendererMode(mode) {
@@ -264,37 +290,8 @@ function ensureGlbRuntime() {
   glbRuntimePromise = Promise.all([
     import('https://unpkg.com/three@0.160.0/build/three.module.js'),
     import('https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js')
-  ]).then(async ([threeMod, loaderMod]) => {
-    const runtime = { THREE: threeMod, GLTFLoader: loaderMod.GLTFLoader };
-    await runGlbSmokeTest(runtime);
-    return runtime;
-  });
+  ]).then(([threeMod, loaderMod]) => ({ THREE: threeMod, GLTFLoader: loaderMod.GLTFLoader }));
   return glbRuntimePromise;
-}
-
-function runGlbSmokeTest({ THREE, GLTFLoader }) {
-  return new Promise((resolve, reject) => {
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1000);
-    camera.position.set(0, 2.2, 6.2);
-    camera.lookAt(0, 1.4, 0);
-
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x334466, 1.1));
-    const loader = new GLTFLoader();
-    loader.load(
-      TEST_GLB_PATH,
-      (gltf) => {
-        console.log('GLB TEST SUCCESS');
-        scene.add(gltf.scene);
-        resolve();
-      },
-      undefined,
-      (error) => {
-        console.error('GLB TEST FAILED', error);
-        reject(error);
-      }
-    );
-  });
 }
 
 async function renderGlbPreview(path) {
@@ -328,17 +325,22 @@ async function renderGlbPreview(path) {
   });
   scene.add(object);
 
-  const box = new THREE.Box3().setFromObject(object);
-  const sizeVec = box.getSize(new THREE.Vector3());
-  const maxAxis = Math.max(sizeVec.x, sizeVec.y, sizeVec.z) || 1;
-  const targetHeight = 3.15;
-  const scale = targetHeight / maxAxis;
-  object.scale.setScalar(scale);
+  try {
+    const box = new THREE.Box3().setFromObject(object);
+    const sizeVec = box.getSize(new THREE.Vector3());
+    const maxAxis = Math.max(sizeVec.x, sizeVec.y, sizeVec.z) || 1;
+    const targetHeight = 3.15;
+    const scale = targetHeight / maxAxis;
+    object.scale.setScalar(scale);
+    object.rotation.set(0, 0, 0);
 
-  const centeredBox = new THREE.Box3().setFromObject(object);
-  const center = centeredBox.getCenter(new THREE.Vector3());
-  object.position.sub(center);
-  object.position.y -= centeredBox.min.y;
+    const centeredBox = new THREE.Box3().setFromObject(object);
+    const center = centeredBox.getCenter(new THREE.Vector3());
+    object.position.sub(center);
+    object.position.y -= centeredBox.min.y;
+  } catch (error) {
+    console.warn(`GLB normalization failed: ${path}`, error);
+  }
 
   renderer.render(scene, camera);
   const dataUrl = renderer.domElement.toDataURL('image/png');
@@ -369,26 +371,38 @@ function loadPieceAsset(pieceId) {
   const pngCandidate = glbPath ? glbPath.replace(/\.glb$/i, '.png') : null;
 
   const loader = (async () => {
+    if (!glbTestPassed) {
+      console.warn(`Using fallback: ${pieceId}`);
+      totalGlbFailures += 1;
+      console.log(`total GLB successes: ${totalGlbSuccesses}`);
+      console.log(`total GLB failures: ${totalGlbFailures}`);
+      return { kind: 'internal-svg', url: null, pieceId };
+    }
+
     for (const candidatePath of glbCandidates) {
-      console.log(`Starting GLB load for ${pieceId}`);
+      console.log(`Trying GLB: ${candidatePath}`);
       try {
         const previewUrl = await withTimeout(renderGlbPreview(candidatePath), GLB_LOAD_TIMEOUT_MS);
-        console.log(`GLB loaded for ${pieceId}`);
+        console.log(`GLB loaded: ${pieceId}`);
         debugState.glbLoadCount += 1;
+        totalGlbSuccesses += 1;
+        console.log(`total GLB successes: ${totalGlbSuccesses}`);
+        console.log(`total GLB failures: ${totalGlbFailures}`);
         return { kind: 'glb', url: previewUrl, sourceUrl: candidatePath, pieceId };
       } catch (error) {
-        if (error && error.message === 'timeout') {
-          console.warn(`GLB timed out for ${pieceId}`);
-        }
+        totalGlbFailures += 1;
+        console.error(`GLB failed: ${pieceId}`, error);
+        console.log(`total GLB successes: ${totalGlbSuccesses}`);
+        console.log(`total GLB failures: ${totalGlbFailures}`);
       }
     }
 
     if (pngCandidate && await assetExists(pngCandidate)) {
-      console.warn(`Fallback activated for ${pieceId}`);
+      console.warn(`Using fallback: ${pieceId}`);
       return { kind: 'png', url: pngCandidate, pieceId };
     }
 
-    console.warn(`Fallback activated for ${pieceId}`);
+    console.warn(`Using fallback: ${pieceId}`);
     return { kind: 'internal-svg', url: null, pieceId };
   })();
 
@@ -709,7 +723,7 @@ function renderPiece(piece, square) {
     if (rendererLogByPieceType.get(pieceId) !== 'fallback') {
       rendererLogByPieceType.set(pieceId, 'fallback');
       debugState.fallbackCount += 1;
-      console.warn(`Fallback activated for ${pieceId}`);
+      console.warn(`Using fallback: ${pieceId}`);
     }
 
     loadPieceAsset(pieceId).then((result) => {
