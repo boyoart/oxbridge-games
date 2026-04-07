@@ -39,6 +39,8 @@ let soundEnabled = true;
 let assetLoadVersion = 0;
 let glbRuntimePromise = null;
 const TEST_GLB_PATH = '/games/chess/assets/chess/pieces/white/pawn.glb';
+const GLB_LOAD_TIMEOUT_MS = 2500;
+const PENDING_MODE_MAX_MS = 3000;
 
 const pieceAssetCache = new Map();
 const pieceAssetById = new Map();
@@ -103,14 +105,19 @@ async function verifyGlbAssetAccess() {
   }
 }
 
+function setRendererMode(mode) {
+  if (debugState.rendererMode === mode) return;
+  debugState.rendererMode = mode;
+  console.log(`Renderer mode set to ${mode}`);
+}
+
 function computeRendererMode() {
-  const kinds = new Set(Array.from(pieceAssetById.values()).map((entry) => entry.kind));
-  if (kinds.size === 0) return 'pending';
-  if (kinds.size === 1) {
-    const kind = [...kinds][0];
-    return kind === 'glb' ? 'glb-only' : 'fallback-only';
-  }
-  return `mixed(${[...kinds].join('+')})`;
+  const statuses = Array.from(pieceAssetById.values()).map((entry) => (entry.kind === 'glb' ? 'glb' : 'fallback'));
+  if (statuses.length === 0) return 'pending';
+  const hasGlb = statuses.includes('glb');
+  const hasFallback = statuses.includes('fallback');
+  if (hasGlb && hasFallback) return 'mixed';
+  return hasGlb ? 'glb' : 'fallback';
 }
 
 function safePlay(kind) {
@@ -166,6 +173,13 @@ function newGame() {
   debugState.selectedPiece = '-';
   debugState.legalMoveCount = 0;
   console.log('Board initialized');
+  setRendererMode('pending');
+  setTimeout(() => {
+    if (debugState.rendererMode === 'pending') {
+      setRendererMode('fallback');
+      updateDebugPanel();
+    }
+  }, PENDING_MODE_MAX_MS);
   verifyGlbAssetAccess();
   render();
 }
@@ -238,6 +252,11 @@ async function assetExists(url) {
   } catch (_e) {
     return false;
   }
+}
+
+function getGlbCandidatePaths(path) {
+  if (!path) return [];
+  return [path];
 }
 
 function ensureGlbRuntime() {
@@ -327,37 +346,49 @@ async function renderGlbPreview(path) {
   return dataUrl;
 }
 
+function withTimeout(promise, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
+
 function loadPieceAsset(pieceId) {
   if (pieceAssetCache.has(pieceId)) return pieceAssetCache.get(pieceId);
   const glbPath = pieceAssetMap[pieceId];
   const glbCandidates = getGlbCandidatePaths(glbPath);
   const pngCandidate = glbPath ? glbPath.replace(/\.glb$/i, '.png') : null;
 
-  // GLB-first fallback chain is resolved once and cached per logical piece ID.
   const loader = (async () => {
-    // GLB loading is attempted first for each explicit candidate path.
     for (const candidatePath of glbCandidates) {
-      console.log('Loading:', candidatePath);
-      console.log(`GLB load started: ${pieceId}`);
+      console.log(`Starting GLB load for ${pieceId}`);
       try {
-        const previewUrl = await renderGlbPreview(candidatePath);
-        console.log(`GLB load success: ${pieceId}`);
+        const previewUrl = await withTimeout(renderGlbPreview(candidatePath), GLB_LOAD_TIMEOUT_MS);
+        console.log(`GLB loaded for ${pieceId}`);
         debugState.glbLoadCount += 1;
         return { kind: 'glb', url: previewUrl, sourceUrl: candidatePath, pieceId };
       } catch (error) {
-        console.error(`GLB load failure: ${pieceId} at ${candidatePath}`, error);
+        if (error && error.message === 'timeout') {
+          console.warn(`GLB timed out for ${pieceId}`);
+        }
       }
     }
 
-    // If a PNG fallback exists, use it before touching the internal renderer.
     if (pngCandidate && await assetExists(pngCandidate)) {
-      console.warn(`Fallback renderer activated: ${pieceId} (png)`);
-      debugState.fallbackCount += 1;
+      console.warn(`Fallback activated for ${pieceId}`);
       return { kind: 'png', url: pngCandidate, pieceId };
     }
-    // Old SVG/internal renderers remain disabled when GLB succeeds; this only runs after GLB failure.
-    console.warn(`Fallback renderer activated: ${pieceId} (internal-svg)`);
-    debugState.fallbackCount += 1;
+
+    console.warn(`Fallback activated for ${pieceId}`);
     return { kind: 'internal-svg', url: null, pieceId };
   })();
 
@@ -659,8 +690,7 @@ function renderPiece(piece, square) {
   img.className = 'piece';
   img.alt = `${piece.color === 'w' ? 'White' : 'Black'} ${PIECE_NAME_BY_TYPE[piece.type]}`;
 
-  // Old SVG/internal renderer is disabled by default while GLB/PNG loading is in progress.
-  img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+  img.src = pieceSvg(piece.color, piece.type);
   wrap.appendChild(img);
 
   const pieceId = getPieceId(piece);
@@ -674,15 +704,21 @@ function renderPiece(piece, square) {
       wrap.classList.add('piece-model-ready');
     }
   } else {
-    // GLB loading is attempted first; any failure follows the explicit fallback chain.
+    const immediateFallback = { kind: 'internal-svg', url: null, pieceId };
+    pieceAssetById.set(pieceId, immediateFallback);
+    if (rendererLogByPieceType.get(pieceId) !== 'fallback') {
+      rendererLogByPieceType.set(pieceId, 'fallback');
+      debugState.fallbackCount += 1;
+      console.warn(`Fallback activated for ${pieceId}`);
+    }
+
     loadPieceAsset(pieceId).then((result) => {
       pieceAssetById.set(result.pieceId, result);
       const rendererType = result.kind === 'glb' ? 'glb' : 'fallback';
       if (rendererLogByPieceType.get(result.pieceId) !== rendererType) {
         rendererLogByPieceType.set(result.pieceId, rendererType);
-        console.log(`Renderer for ${result.pieceId} = ${rendererType}`);
       }
-      debugState.rendererMode = computeRendererMode();
+      setRendererMode(computeRendererMode());
       updateDebugPanel();
       scheduleAssetRefresh();
     });
@@ -694,6 +730,7 @@ function renderPiece(piece, square) {
 function render() {
   // Jitter fix: render board from a single deterministic board-state snapshot (no drag/FLIP transform mixing).
   boardEl.innerHTML = '';
+  console.log('Board grid rendered');
 
   for (let r = 0; r < 8; r += 1) {
     for (let c = 0; c < 8; c += 1) {
@@ -735,7 +772,7 @@ function render() {
   blackPanelEl.classList.toggle('active', !boardState.over && boardState.turn === 'b');
   turnIndicatorEl.textContent = boardState.over ? boardState.status : `${boardState.turn === 'w' ? 'White' : 'Black'} to move`;
 
-  debugState.rendererMode = computeRendererMode();
+  setRendererMode(computeRendererMode());
   updateDebugPanel();
 
   if (modeIsAI()) {
