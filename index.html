@@ -3,98 +3,53 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Oxbridge 3D Chess</title>
+  <title>Oxbridge Chess</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="app" id="app">
+  <main class="app">
     <header class="topbar">
-      <div class="brand-block">
-        <img src="assets/logo/logo.png" alt="Oxbridge logo" id="schoolLogo" />
+      <div class="brand">
+        <img id="schoolLogo" src="assets/logo/logo.png" alt="Oxbridge logo" />
         <div>
-          <p class="brand-kicker">OXBRIDGE</p>
-          <h1>3D Chess Academy</h1>
+          <p class="kicker">OXBRIDGE</p>
+          <h1>Chess Academy</h1>
         </div>
       </div>
-      <div class="status-block">
+      <div class="status">
         <p id="turnIndicator">White to move</p>
-        <p id="gameStatus">Ready to play.</p>
+        <p id="gameStatus">Game in progress.</p>
       </div>
     </header>
 
-    <section class="game-layout" id="gameLayout">
-      <!-- Left side control panel rendering target -->
-      <aside class="side-panel left-panel">
-        <h2>Players</h2>
-        <div class="player-card active" id="whitePanel">
-          <p class="label">White</p>
-          <p class="value" id="whiteTimer">05:00</p>
-        </div>
-        <div class="player-card" id="blackPanel">
-          <p class="label">Black</p>
-          <p class="value" id="blackTimer">05:00</p>
-        </div>
-        <div class="stack">
-          <button id="undoBtn">Undo</button>
-          <button id="restartBtn">Restart</button>
-        </div>
-      </aside>
+    <section class="controls">
+      <label>
+        Mode
+        <select id="modeSelect">
+          <option value="ai">Player vs Computer</option>
+          <option value="local">Local 2 Player</option>
+        </select>
+      </label>
+      <label>
+        AI Level
+        <select id="difficultySelect">
+          <option value="1">Easy</option>
+          <option value="2" selected>Medium</option>
+          <option value="3">Hard</option>
+        </select>
+      </label>
+      <div class="buttons">
+        <button id="undoBtn">Undo</button>
+        <button id="restartBtn">Restart</button>
+        <button id="fullscreenBtn">Fullscreen</button>
+      </div>
+    </section>
 
-      <section class="board-column">
-        <div class="scene-backdrop"></div>
-        <!-- 3D board perspective defined in CSS via perspective + rotateX -->
-        <div class="board-scene">
-          <div class="board-shadow" aria-hidden="true"></div>
-
-        <div class="debug-panel" id="debugPanel" aria-live="polite">
-          <h3>Debug</h3>
-          <p>Selected square: <span id="debugSelectedSquare">-</span></p>
-          <p>Selected piece: <span id="debugSelectedPiece">-</span></p>
-          <p>Renderer mode: <span id="debugRendererMode">pending</span></p>
-          <p>Legal move count: <span id="debugLegalMoveCount">0</span></p>
-          <p>GLB load count: <span id="debugGlbLoadCount">0</span></p>
-          <p>Fallback count: <span id="debugFallbackCount">0</span></p>
-        </div>
-          <div class="board-stage">
-            <div class="board-frame">
-              <div class="board-watermark" aria-hidden="true">OXBRIDGE</div>
-              <div class="board" id="board" role="grid" aria-label="Chess board"></div>
-            </div>
-            <div class="board-depth front"></div>
-            <div class="board-depth right"></div>
-            <div class="board-depth left"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Right side control panel rendering target -->
-      <aside class="side-panel right-panel">
-        <h2>Settings</h2>
-        <label>Game mode
-          <select id="modeSelect">
-            <option value="ai">Player vs Computer</option>
-            <option value="local">Local 2 Player</option>
-          </select>
-        </label>
-        <label>Difficulty
-          <select id="difficultySelect">
-            <option value="1">Scholar</option>
-            <option value="2" selected>Oxford</option>
-            <option value="3">Master</option>
-          </select>
-        </label>
-        <label>Timer
-          <select id="timeControl">
-            <option value="180000">3:00 Blitz</option>
-            <option value="300000" selected>5:00 Standard</option>
-            <option value="600000">10:00 Classic</option>
-          </select>
-        </label>
-        <div class="stack">
-          <button id="fullscreenBtn">Fullscreen</button>
-          <button id="soundBtn">Sound: On</button>
-        </div>
-      </aside>
+    <!-- Board styling layer: framed board with square-based interaction. -->
+    <section class="board-shell">
+      <div class="board-frame">
+        <div id="board" class="board" role="grid" aria-label="Chess board"></div>
+      </div>
     </section>
   </main>
 
