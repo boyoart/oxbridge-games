@@ -8,6 +8,7 @@
   --wood-mid: #a97648;
   --wood-light: #cfab77;
   --mobile-ball-bar-height: 134px;
+  --desktop-ball-bar-height: 126px;
 }
 * { box-sizing: border-box; }
 body {
@@ -249,6 +250,13 @@ button, a { background: linear-gradient(135deg, #ffe6ba, #ffd08a); color: #38251
   border: 1px solid rgba(255,255,255,.7);
 }
 .compact-panel { font-size: .84rem; }
+.side-info-panel { display: grid; gap: 8px; align-content: start; }
+.status-panel-block {
+  border-radius: 10px;
+  border: 1px solid #d9c7a3;
+  padding: 6px;
+  background: #fff8e9;
+}
 .victory-wrap h3 { margin: 2px 0 6px; font-size: .84rem; }
 .victory-container { min-height: 34px; border-radius: 10px; border: 1px solid #bfa57a; padding: 5px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; background: #fff8e7; }
 .victory-token { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; }
@@ -329,9 +337,39 @@ button, a { background: linear-gradient(135deg, #ffe6ba, #ffd08a); color: #38251
 }
 
 @media (min-width: 900px) {
+  /* Desktop/mobile layout switch: board stays center stage while info widgets move to a side column. */
+  .game-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
+    grid-template-areas:
+      "top top"
+      "chips chips"
+      "board side"
+      "dock dock";
+    align-items: start;
+    column-gap: 14px;
+    padding-bottom: calc(var(--desktop-ball-bar-height) + 16px);
+  }
+  .top-hud { grid-area: top; }
+  .player-chips { grid-area: chips; }
+  .board-shell { grid-area: board; }
+  .bottom-ui { grid-area: side; }
+  .turn-dock { grid-area: dock; }
   .screen { width: min(740px, 96vw); }
-  .bottom-ui { grid-template-columns: 1fr 1fr; }
-  #ballTray.bottom-balls { position: static; border-radius: 16px; box-shadow: none; border: 1px solid #e6ca98; }
+  .bottom-ui { grid-template-columns: 1fr; align-content: start; }
+  /* Desktop fixed action bar: keep the three move balls always visible and centered near viewport bottom. */
+  #ballTray.bottom-balls {
+    position: fixed;
+    left: 50%;
+    right: auto;
+    bottom: 16px;
+    transform: translateX(-50%);
+    width: min(430px, calc(100vw - 44px));
+    border-radius: 16px;
+    border: 1px solid #e6ca98;
+    box-shadow: 0 -8px 22px rgba(58, 34, 10, 0.2);
+    justify-content: center;
+    gap: 20px;
+  }
   .turn-dock { position: static; border-radius: 16px; }
-  .game-shell { padding-bottom: 0; }
+  .ball { width: clamp(68px, 6vw, 82px); height: clamp(68px, 6vw, 82px); }
 }

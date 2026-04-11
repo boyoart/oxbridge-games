@@ -66,12 +66,14 @@
       </section>
 
       <section class="bottom-ui">
-        <aside id="leftPanel" class="panel compact-panel">
+        <!-- Side panel groups Placements + Shared Victory + Token Status together for quick scanning. -->
+        <aside id="leftPanel" class="panel compact-panel side-info-panel">
           <div id="placementsPanel"></div>
           <div id="victoryWrap" class="victory-wrap">
             <h3>Victory</h3>
             <div id="victoryContainer" class="victory-container"></div>
           </div>
+          <div id="statusPanel" class="status-panel-block"></div>
         </aside>
 
         <div class="bottom-balls" id="ballTray">
@@ -80,8 +82,6 @@
           <button data-ball="b" class="ball disabled"><span>Dice 2</span><strong>0</strong></button>
           <button data-ball="sum" class="ball disabled"><span>Sum</span><strong>0</strong></button>
         </div>
-
-        <aside id="statusPanel" class="panel compact-panel"></aside>
       </section>
 
       <section class="turn-dock">
