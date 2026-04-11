@@ -52,22 +52,24 @@
 
       <section id="playerChips" class="player-chips"></section>
 
-      <section class="board-shell">
-        <div id="board" class="board"></div>
-        <div id="centerHomeLogo" class="center-home-logo" aria-hidden="true">
-          <img src="assets/logo/logo.png" alt="" />
+      <section class="ludo-main-layout">
+        <div class="ludo-board-area">
+          <section class="board-shell">
+            <div id="board" class="board"></div>
+            <div id="centerHomeLogo" class="center-home-logo" aria-hidden="true">
+              <img src="assets/logo/logo.png" alt="" />
+            </div>
+            <div class="dice-tray" aria-hidden="true"></div>
+            <button id="diceCenter" class="dice-center" aria-label="Roll dice">
+              <div id="dieA" class="die"></div>
+              <div id="dieB" class="die"></div>
+            </button>
+            <div id="guideHand" class="guide-hand hidden">🤚</div>
+          </section>
         </div>
-        <div class="dice-tray" aria-hidden="true"></div>
-        <button id="diceCenter" class="dice-center" aria-label="Roll dice">
-          <div id="dieA" class="die"></div>
-          <div id="dieB" class="die"></div>
-        </button>
-        <div id="guideHand" class="guide-hand hidden">🤚</div>
-      </section>
-
-      <section class="bottom-ui">
-        <!-- Side panel groups Placements + Shared Victory + Token Status together for quick scanning. -->
-        <aside id="leftPanel" class="panel compact-panel side-info-panel">
+        <!-- Desktop side panel is created here and keeps all side data in one grouped column. -->
+        <aside id="leftPanel" class="panel compact-panel ludo-side-panel">
+          <!-- Grouped side panel sections are mounted here: Placements + Shared Victory + Token Status. -->
           <div id="placementsPanel"></div>
           <div id="victoryWrap" class="victory-wrap">
             <h3>Victory</h3>
@@ -75,7 +77,10 @@
           </div>
           <div id="statusPanel" class="status-panel-block"></div>
         </aside>
+      </section>
 
+      <!-- Desktop bottom ball bar is fixed in CSS so the three move balls remain docked to viewport bottom. -->
+      <section class="ludo-bottom-ball-bar">
         <div class="bottom-balls" id="ballTray">
           <!-- UI label wording standardized for the two-dice system: use "Dice" consistently in player-facing text. -->
           <button data-ball="a" class="ball disabled"><span>Dice 1</span><strong>0</strong></button>

@@ -242,7 +242,8 @@ button, a { background: linear-gradient(135deg, #ffe6ba, #ffd08a); color: #38251
 .guide-hand.grab { transform: translate(-50%, -50%) scale(1.14); }
 .token.animating { position: absolute; width: 5.2%; z-index: 6; pointer-events: none; }
 
-.bottom-ui { display: grid; gap: 8px; }
+.ludo-main-layout { display: grid; gap: 8px; }
+.ludo-board-area { display: flex; justify-content: center; }
 .panel {
   background: rgba(255,255,255,.9);
   border-radius: 14px;
@@ -250,7 +251,7 @@ button, a { background: linear-gradient(135deg, #ffe6ba, #ffd08a); color: #38251
   border: 1px solid rgba(255,255,255,.7);
 }
 .compact-panel { font-size: .84rem; }
-.side-info-panel { display: grid; gap: 8px; align-content: start; }
+.ludo-side-panel { display: grid; gap: 8px; align-content: start; }
 .status-panel-block {
   border-radius: 10px;
   border: 1px solid #d9c7a3;
@@ -265,16 +266,22 @@ button, a { background: linear-gradient(135deg, #ffe6ba, #ffd08a); color: #38251
 .victory-token.yellow { background: #d9b200; }
 .victory-token.green { background: #0e9e3f; }
 
-/* Bottom move-ball bar is fixed on mobile so Die A / Die B / Sum are always visible and touch-friendly. */
-#ballTray.bottom-balls {
+/* Bottom move-ball bar wrapper is fixed so Die A / Die B / Sum are always visible and touch-friendly. */
+.ludo-bottom-ball-bar {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 62px;
   z-index: 40;
   display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+#ballTray.bottom-balls {
+  display: flex;
   justify-content: space-evenly;
   gap: 10px;
+  width: min(460px, 100vw);
   margin: 0;
   padding: 10px 14px 12px;
   padding-left: max(14px, env(safe-area-inset-left));
@@ -282,6 +289,7 @@ button, a { background: linear-gradient(135deg, #ffe6ba, #ffd08a); color: #38251
   background: linear-gradient(180deg, rgba(255,249,232,.96), rgba(255,236,199,.98));
   border-top: 1px solid #d8b478;
   box-shadow: 0 -8px 22px rgba(58, 34, 10, 0.28);
+  pointer-events: auto;
 }
 .ball {
   width: clamp(62px, 20vw, 74px);
@@ -337,34 +345,42 @@ button, a { background: linear-gradient(135deg, #ffe6ba, #ffd08a); color: #38251
 }
 
 @media (min-width: 900px) {
-  /* Desktop/mobile layout switch: board stays center stage while info widgets move to a side column. */
+  /* Mobile/desktop layout switch is defined here: two-column desktop play area + fixed bottom ball bar. */
   .game-shell {
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      "top top"
-      "chips chips"
-      "board side"
-      "dock dock";
+      "top"
+      "chips"
+      "main"
+      "dock";
     align-items: start;
-    column-gap: 14px;
     padding-bottom: calc(var(--desktop-ball-bar-height) + 16px);
   }
   .top-hud { grid-area: top; }
   .player-chips { grid-area: chips; }
-  .board-shell { grid-area: board; }
-  .bottom-ui { grid-area: side; }
+  .ludo-main-layout { grid-area: main; }
   .turn-dock { grid-area: dock; }
-  .screen { width: min(740px, 96vw); }
-  .bottom-ui { grid-template-columns: 1fr; align-content: start; }
-  /* Desktop fixed action bar: keep the three move balls always visible and centered near viewport bottom. */
-  #ballTray.bottom-balls {
-    position: fixed;
+  .screen { width: min(1080px, 96vw); }
+  .ludo-main-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 290px);
+    align-items: start;
+    column-gap: 16px;
+  }
+  .ludo-board-area { justify-content: center; }
+  .ludo-side-panel { width: 100%; min-height: 100%; }
+  /* Desktop fixed bottom ball bar: pinned to viewport bottom center and never tied to board flow/height. */
+  .ludo-bottom-ball-bar {
     left: 50%;
     right: auto;
-    bottom: 16px;
     transform: translateX(-50%);
-    width: min(430px, calc(100vw - 44px));
+    bottom: 20px;
+    width: min(440px, calc(100vw - 44px));
+    z-index: 80;
+  }
+  #ballTray.bottom-balls {
+    width: 100%;
     border-radius: 16px;
+    border-top: none;
     border: 1px solid #e6ca98;
     box-shadow: 0 -8px 22px rgba(58, 34, 10, 0.2);
     justify-content: center;
