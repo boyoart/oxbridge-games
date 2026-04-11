@@ -1185,7 +1185,7 @@ el.soundToggleBtn.onclick = () => {
 if (el.helpBtn) {
   el.helpBtn.onclick = () => {
     sfx("click");
-    alert("Pick a bottom ball (Die A / Die B / Sum), then tap a glowing token to move.");
+    alert("Pick a bottom ball (Dice 1 / Dice 2 / Sum), then tap a glowing token to move.");
   };
 }
 
