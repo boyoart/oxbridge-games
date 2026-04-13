@@ -6,7 +6,9 @@ const SIDE_ORDER = ["user", "computer"];
 const START_INDEX = { red: 0, blue: 13, yellow: 26, green: 39 };
 const PATH_LEN = 52;
 const FINAL_HOME = 58;
-const HOME_TURN = 48;
+// Home-lane entry must be counted from the token's real board progress:
+// enter lane only after completing the full outer path (index 51 -> lane).
+const HOME_TURN = PATH_LEN - 1;
 const ENTRY_ROLL = 6;
 
 const el = {
@@ -279,12 +281,12 @@ function setupBoard() {
 function addBaseWatermarks() {
   el.board.querySelectorAll(".base-watermark").forEach((n) => n.remove());
   ["red", "blue", "yellow", "green"].forEach((color) => {
-    // Home/base styling refresh: centered school logo watermark integrated under tokens.
+    // Inner boxed base panel is removed; we render only one centered logo per solid base quadrant.
     const wrap = document.createElement("div");
     wrap.className = `base-watermark ${color}`;
-    // Base logo visual rules (100% opacity + drop shadow + behind tokens) are controlled by CSS.
+    // Full-opacity logo is kept below tokens via CSS z-index layering.
     wrap.innerHTML = '<img src="assets/logo/logo.png" alt="" aria-hidden="true" />';
-    // Pointer-events disabled so base logos never interfere with token interactivity.
+    // Pointer-events are disabled so token selection/movement is never blocked.
     wrap.style.pointerEvents = "none";
     el.board.appendChild(wrap);
   });
@@ -497,7 +499,8 @@ function getTargetPos(pos, move, ball) {
   if (pos >= 0 && pos <= HOME_TURN) {
     const toTurn = HOME_TURN - pos;
     if (move > toTurn) {
-      // Home entry logic: turn into home lane with no overshoot; invalid moves are blocked.
+      // Home-lane entry/path counting fix:
+      // derive entry from current token position on board, then advance exact remaining steps in lane.
       const inside = move - (toTurn + 1);
       const target = 52 + inside;
       return target <= FINAL_HOME ? target : null;
