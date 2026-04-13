@@ -88,30 +88,32 @@ button, a { background: linear-gradient(135deg, #ffe6ba, #ffd08a); color: #38251
   width: min(95vw, 92svh, 460px);
   aspect-ratio: 1;
   margin: 0 auto;
-  border: 10px solid #e9ddc7;
+  border: 10px solid #efe4d0;
   border-radius: 24px;
-  box-shadow: 0 14px 26px rgba(0,0,0,.34), inset 0 3px 4px rgba(255,255,255,.6);
+  box-shadow: 0 14px 30px rgba(0,0,0,.32), inset 0 3px 6px rgba(255,255,255,.7);
   overflow: hidden;
 }
-/* Board renderer styling: playful, high-contrast lanes and clean white path tiles. */
+/* Board renderer styling refresh: cleaner premium board with stronger tile contrast. */
 .board {
   width: 100%; height: 100%; display: grid;
   grid-template-columns: repeat(15, 1fr); grid-template-rows: repeat(15, 1fr);
   position: relative; z-index: 2;
-  background: #fffdf8;
+  background:
+    radial-gradient(circle at 20% 14%, rgba(255,255,255,.6), rgba(255,255,255,0) 42%),
+    linear-gradient(135deg, #fcf8ef, #f4ead9);
 }
 .tile {
-  border: 1px solid #e5e5e5;
+  border: 1px solid #dfd3bf;
   position: relative;
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: #fff;
+  background: #fffdfa;
 }
-.q-red { background: var(--ox-red); border-color: var(--ox-red); }
-.q-blue { background: var(--ox-blue); border-color: var(--ox-blue); }
-.q-yellow { background: var(--ox-yellow); border-color: var(--ox-yellow); }
-.q-green { background: var(--ox-green); border-color: var(--ox-green); }
+.q-red { background: linear-gradient(140deg, #e1574f, #c93f38); border-color: #b53832; }
+.q-blue { background: linear-gradient(140deg, #4f82e4, #3568ce); border-color: #2d58af; }
+.q-yellow { background: linear-gradient(140deg, #f3cf4f, #ddaf20); border-color: #bf9416; }
+.q-green { background: linear-gradient(140deg, #42b868, #2f9951); border-color: #277e43; }
 .track { background: #ffffff; border-color: #d4d4d4; }
 .entrance-red { background: var(--ox-red) !important; }
 .entrance-blue { background: var(--ox-blue) !important; }
@@ -121,58 +123,60 @@ button, a { background: linear-gradient(135deg, #ffe6ba, #ffd08a); color: #38251
 .home-blue { background: color-mix(in oklab, var(--ox-blue) 72%, white); }
 .home-yellow { background: color-mix(in oklab, var(--ox-yellow) 72%, white); }
 .home-green { background: color-mix(in oklab, var(--ox-green) 72%, white); }
-.center { background: #fff; }
+.center {
+  /* Center home styling update: cleaner geometry that visually anchors the board center. */
+  background: conic-gradient(
+    from 45deg,
+    color-mix(in oklab, var(--ox-red) 85%, white) 0 25%,
+    color-mix(in oklab, var(--ox-blue) 85%, white) 25% 50%,
+    color-mix(in oklab, var(--ox-yellow) 85%, white) 50% 75%,
+    color-mix(in oklab, var(--ox-green) 85%, white) 75% 100%
+  );
+  border-color: rgba(25, 19, 12, .4);
+}
 
-/* Ensure school logo in each base stays beneath tokens at all times via lower z-index layering. */
+/* Home/base styling refresh: keep only strong color blocks, logo, and tokens (no bulky base platforms). */
 .base-watermark {
-  position: absolute; width: 40%; height: 40%; z-index: 3;
+  position: absolute;
+  width: 34%;
+  height: 34%;
+  z-index: 3;
   display: grid; place-items: center; overflow: hidden; pointer-events: none;
 }
 .base-watermark img {
-  width: 70%; height: 70%; object-fit: contain;
-  opacity: .88;
-  filter: drop-shadow(0 4px 8px rgba(0,0,0,.35));
+  width: 78%; height: 78%; object-fit: contain;
+  opacity: .38;
+  filter: saturate(.85) contrast(1.06) drop-shadow(0 3px 4px rgba(0,0,0,.2));
 }
-.base-watermark.red { top: 0; left: 0; }
-.base-watermark.blue { top: 0; right: 0; }
-.base-watermark.green { bottom: 0; left: 0; }
-.base-watermark.yellow { bottom: 0; right: 0; }
+.base-watermark.red { top: 3%; left: 3%; }
+.base-watermark.blue { top: 3%; right: 3%; }
+.base-watermark.green { bottom: 3%; left: 3%; }
+.base-watermark.yellow { bottom: 3%; right: 3%; }
 
-/* Character/avatar identity panels inside each base quadrant. */
-.base-avatar {
-  position: absolute;
-  width: 26%;
-  height: 26%;
-  z-index: 3;
-  border-radius: 50%;
-  border: 2px solid rgba(255,255,255,.8);
-  background: radial-gradient(circle at 30% 20%, #fff, rgba(255,255,255,.3));
-  display: grid;
-  place-items: center;
-  font-size: 1.15rem;
-  color: #fff;
-  text-shadow: 0 2px 4px rgba(0,0,0,.3);
-  pointer-events: none;
+/* Arrow design updated to a bold filled shape for better readability across all path lanes. */
+.arrow {
+  width: 72%;
+  height: 72%;
+  display: block;
+  margin: 0 auto;
+  background: #1b1b1b;
+  clip-path: polygon(0 39%, 54% 39%, 54% 19%, 100% 50%, 54% 81%, 54% 61%, 0 61%);
 }
-.base-avatar.red { top: 7%; left: 7%; background-color: #b43c36; }
-.base-avatar.blue { top: 7%; right: 7%; background-color: #355eb2; }
-.base-avatar.green { bottom: 7%; left: 7%; background-color: #2a8d4c; }
-.base-avatar.yellow { bottom: 7%; right: 7%; background-color: #ba9108; }
-
-.arrow { width: 62%; height: 62%; position: relative; display: block; margin: 0 auto; }
-.arrow::before { content: ""; position: absolute; left: 14%; right: 28%; top: 50%; height: 2px; background: #111; transform: translateY(-50%); }
-.arrow::after { content: ""; position: absolute; top: 50%; right: 10%; width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 8px solid #111; transform: translateY(-50%); }
 .arrow.arrow-up { transform: rotate(-90deg); }
 .arrow.arrow-right { transform: rotate(0deg); }
 .arrow.arrow-down { transform: rotate(90deg); }
 .arrow.arrow-left { transform: rotate(180deg); }
 
 .center-home-logo {
-  position: absolute; left: 50%; top: 50%; width: 20%; height: 20%; transform: translate(-50%, -50%);
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); overflow: hidden; background: #fff; border: 2px solid rgba(255,255,255,.72);
+  position: absolute; left: 50%; top: 50%; width: 18%; height: 18%; transform: translate(-50%, -50%);
+  clip-path: polygon(50% 2%, 98% 50%, 50% 98%, 2% 50%);
+  overflow: hidden;
+  background: linear-gradient(145deg, #fff, #f2ead8);
+  border: 2px solid rgba(62, 46, 26, .3);
+  box-shadow: 0 3px 8px rgba(0,0,0,.2), inset 0 2px 3px rgba(255,255,255,.7);
   z-index: 2; pointer-events: none;
 }
-.center-home-logo img { width: 100%; height: 100%; object-fit: cover; }
+.center-home-logo img { width: 100%; height: 100%; object-fit: cover; opacity: .7; }
 
 /* Center dice tray creation: a compact soft pad under the two dice at board center. */
 .dice-tray {

@@ -248,7 +248,7 @@ function setupBoard() {
   for (let r = 9; r < 15; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("q-green");
   for (let r = 9; r < 15; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("q-yellow");
   addBaseWatermarks();
-  addBaseAvatars();
+  // Removed old bulky base decoration layer so bases contain only color, logo, and tokens.
 
   boardPath = [
     [6, 1], [6, 2], [6, 3], [6, 4], [6, 5], [5, 6], [4, 6], [3, 6], [2, 6], [1, 6], [0, 6], [0, 7], [0, 8],
@@ -279,7 +279,7 @@ function setupBoard() {
 function addBaseWatermarks() {
   el.board.querySelectorAll(".base-watermark").forEach((n) => n.remove());
   ["red", "blue", "yellow", "green"].forEach((color) => {
-    // Base tile logo placement: one school logo watermark per solid-color base quadrant.
+    // Home/base styling refresh: centered school logo watermark integrated under tokens.
     const wrap = document.createElement("div");
     wrap.className = `base-watermark ${color}`;
     // Base logo visual rules (100% opacity + drop shadow + behind tokens) are controlled by CSS.
@@ -290,18 +290,8 @@ function addBaseWatermarks() {
   });
 }
 
-function addBaseAvatars() {
-  el.board.querySelectorAll(".base-avatar").forEach((n) => n.remove());
-  const avatarGlyph = { red: "🦊", blue: "🐼", yellow: "🐯", green: "🐸" };
-  ["red", "blue", "yellow", "green"].forEach((color) => {
-    const avatar = document.createElement("div");
-    avatar.className = `base-avatar ${color}`;
-    avatar.textContent = avatarGlyph[color];
-    el.board.appendChild(avatar);
-  });
-}
-
 function placeArrows() {
+  // Arrow design update: use one consistent filled-arrow style for all path directions.
   const arrows = [[6, 3, "right"], [3, 6, "up"], [6, 11, "right"], [3, 8, "down"], [8, 11, "left"], [11, 8, "down"], [8, 3, "left"], [11, 6, "up"]];
   arrows.forEach(([r, c, dir]) => {
     const span = document.createElement("span");
