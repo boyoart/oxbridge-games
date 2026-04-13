@@ -140,7 +140,7 @@ function playRollSound() {
 }
 
 function newTokens() {
-  return Array.from({ length: 4 }, (_, id) => ({ id, pos: -1 }));
+  return Array.from({ length: 4 }, (_, id) => ({ id, currentPosition: -1 }));
 }
 
 function startSingle() {
@@ -232,6 +232,7 @@ function verifyDiceSoundPath() {
 
 function setupBoard() {
   el.board.innerHTML = "";
+  el.board.querySelectorAll(".inner-square, .base-inner-square, .base-panel").forEach((n) => n.remove());
   boardCells = [];
   const fragment = document.createDocumentFragment();
   for (let r = 0; r < 15; r++) {
@@ -245,11 +246,12 @@ function setupBoard() {
     }
   }
   el.board.appendChild(fragment);
-  for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("q-red");
-  for (let r = 0; r < 6; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("q-blue");
-  for (let r = 9; r < 15; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("q-green");
-  for (let r = 9; r < 15; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("q-yellow");
-  addBaseWatermarks();
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("base-zone");
+  for (let r = 0; r < 6; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("base-zone");
+  for (let r = 9; r < 15; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("base-zone");
+  for (let r = 9; r < 15; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("base-zone");
+  addBaseBlocks();
+  addBaseLogos();
   // Removed old bulky base decoration layer so bases contain only color, logo, and tokens.
 
   boardPath = [
@@ -278,15 +280,21 @@ function setupBoard() {
   console.log("Board initialized");
 }
 
-function addBaseWatermarks() {
-  el.board.querySelectorAll(".base-watermark").forEach((n) => n.remove());
+function addBaseBlocks() {
+  el.board.querySelectorAll(".base-block").forEach((n) => n.remove());
+  ["red", "blue", "green", "yellow"].forEach((color) => {
+    const block = document.createElement("div");
+    block.className = `base-block ${color}-base`;
+    el.board.appendChild(block);
+  });
+}
+
+function addBaseLogos() {
+  el.board.querySelectorAll(".base-logo").forEach((n) => n.remove());
   ["red", "blue", "yellow", "green"].forEach((color) => {
-    // Inner boxed base panel is removed; we render only one centered logo per solid base quadrant.
     const wrap = document.createElement("div");
-    wrap.className = `base-watermark ${color}`;
-    // Full-opacity logo is kept below tokens via CSS z-index layering.
+    wrap.className = `base-logo ${color}`;
     wrap.innerHTML = '<img src="assets/logo/logo.png" alt="" aria-hidden="true" />';
-    // Pointer-events are disabled so token selection/movement is never blocked.
     wrap.style.pointerEvents = "none";
     el.board.appendChild(wrap);
   });
@@ -392,10 +400,10 @@ function getForcedCombinedMove(side) {
   const activeMovable = sidePlayers(side).flatMap((player) => player.tokens
     .map((token) => ({ color: player.color, tokenId: token.id, token }))
     // One-active-token rule scope: count only tokens currently active on the board for the active side.
-    .filter(({ token }) => token.pos >= 0 && token.pos < FINAL_HOME)
+    .filter(({ token }) => token.currentPosition >= 0 && token.currentPosition < FINAL_HOME)
     .filter(({ color, token }) => {
       // Combined-total move is the only legal move candidate when exactly one active token exists.
-      const target = getTargetPos(token.pos, moveValue, "sum");
+      const target = getTargetPos(token.currentPosition, moveValue, "sum");
       return target !== null && isLandingLegalForSide(color, target);
     }));
   return activeMovable.length === 1 ? { color: activeMovable[0].color, tokenId: activeMovable[0].tokenId } : null;
@@ -405,7 +413,7 @@ function hasBaseEntryOption(side) {
   if (!side || !state.dice.rolled) return false;
   const hasUsableSix = (!state.dice.dieA.used && state.dice.dieA.value === ENTRY_ROLL) || (!state.dice.dieB.used && state.dice.dieB.value === ENTRY_ROLL);
   if (!hasUsableSix) return false;
-  return sidePlayers(side).some((player) => player.tokens.some((token) => token.pos === -1));
+  return sidePlayers(side).some((player) => player.tokens.some((token) => token.currentPosition === -1));
 }
 
 function getPlayableBalls(side) {
@@ -457,7 +465,7 @@ function showGuideHand(color, tokenId) {
   const player = state.players.find((p) => p.color === color);
   const token = player?.tokens[tokenId];
   if (!token) return;
-  const [r, c] = tokenCoord(color, token.pos, token.id);
+  const [r, c] = tokenCoord(color, token.currentPosition, token.id);
   el.guideHand.style.left = `${((c + 0.5) / 15) * 100}%`;
   el.guideHand.style.top = `${((r + 0.5) / 15) * 100 - 4}%`;
   el.guideHand.classList.remove("fade-out");
@@ -478,12 +486,12 @@ function getValidMovesForBall(side, ball) {
   const value = selectedBallValue(ball);
   const validMoves = sidePlayers(side).flatMap((player) => player.tokens
     .map((t, tokenId) => ({ playerColor: player.color, t, tokenId }))
-    .filter(({ t }) => !player.finished && getTargetPos(t.pos, value, ball) !== null)
+    .filter(({ t }) => !player.finished && getTargetPos(t.currentPosition, value, ball) !== null)
     .filter(({ t }) => {
-      const target = getTargetPos(t.pos, value, ball);
+      const target = getTargetPos(t.currentPosition, value, ball);
       return target !== null && isLandingLegalForSide(player.color, target);
     })
-    .filter(({ t }) => (t.pos !== -1 || canEnterFromBase(ball)))
+    .filter(({ t }) => (t.currentPosition !== -1 || canEnterFromBase(ball)))
     .map(({ playerColor, tokenId }) => ({ color: playerColor, tokenId })));
   if (!forcedCombined) return validMoves;
   // When one-active-token rule applies, only that single token remains valid for selection.
@@ -520,8 +528,8 @@ function isLandingLegalForSide(movingColor, targetPos) {
   const abs = (START_INDEX[movingColor] + targetPos) % PATH_LEN;
   for (const p of state.players) {
     for (const t of p.tokens) {
-      if (t.pos < 0 || t.pos > 51) continue;
-      const otherAbs = (START_INDEX[p.color] + t.pos) % PATH_LEN;
+      if (t.currentPosition < 0 || t.currentPosition > 51) continue;
+      const otherAbs = (START_INDEX[p.color] + t.currentPosition) % PATH_LEN;
       if (otherAbs !== abs) continue;
       if (isSameSide(movingColor, p.color)) return true;
       return true;
@@ -552,21 +560,25 @@ async function doMoveToken(move) {
   if (state.animating) return;
   const token = p.tokens[move.tokenId];
   const value = selectedBallValue(state.dice.selectedBall);
-  const target = getTargetPos(token.pos, value, state.dice.selectedBall);
+  const target = getTargetPos(token.currentPosition, value, state.dice.selectedBall);
   if (target === null) return;
+  const movementTarget = target;
+  console.log("Token Position:", token.currentPosition);
+  console.log("Dice Roll:", value);
+  console.log("Next Position:", movementTarget);
 
   state.animating = true;
   state.movingToken = { color: move.color, tokenId: move.tokenId };
-  const startPos = token.pos;
+  const startPos = token.currentPosition;
   render();
   await animateHandTokenMove(move.color, token.id, startPos, target);
 
   // Token state updates after movement: once the hand places the token, commit destination into game state.
-  token.pos = target;
+  token.currentPosition = target;
   sfx("token-move");
   // Final landing tile is already computed in `target`; capture check must happen only after this full move resolves.
   handleCapture(move.color, move.tokenId);
-  if (token.pos === FINAL_HOME) {
+  if (token.currentPosition === FINAL_HOME) {
     pushToVictory(p.color);
     // Win-condition check is run immediately after a token reaches home.
     if (checkAndTriggerSideWinImmediately()) return;
@@ -624,7 +636,7 @@ async function doMoveToken(move) {
 function getColorHomeCount(color) {
   const player = state.players.find((p) => p.color === color);
   if (!player) return 0;
-  return player.tokens.filter((t) => t.pos === FINAL_HOME).length;
+  return player.tokens.filter((t) => t.currentPosition === FINAL_HOME).length;
 }
 
 function sideHomeCounts() {
@@ -672,9 +684,9 @@ function checkAndTriggerSideWinImmediately() {
 function handleCapture(color, tokenId) {
   const p = state.players.find((player) => player.color === color);
   const token = p.tokens[tokenId];
-  if (token.pos < 0 || token.pos > 51) return;
+  if (token.currentPosition < 0 || token.currentPosition > 51) return;
   // Intermediate tiles are traversal-only; capture evaluates only on the token's final landing tile.
-  const abs = (START_INDEX[p.color] + token.pos) % PATH_LEN;
+  const abs = (START_INDEX[p.color] + token.currentPosition) % PATH_LEN;
   // Stacked-token capture rule: select only one enemy token deterministically (player iteration order, then token id order).
   let captured = null;
   for (const op of state.players) {
@@ -682,8 +694,8 @@ function handleCapture(color, tokenId) {
     // Capture is blocked for same-team tokens (Red/Yellow allies, Blue/Green allies).
     if (isSameSide(p.color, op.color)) continue;
     for (const ot of op.tokens) {
-      if (ot.pos < 0 || ot.pos > 51) continue;
-      const opos = (START_INDEX[op.color] + ot.pos) % PATH_LEN;
+      if (ot.currentPosition < 0 || ot.currentPosition > 51) continue;
+      const opos = (START_INDEX[op.color] + ot.currentPosition) % PATH_LEN;
       if (opos === abs) {
         captured = ot;
         break;
@@ -694,18 +706,18 @@ function handleCapture(color, tokenId) {
 
   if (!captured) return;
   // Capture resolution removes exactly one token from a stack and returns only that token to base.
-  captured.pos = -1;
+  captured.currentPosition = -1;
   // Remaining stacked token(s) stay on the landing tile and are rendered in-place on next render pass.
 
   // Difficulty branch applies only on enemy captures: easy sends capturing token home, hard keeps it on board.
-  if (state.difficulty === "easy") token.pos = FINAL_HOME;
+  if (state.difficulty === "easy") token.currentPosition = FINAL_HOME;
   sfx("capture");
 }
 
 function assignPlacements() {
   state.players.forEach((p) => {
     if (p.finished) return;
-    if (p.tokens.every((t) => t.pos === FINAL_HOME)) {
+    if (p.tokens.every((t) => t.currentPosition === FINAL_HOME)) {
       p.finished = true;
       p.place = state.placements.length + 1;
       state.placements.push({ name: p.name, color: p.color, place: p.place });
@@ -787,13 +799,13 @@ function pickAiChoice(side, balls) {
       const player = state.players.find((p) => p.color === move.color);
       const token = player.tokens[move.tokenId];
       const value = selectedBallValue(ball);
-      const target = getTargetPos(token.pos, value, ball);
+      const target = getTargetPos(token.currentPosition, value, ball);
       if (target === null) return;
       const score =
         (enemyCaptureCountAtTarget(move.color, target) * 1000) +
-        (token.pos === -1 && target === 0 ? 500 : 0) +
+        (token.currentPosition === -1 && target === 0 ? 500 : 0) +
         (target === FINAL_HOME ? 300 : 0) +
-        (target > token.pos ? target : 0);
+        (target > token.currentPosition ? target : 0);
       scored.push({ ball, move, score });
     });
   });
@@ -810,8 +822,8 @@ function enemyCaptureCountAtTarget(movingColor, targetPos) {
     // Allied-color checks are performed here for AI capture scoring.
     if (isSameSide(movingColor, p.color)) return;
     p.tokens.forEach((t) => {
-      if (t.pos < 0 || t.pos > 51) return;
-      const opos = (START_INDEX[p.color] + t.pos) % PATH_LEN;
+      if (t.currentPosition < 0 || t.currentPosition > 51) return;
+      const opos = (START_INDEX[p.color] + t.currentPosition) % PATH_LEN;
       if (opos === abs) count++;
     });
   });
@@ -898,9 +910,9 @@ function renderBoardTokens() {
   const stackGroups = new Map();
   state.players.forEach((p) => {
     p.tokens.forEach((t) => {
-      if (t.pos === FINAL_HOME) return;
+      if (t.currentPosition === FINAL_HOME) return;
       if (state.movingToken && state.movingToken.color === p.color && state.movingToken.tokenId === t.id) return;
-      const [r, c] = tokenCoord(p.color, t.pos, t.id);
+      const [r, c] = tokenCoord(p.color, t.currentPosition, t.id);
       const key = `${r}:${c}`;
       if (!stackGroups.has(key)) stackGroups.set(key, []);
       stackGroups.get(key).push({ color: p.color, tokenId: t.id, r, c });
@@ -921,7 +933,7 @@ function renderBoardTokens() {
     group.forEach((entry, idx) => {
       const { color, tokenId, r, c } = entry;
       const tok = document.createElement("button");
-      tok.className = `token ${color}`;
+      tok.className = `token tokens ${color}`;
       // Valid move highlighting spans both colors of the active side after ball selection.
       if (SIDE_BY_COLOR[color] === state.currentSide && state.validMoves.some((m) => m.color === color && m.tokenId === tokenId)) tok.classList.add("valid");
       tok.onclick = () => moveToken(color, tokenId);
@@ -993,7 +1005,7 @@ async function animateHandTokenMove(color, tokenId, startPos, targetPos) {
   const pickupTop = ((startRow + 0.5) / 15) * 100;
 
   const floating = document.createElement("div");
-  floating.className = `token ${color} animating`;
+  floating.className = `token tokens ${color} animating`;
   floating.style.left = `${pickupLeft}%`;
   floating.style.top = `${pickupTop}%`;
   floating.style.transform = "translate(-50%, -50%)";
