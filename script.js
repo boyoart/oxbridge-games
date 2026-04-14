@@ -78,7 +78,7 @@ const state = {
   online: { ws: null, roomCode: "", host: false, myIndex: -1 }
 };
 
-let boardCells = [];
+let boardCells = new Map();
 let boardPath = [];
 let homePaths = { red: [], blue: [], yellow: [], green: [] };
 let diceRollTimer = null;
@@ -233,25 +233,21 @@ function verifyDiceSoundPath() {
 function setupBoard() {
   el.board.innerHTML = "";
   el.board.querySelectorAll(".inner-square, .base-inner-square, .base-panel").forEach((n) => n.remove());
-  boardCells = [];
+  boardCells = new Map();
   const fragment = document.createDocumentFragment();
   for (let r = 0; r < 15; r++) {
     for (let c = 0; c < 15; c++) {
+      if (isBaseQuadrantCell(r, c)) continue;
       const t = document.createElement("div");
       t.className = "tile";
       t.dataset.r = r;
       t.dataset.c = c;
       fragment.appendChild(t);
-      boardCells.push(t);
+      boardCells.set(`${r}:${c}`, t);
     }
   }
   el.board.appendChild(fragment);
-  for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("base-zone");
-  for (let r = 0; r < 6; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("base-zone");
-  for (let r = 9; r < 15; r++) for (let c = 0; c < 6; c++) tile(r, c).classList.add("base-zone");
-  for (let r = 9; r < 15; r++) for (let c = 9; c < 15; c++) tile(r, c).classList.add("base-zone");
   addBaseBlocks();
-  addBaseLogos();
   // Removed old bulky base decoration layer so bases contain only color, logo, and tokens.
 
   boardPath = [
@@ -285,18 +281,12 @@ function addBaseBlocks() {
   ["red", "blue", "green", "yellow"].forEach((color) => {
     const block = document.createElement("div");
     block.className = `base-block ${color}-base`;
+    const logo = document.createElement("div");
+    logo.className = "base-logo";
+    logo.innerHTML = '<img src="assets/logo/logo.png" alt="" aria-hidden="true" />';
+    logo.style.pointerEvents = "none";
+    block.appendChild(logo);
     el.board.appendChild(block);
-  });
-}
-
-function addBaseLogos() {
-  el.board.querySelectorAll(".base-logo").forEach((n) => n.remove());
-  ["red", "blue", "yellow", "green"].forEach((color) => {
-    const wrap = document.createElement("div");
-    wrap.className = `base-logo ${color}`;
-    wrap.innerHTML = '<img src="assets/logo/logo.png" alt="" aria-hidden="true" />';
-    wrap.style.pointerEvents = "none";
-    el.board.appendChild(wrap);
   });
 }
 
@@ -312,7 +302,15 @@ function placeArrows() {
 }
 
 function tile(r, c) {
-  return boardCells[r * 15 + c];
+  return boardCells.get(`${r}:${c}`);
+}
+
+function isBaseQuadrantCell(r, c) {
+  const topBand = r < 6;
+  const bottomBand = r > 8;
+  const leftBand = c < 6;
+  const rightBand = c > 8;
+  return (topBand || bottomBand) && (leftBand || rightBand);
 }
 
 function tokenCoord(color, pos, id) {
@@ -943,7 +941,9 @@ function renderBoardTokens() {
         tok.style.setProperty("--stack-x", `${offsetX}%`);
         tok.style.setProperty("--stack-y", `${offsetY}%`);
       }
-      tile(r, c).appendChild(tok);
+      tok.style.left = `${((c + 0.5) / 15) * 100}%`;
+      tok.style.top = `${((r + 0.5) / 15) * 100}%`;
+      el.board.appendChild(tok);
     });
   });
 }
